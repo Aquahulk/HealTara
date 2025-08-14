@@ -1,0 +1,48 @@
+POST http://localhost:3001/api/register
+Content-Type: application/json
+
+{
+  "email": "test.patient@example.com",
+  "password": "password123",
+  "role": "PATIENT"
+}
+
+###
+
+POST http://localhost:3001/api/register
+Content-Type: application/json
+
+{
+  "email": "dr.sharma@example.com",
+  "password": "doctorpassword",
+  "role": "DOCTOR"
+}
+
+### Login as the patient
+POST http://localhost:3001/api/login
+Content-Type: application/json
+
+{
+  "email": "test.patient@example.com",
+  "password": "password123"
+}
+
+### Login with wrong password
+POST http://localhost:3001/api/login
+Content-Type: application/json
+
+{
+  "email": "test.patient@example.com",
+  "password": "wrongpassword"
+}
+
+### Book an Appointment (Patient Role Required)
+POST http://localhost:3001/api/appointments
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImVtYWlsIjoidGVzdC5wYXRpZW50QGV4YW1wbGUuY29tIiwicm9sZSI6IlBBVElFTlQiLCJpYXQiOjE3NTQ5Mjc2NzgsImV4cCI6MTc1NTAxNDA3OH0.0o-siDyGwWiSeBSksACG-Et2fLclm4N_N3KCOMUy9y0
+
+{
+  "doctorId": 1,
+  "date": "2025-09-15T11:00:00.000Z",
+  "reason": "Routine Checkup"
+}

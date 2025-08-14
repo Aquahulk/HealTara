@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+// In apps/api/prisma/schema.prisma
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      String   // Will be 'PATIENT', 'DOCTOR', or 'ADMIN'
+  isActive  Boolean  @default(true)  // Admin can deactivate users
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  doctorProfile DoctorProfile?
+  
+  // Appointment relations
+  doctorAppointments Appointment[] @relation("DoctorAppointments")
+  patientAppointments Appointment[] @relation("PatientAppointments")
+  
+  // Admin audit logs
+  adminAuditLogs AdminAuditLog[] @relation("AdminAuditLogs")
+}
+
+model DoctorProfile {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
+  slug             String?  @unique
+  specialization   String
+  qualifications   String?
+  experience       Int?
+  clinicName       String?
+  clinicAddress    String
+  city             String?
+  state            String?
+  phone            String
+  consultationFee  Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Appointment {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  reason    String?
+  status    String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED, COMPLETED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // Relations
+  doctorId  Int
+  patientId Int
+  doctor    User   @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient   User   @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model AdminAuditLog {
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  action    String   // CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE
+  entityType String  // USER, DOCTOR_PROFILE, APPOINTMENT
+  entityId  Int?
+  details   String?  // JSON string with additional details
+  createdAt DateTime @default(now())
+  
+  admin     User     @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: Cascade)
+}
