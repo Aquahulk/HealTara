@@ -20,7 +20,7 @@ A modern, secure healthcare appointment booking system built with Next.js, Node.
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/docproc.git
+git clone https://github.com/Aquahulk/docproc.git
 cd docproc
 ```
 
