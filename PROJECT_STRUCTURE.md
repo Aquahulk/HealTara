@@ -198,7 +198,7 @@ NEXT_PUBLIC_API_URL="http://localhost:3001"
 ## 📋 **Team Development Guidelines**
 
 ### **File Naming**
-- Use kebab-case for directories: `admin-panel/`
+- Use kebab-case for directories: `admin-secure-panel-7x9y2z-2024/`
 - Use PascalCase for components: `DoctorCard.tsx`
 - Use camelCase for functions: `updateUserRole()`
 

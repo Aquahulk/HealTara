@@ -19,18 +19,10 @@ model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   password  String
-  role      String   // Will be 'PATIENT', 'DOCTOR', or 'ADMIN'
-  isActive  Boolean  @default(true)  // Admin can deactivate users
+  role      String   // Will be 'PATIENT' or 'DOCTOR'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   doctorProfile DoctorProfile?
-  
-  // Appointment relations
-  doctorAppointments Appointment[] @relation("DoctorAppointments")
-  patientAppointments Appointment[] @relation("PatientAppointments")
-  
-  // Admin audit logs
-  adminAuditLogs AdminAuditLog[] @relation("AdminAuditLogs")
 }
 
 model DoctorProfile {
@@ -51,31 +43,10 @@ model DoctorProfile {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-
-model Appointment {
-  id        Int      @id @default(autoincrement())
-  date      DateTime
-  reason    String?
-  status    String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED, COMPLETED
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-
-  // Relations
-  doctorId  Int
-  patientId Int
-  doctor    User   @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
-  patient   User   @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
-}
-
-model AdminAuditLog {
-  id        Int      @id @default(autoincrement())
-  adminId   Int
-  action    String   // CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE
-  entityType String  // USER, DOCTOR_PROFILE, APPOINTMENT
-  entityId  Int?
-  details   String?  // JSON string with additional details
-  createdAt DateTime @default(now())
-  
-  admin     User     @relation("AdminAuditLogs", fields: [adminId], references: [id], onDelete: Cascade)
-}
+speed 
+city
+cli c  cvszsj i 
+i  o 
+datasource
+CHHAS
+cuco

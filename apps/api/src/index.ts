@@ -1,46 +1,92 @@
-import express, { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import cors from 'cors';
-import { authMiddleware } from './middleware/authMiddleware';
+// ============================================================================
+// 🏥 DOCPROC API SERVER - MAIN ENTRY POINT
+// ============================================================================
+// This file contains all the API endpoints for the healthcare appointment system
+// It handles user authentication, doctor profiles, appointments, and admin functions
+// 
+// IMPORTANT: This is the core backend that powers the entire DocProc application
+// ============================================================================
 
-// Assuming req.user is added by authMiddleware, let's define its type
-// You might need to adjust this based on your authMiddleware file
+// ============================================================================
+// 📦 EXTERNAL DEPENDENCIES - What we're importing and why
+// ============================================================================
+import express, { Request, Response, NextFunction } from 'express';  // Web framework for building APIs
+import { PrismaClient } from '@prisma/client';                      // Database ORM for easy database operations
+import bcrypt from 'bcryptjs';                                      // Password hashing for security
+import jwt from 'jsonwebtoken';                                     // JWT tokens for user authentication
+import cors from 'cors';                                            // Allows frontend to communicate with API
+import { authMiddleware } from './middleware/authMiddleware';        // Custom middleware to verify user tokens
+
+// ============================================================================
+// 🔐 TYPE DEFINITIONS - Extending Express Request to include user data
+// ============================================================================
+// This tells TypeScript that after authentication, req.user will contain user info
+// This is added by our authMiddleware when a valid JWT token is provided
 declare global {
   namespace Express {
     interface Request {
       user?: {
-        userId: number;
-        email: string;
-        role: 'PATIENT' | 'DOCTOR' | 'ADMIN';
+        userId: number;                                    // Unique user ID from database
+        email: string;                                     // User's email address
+        role: 'PATIENT' | 'DOCTOR' | 'ADMIN';             // User's role in the system
       };
     }
   }
 }
 
-const prisma = new PrismaClient();
-const app = express();
-const port = process.env.PORT || 3001;
+// ============================================================================
+// 🚀 SERVER INITIALIZATION - Setting up the Express server
+// ============================================================================
+const prisma = new PrismaClient();                        // Create database connection
+const app = express();                                     // Create Express application
+const port = process.env.PORT || 3001;                    // Use environment port or default to 3001
 
-app.use(cors());
-app.use(express.json());
+// ============================================================================
+// ⚙️ MIDDLEWARE SETUP - Functions that run before your routes
+// ============================================================================
+app.use(cors());                                           // Allow cross-origin requests (frontend ↔ backend)
+app.use(express.json());                                   // Parse JSON request bodies
 
-// --- User Registration Endpoint ---
+// ============================================================================
+// 👤 USER REGISTRATION ENDPOINT - Creates new user accounts
+// ============================================================================
+// Route: POST /api/register
+// Purpose: Allows new users to create accounts (patients, doctors, admins)
+// Security: No authentication required (public endpoint)
 app.post('/api/register', async (req: Request, res: Response) => {
-  const { email, password, role } = req.body;
+  const { email, password, role } = req.body;              // Extract data from request body
+  
+  // ============================================================================
+  // ✅ INPUT VALIDATION - Check if required fields are provided
+  // ============================================================================
   if (!email || !password || !role) {
     return res.status(400).json({ message: 'Email, password, and role are required' });
   }
+  
   try {
+    // ============================================================================
+    // 🔍 DUPLICATE CHECK - Ensure email isn't already registered
+    // ============================================================================
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // ============================================================================
+    // 🔐 PASSWORD SECURITY - Hash password before storing in database
+    // ============================================================================
+    const hashedPassword = await bcrypt.hash(password, 10);  // 10 = salt rounds (higher = more secure)
+    
+    // ============================================================================
+    // 💾 DATABASE CREATION - Save new user to database
+    // ============================================================================
     const newUser = await prisma.user.create({
       data: { email, password: hashedPassword, role },
     });
+    
+    // ============================================================================
+    // ✅ SUCCESS RESPONSE - Return user data (without password)
+    // ============================================================================
     res.status(201).json({ 
         message: 'User created successfully',
         user: { id: newUser.id, email: newUser.email, role: newUser.role } 
@@ -51,26 +97,50 @@ app.post('/api/register', async (req: Request, res: Response) => {
   }
 });
 
-// --- User Login Endpoint ---
+// ============================================================================
+// 🔑 USER LOGIN ENDPOINT - Authenticates users and provides JWT tokens
+// ============================================================================
+// Route: POST /api/login
+// Purpose: Verifies user credentials and returns authentication token
+// Security: No authentication required (public endpoint)
 app.post('/api/login', async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body;                    // Extract login credentials
+  
+  // ============================================================================
+  // ✅ INPUT VALIDATION - Check if credentials are provided
+  // ============================================================================
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required' });
   }
+  
   try {
+    // ============================================================================
+    // 🔍 USER LOOKUP - Find user in database by email
+    // ============================================================================
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    
+    // ============================================================================
+    // 🔐 PASSWORD VERIFICATION - Compare input password with stored hash
+    // ============================================================================
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    
+    // ============================================================================
+    // 🎫 JWT TOKEN GENERATION - Create secure authentication token
+    // ============================================================================
+    // JWT contains: user ID, email, role, and expiration time
+    // This token will be used for all future authenticated requests
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
+      process.env.JWT_SECRET!,                              // Secret key from environment variables
+      { expiresIn: '24h' }                                 // Token expires in 24 hours
     );
+    
     res.status(200).json({ message: 'Login successful', token: token });
   } catch (error) {
     console.error(error);
@@ -78,33 +148,152 @@ app.post('/api/login', async (req: Request, res: Response) => {
   }
 });
 
-// --- Create Doctor Profile Endpoint (Protected) ---
+// ============================================================================
+// 👨‍⚕️ CREATE DOCTOR PROFILE ENDPOINT - Allows doctors to set up their profiles
+// ============================================================================
+// Route: POST /api/doctor/profile
+// Purpose: Doctors create professional profiles with clinic information
+// Security: Requires authentication + DOCTOR role
 app.post('/api/doctor/profile', authMiddleware, async (req: Request, res: Response) => {
-  const user = req.user!;
+  const user = req.user!;                                  // User data from authMiddleware
+  
+  // ============================================================================
+  // 🚫 ROLE VERIFICATION - Ensure only doctors can create profiles
+  // ============================================================================
   if (user.role !== 'DOCTOR') {
     return res.status(403).json({ message: 'Forbidden: Only users with DOCTOR role can create a profile.' });
   }
+  
+  // ============================================================================
+  // 📝 PROFILE DATA EXTRACTION - Get all profile information from request
+  // ============================================================================
   const { specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug } = req.body;
+  
+  // ============================================================================
+  // ✅ REQUIRED FIELD VALIDATION - Check if essential fields are provided
+  // ============================================================================
   if (!specialization || !clinicAddress || !phone || !consultationFee || !slug) {
     return res.status(400).json({ message: 'Required profile fields are missing.' });
   }
+  
   try {
+    // ============================================================================
+    // 🔍 EXISTING PROFILE CHECK - Prevent duplicate profiles for same doctor
+    // ============================================================================
     const existingProfile = await prisma.doctorProfile.findUnique({
       where: { userId: user.userId },
     });
     if (existingProfile) {
       return res.status(409).json({ message: 'Profile for this doctor already exists.' });
     }
+    
+    // ============================================================================
+    // 💾 PROFILE CREATION - Save doctor profile to database
+    // ============================================================================
     const newProfile = await prisma.doctorProfile.create({
       data: {
         specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug,
-        user: { connect: { id: user.userId } },
+        user: { connect: { id: user.userId } },              // Link profile to the authenticated user
       },
     });
+    
+    // ============================================================================
+    // ✅ SUCCESS RESPONSE - Return the created profile
+    // ============================================================================
     res.status(201).json({ message: 'Doctor profile created successfully', profile: newProfile });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while creating the profile.' });
+  }
+});
+
+// ============================================================================
+// 👨‍⚕️ GET DOCTOR PROFILE ENDPOINT - Fetch the authenticated doctor's profile
+// ============================================================================
+// Route: GET /api/doctor/profile
+// Purpose: Return the doctor's existing profile so they can manage it
+// Security: Requires authentication + DOCTOR role
+app.get('/api/doctor/profile', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only users with DOCTOR role can view a doctor profile.' });
+  }
+  
+  try {
+    const profile = await prisma.doctorProfile.findUnique({
+      where: { userId: user.userId },
+    });
+    if (!profile) {
+      return res.status(404).json({ message: 'Doctor profile not found.' });
+    }
+    res.status(200).json(profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching the profile.' });
+  }
+});
+
+// ============================================================================
+// 📊 DOCTOR STATS ENDPOINT - Dashboard statistics for the authenticated doctor
+// ============================================================================
+// Route: GET /api/doctor/stats
+// Purpose: Provide key metrics for the doctor's dashboard
+// Security: Requires authentication + DOCTOR role
+app.get('/api/doctor/stats', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only users with DOCTOR role can view stats.' });
+  }
+  
+  try {
+    // Compute date range for current month
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const [
+      totalAppointments,
+      pendingAppointments,
+      completedAppointments,
+      distinctPatients,
+      doctorProfile
+    ] = await Promise.all([
+      prisma.appointment.count({ where: { doctorId: user.userId } }),
+      prisma.appointment.count({ where: { doctorId: user.userId, status: 'PENDING' } }),
+      prisma.appointment.count({ where: { doctorId: user.userId, status: 'COMPLETED' } }),
+      prisma.appointment.findMany({
+        where: { doctorId: user.userId },
+        distinct: ['patientId'],
+        select: { patientId: true },
+      }),
+      prisma.doctorProfile.findUnique({ where: { userId: user.userId } })
+    ]);
+
+    // Monthly revenue: number of completed appointments this month × consultationFee
+    const completedThisMonth = await prisma.appointment.count({
+      where: {
+        doctorId: user.userId,
+        status: 'COMPLETED',
+        date: { gte: startOfMonth, lte: endOfMonth },
+      }
+    });
+    const consultationFee = doctorProfile?.consultationFee || 0;
+    const monthlyRevenue = completedThisMonth * consultationFee;
+    const totalPatients = distinctPatients.length;
+
+    res.status(200).json({
+      totalAppointments,
+      pendingAppointments,
+      completedAppointments,
+      totalPatients,
+      monthlyRevenue,
+      websiteViews: 0,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching doctor stats.' });
   }
 });
 
