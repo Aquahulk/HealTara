@@ -232,19 +232,34 @@ export default function HomePage() {
     const loadData = async () => {
       try {
         setLoading(true);
-        
-        // Load doctors
-        const doctorsData = await apiClient.getDoctors();
-        setDoctors(doctorsData || []);
-        
-        // Load hospitals
-        const hospitalsData = await apiClient.getHospitals();
-        setHospitals(hospitalsData || []);
-        
-        // Load homepage content (from admin panel)
-        const homepageContent = await apiClient.getHomepageContent();
-        setHomepageData(homepageContent);
-        
+
+        // Fetch doctors, hospitals, and homepage content in parallel to reduce TTFB
+        const [doctorsRes, hospitalsRes, homepageRes] = await Promise.allSettled([
+          apiClient.getDoctors(),
+          apiClient.getHospitals(),
+          apiClient.getHomepageContent(),
+        ]);
+
+        if (doctorsRes.status === 'fulfilled') {
+          setDoctors(doctorsRes.value || []);
+        } else {
+          console.warn('Failed to load doctors:', (doctorsRes as any)?.reason);
+          setDoctors([]);
+        }
+
+        if (hospitalsRes.status === 'fulfilled') {
+          setHospitals(hospitalsRes.value || []);
+        } else {
+          console.warn('Failed to load hospitals:', (hospitalsRes as any)?.reason);
+          setHospitals([]);
+        }
+
+        if (homepageRes.status === 'fulfilled') {
+          setHomepageData(homepageRes.value || null);
+        } else {
+          console.warn('Failed to load homepage content:', (homepageRes as any)?.reason);
+          setHomepageData(defaultHomepageData);
+        }
       } catch (error) {
         console.error('Error loading data:', error);
         setHomepageData(defaultHomepageData);
