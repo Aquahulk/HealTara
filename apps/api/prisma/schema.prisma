@@ -19,6 +19,7 @@ model User {
   email     String   @unique
   password  String
   role      String   // 'PATIENT' | 'DOCTOR' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN'
+  canLogin  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   doctorProfile DoctorProfile? @relation("UserDoctorProfile")
@@ -40,6 +41,7 @@ model DoctorProfile {
   id               Int      @id @default(autoincrement())
   userId           Int      @unique
   slug             String?  @unique
+  micrositeEnabled Boolean  @default(true)
   specialization   String
   qualifications   String?
   experience       Int?

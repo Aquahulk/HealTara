@@ -169,6 +169,10 @@ app.post('/api/login', async (req: Request, res: Response) => {
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    // Prevent login for booking-only accounts
+    if (user.canLogin === false) {
+      return res.status(403).json({ message: 'Login disabled for this account. Contact hospital admin.' });
+    }
     
     // ============================================================================
     // 🔐 PASSWORD VERIFICATION - Compare input password with stored hash
@@ -220,7 +224,7 @@ app.post('/api/doctor/profile', authMiddleware, async (req: Request, res: Respon
   // ============================================================================
   // ✅ REQUIRED FIELD VALIDATION - Check if essential fields are provided
   // ============================================================================
-  if (!specialization || !clinicAddress || !phone || !consultationFee || !slug) {
+  if (!specialization || !clinicAddress || !phone || !consultationFee) {
     return res.status(400).json({ message: 'Required profile fields are missing.' });
   }
   
@@ -238,9 +242,27 @@ app.post('/api/doctor/profile', authMiddleware, async (req: Request, res: Respon
     // ============================================================================
     // 💾 PROFILE CREATION - Save doctor profile to database
     // ============================================================================
+    // Generate a URL-safe slug if none provided
+    const baseSlug = (slug || `${clinicName || specialization || 'doctor'}-${user.userId}`)
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/--+/g, '-');
+
+    // Ensure uniqueness by appending a short random suffix on conflict (up to 3 attempts)
+    let finalSlug = baseSlug;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const exists = await prisma.doctorProfile.findUnique({ where: { slug: finalSlug } });
+      if (!exists) break;
+      const suffix = Math.random().toString(36).slice(2, 6);
+      finalSlug = `${baseSlug}-${suffix}`;
+    }
+
     const newProfile = await prisma.doctorProfile.create({
       data: {
-        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug: slug.toLowerCase(),
+        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug: finalSlug,
         user: { connect: { id: user.userId } },              // Link profile to the authenticated user
       },
     });
@@ -457,9 +479,9 @@ app.post('/api/hospitals/:hospitalId/doctors/create', authMiddleware, hospitalAd
     const passwordPlain = `HospDoc-${uniqueTag}`;
     const hashedPassword = await bcrypt.hash(passwordPlain, 10);
 
-    // Create user with DOCTOR role
+    // Create user with DOCTOR role but disable login (booking-only)
     const doctorUser = await prisma.user.create({
-      data: { email, password: hashedPassword, role: 'DOCTOR' }
+      data: { email, password: hashedPassword, role: 'DOCTOR', canLogin: false }
     });
 
     // Optionally create a minimal profile so frontend has basic labels
@@ -479,7 +501,8 @@ app.post('/api/hospitals/:hospitalId/doctors/create', authMiddleware, hospitalAd
         state: hospital.state || undefined,
         phone,
         consultationFee,
-        slug: `${slug}-${uniqueTag}`
+        slug: null,
+        micrositeEnabled: false
       }
     });
 
@@ -648,11 +671,17 @@ app.get('/api/users', async (req: Request, res: Response) => {
 // --- Get All Doctors Endpoint (Public) ---
 app.get('/api/doctors', async (req: Request, res: Response) => {
   try {
+    // Only return doctors whose microsites are enabled
     const doctors = await prisma.user.findMany({
-      where: { role: 'DOCTOR' },
+      where: {
+        role: 'DOCTOR',
+        doctorProfile: {
+          is: { micrositeEnabled: true },
+        },
+      },
       include: { doctorProfile: true },
     });
-    const doctorsWithProfiles = doctors.filter((doctor: any) => doctor.doctorProfile);
+    const doctorsWithProfiles = doctors.filter((doctor: any) => doctor.doctorProfile && doctor.doctorProfile.micrositeEnabled);
     res.status(200).json(doctorsWithProfiles);
   } catch (error) {
     // Graceful fallback: if database is not reachable or auth fails, return empty list
@@ -678,6 +707,7 @@ app.get('/api/doctors/slug/:slug', async (req: Request, res: Response) => {
   try {
     const doctorProfile = await prisma.doctorProfile.findFirst({
       where: {
+        micrositeEnabled: true,
         OR: [
           { slug },
           { slug: slug.toLowerCase() },
@@ -1215,7 +1245,7 @@ app.put('/api/doctor/profile', authMiddleware, async (req: Request, res: Respons
     return res.status(403).json({ message: 'Forbidden: Only users with DOCTOR role can update a profile.' });
   }
   const { specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug } = req.body;
-  if (!specialization || !clinicAddress || !phone || !consultationFee || !slug) {
+  if (!specialization || !clinicAddress || !phone || !consultationFee) {
     return res.status(400).json({ message: 'Required profile fields are missing.' });
   }
   try {
@@ -1225,10 +1255,29 @@ app.put('/api/doctor/profile', authMiddleware, async (req: Request, res: Respons
     if (!existingProfile) {
       return res.status(404).json({ message: 'Profile not found. Please create a profile first.' });
     }
+    // If a new slug is provided, sanitize and ensure it’s unique
+    let sanitizedSlug: string | undefined;
+    if (typeof slug === 'string' && slug.trim().length > 0) {
+      const nextSlug = slug
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/--+/g, '-');
+      if (nextSlug !== existingProfile.slug) {
+        const conflict = await prisma.doctorProfile.findUnique({ where: { slug: nextSlug } });
+        if (conflict && conflict.userId !== user.userId) {
+          return res.status(409).json({ message: 'Slug already in use. Please choose another.' });
+        }
+      }
+      sanitizedSlug = nextSlug;
+    }
     const updatedProfile = await prisma.doctorProfile.update({
       where: { userId: user.userId },
       data: {
-        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug: slug.toLowerCase(),
+        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee,
+        ...(sanitizedSlug ? { slug: sanitizedSlug } : {}),
       },
     });
     res.status(200).json({ message: 'Doctor profile updated successfully', profile: updatedProfile });

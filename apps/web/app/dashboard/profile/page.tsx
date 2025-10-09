@@ -19,7 +19,6 @@ export default function DoctorProfilePage() {
     city: '',
     state: '',
     phone: '',
-    subdomain_slug: '',
     consultationFee: 0,
   });
   const [message, setMessage] = useState('');
@@ -61,14 +60,8 @@ export default function DoctorProfilePage() {
     }
 
     try {
-      // Transform the form data to match API expectations
-      const { subdomain_slug, ...rest } = formData;
-      const apiData = {
-        ...rest,
-        slug: subdomain_slug, // Map subdomain_slug to slug
-      };
-
-      await apiClient.createDoctorProfile(apiData);
+      // Submit form data; slug is auto-generated server-side
+      await apiClient.createDoctorProfile(formData);
       setMessage('Success! Your profile has been saved.');
     } catch (error: any) {
       setMessage(`Error: ${error.message || 'Could not connect to the server.'}`);
@@ -86,7 +79,6 @@ export default function DoctorProfilePage() {
 
   // A helper array to create form fields dynamically
   const formFields = [
-  { name: 'subdomain_slug', type: 'text' }, // Add this line
   { name: 'specialization', type: 'text' },
   { name: 'qualifications', type: 'text' },
   // ... keep the rest of the fields

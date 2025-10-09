@@ -47,8 +47,7 @@ export default function HospitalDoctorsRoster({ doctors, profileDoctors }: Hospi
             : link.doctor.email.split('@')[0];
           const specialization = dp?.specialization || 'Specialist';
           const clinicName = dp?.clinicName || 'Clinic';
-          const slug = dp?.slug;
-          const siteHref = slug ? `/site/${slug}` : undefined;
+          // We intentionally do not link to doctor microsites from hospital pages
           return (
             <div key={idx} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
               <div className="text-5xl mb-4">👨‍⚕️</div>
@@ -56,13 +55,6 @@ export default function HospitalDoctorsRoster({ doctors, profileDoctors }: Hospi
               <p className="text-gray-600 mt-1">{specialization}</p>
               <p className="text-gray-500 mt-1">{clinicName}</p>
               <div className="mt-4 flex gap-3">
-                {siteHref ? (
-                  <a href={siteHref} className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg">
-                    View Site
-                  </a>
-                ) : (
-                  <span className="inline-block bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg">Profile Coming Soon</span>
-                )}
                 <button
                   onClick={() => openBooking(link.doctor.id)}
                   className="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg"
