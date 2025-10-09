@@ -5,6 +5,7 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "lib": ["ES2019", "DOM"],
+    "types": ["node", "express", "cors", "jsonwebtoken"],
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
