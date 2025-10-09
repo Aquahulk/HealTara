@@ -1,5 +1,5 @@
 import express, { Request, Response, Router } from 'express';
-import { PrismaClient, AppointmentStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const router: Router = express.Router();
@@ -7,7 +7,8 @@ const router: Router = express.Router();
 // Define a type for the request body to ensure type safety
 interface AppointmentBody {
   date: string;
-  reason: string;
+  time: string;
+  reason?: string;
   doctorId: number;
   patientId: number;
 }
@@ -15,10 +16,10 @@ interface AppointmentBody {
 // POST /api/appointments/ - Creates a new appointment
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { date, reason, doctorId, patientId }: AppointmentBody = req.body;
+    const { date, time, reason, doctorId, patientId }: AppointmentBody = req.body;
 
-    if (!date || !reason || !doctorId || !patientId) {
-      return res.status(400).json({ message: 'Missing required fields.' });
+    if (!date || !time || !doctorId || !patientId) {
+      return res.status(400).json({ message: 'Missing required fields (date, time, doctorId, patientId).' });
     }
     const appointmentDate = new Date(date);
     if (appointmentDate < new Date()) {
@@ -26,7 +27,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const newAppointment = await prisma.appointment.create({
-      data: { date: appointmentDate, reason, doctorId, patientId },
+      data: { date: appointmentDate, time, notes: reason, doctorId, patientId },
     });
     res.status(201).json({ message: 'Appointment booked successfully', appointment: newAppointment });
   } catch (error) {
@@ -56,9 +57,9 @@ router.get('/user/:userId', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status }: { status: AppointmentStatus } = req.body;
-
-    if (!status || !Object.values(AppointmentStatus).includes(status)) {
+    const { status }: { status: string } = req.body;
+    const validStatuses = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'];
+    if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status provided.' });
     }
 

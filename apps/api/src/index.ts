@@ -580,7 +580,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
       where: { role: 'DOCTOR' },
       include: { doctorProfile: true },
     });
-    const doctorsWithProfiles = doctors.filter(doctor => doctor.doctorProfile);
+    const doctorsWithProfiles = doctors.filter((doctor: any) => doctor.doctorProfile);
     res.status(200).json(doctorsWithProfiles);
   } catch (error) {
     // Graceful fallback: if database is not reachable or auth fails, return empty list
@@ -666,14 +666,14 @@ app.get('/api/availability', async (req: Request, res: Response) => {
       select: { time: true }
     });
 
-    const hoursFromSlots = Array.from(new Set(publishedSlots.map(s => s.time.slice(0, 2)))).sort();
+    const hoursFromSlots = Array.from(new Set(publishedSlots.map((s: any) => s.time.slice(0, 2)))).sort();
     const defaultHours = Array.from({ length: 13 }, (_, i) => String(i + 9).padStart(2, '0')); // 09..21
     const hoursToCheck = (hoursFromSlots.length ? hoursFromSlots : defaultHours);
 
     const results = hoursToCheck.map((hourStr) => {
       const segmentMinutes = Array.from({ length: segmentsPerHour }, (_, i) => String(i * periodMinutes).padStart(2, '0'));
       const segmentTimes = segmentMinutes.map(m => `${hourStr}:${m}`);
-      const bookedCount = dayAppointments.filter(a => segmentTimes.includes(a.time)).length;
+      const bookedCount = dayAppointments.filter((a: any) => segmentTimes.includes(a.time)).length;
       const capacity = segmentsPerHour;
       const isFull = bookedCount >= capacity;
       // Labels (IST hour window)
@@ -731,7 +731,7 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
       },
       select: { time: true }
     });
-    const takenTimes = new Set(existingQuarterAppointments.map(a => a.time));
+    const takenTimes = new Set(existingQuarterAppointments.map((a: any) => a.time));
 
     // Choose final 15-min time
     let finalTime: string | null = null;
@@ -795,7 +795,7 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
       }
       // AVAILABLE: book atomically and mark slot as BOOKED
       console.info('[book] slot-found-available', { slotId: matchedSlot.id, doctorId: normalizedDoctorId, date, time: finalTime });
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         const created = await tx.appointment.create({
           data: {
             date: requestedDate,
@@ -887,7 +887,7 @@ app.get('/api/slots', async (req: Request, res: Response) => {
     }
     const slots = await prisma.slot.findMany({ where, orderBy: [{ date: 'asc' }, { time: 'asc' }] });
     console.info('[slots] query', { doctorId, date, where });
-    console.info('[slots] results', { count: slots.length, times: slots.map(s => s.time).slice(0, 10) });
+    console.info('[slots] results', { count: slots.length, times: slots.map((s: any) => s.time).slice(0, 10) });
     res.status(200).json(slots);
   } catch (error) {
     console.error(error);
@@ -1038,7 +1038,7 @@ app.get('/api/slot-admin/slots', authMiddleware, async (req: Request, res: Respo
       if (profile) doctorIds = [profile.userId];
     } else if (admin.managedHospitalId) {
       const memberships = await prisma.hospitalDoctor.findMany({ where: { hospitalId: admin.managedHospitalId } });
-      doctorIds = memberships.map(m => m.doctorId);
+      doctorIds = memberships.map((m: any) => m.doctorId);
     }
 
     const where: any = {};
@@ -1068,7 +1068,7 @@ app.patch('/api/slot-admin/slots/:slotId/cancel', authMiddleware, async (req: Re
       if (profile) allowedDoctorIds = [profile.userId];
     } else if (admin.managedHospitalId) {
       const memberships = await prisma.hospitalDoctor.findMany({ where: { hospitalId: admin.managedHospitalId } });
-      allowedDoctorIds = memberships.map(m => m.doctorId);
+      allowedDoctorIds = memberships.map((m: any) => m.doctorId);
     }
 
     const slot = await prisma.slot.findUnique({ where: { id: Number(slotId) } });

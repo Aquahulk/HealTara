@@ -27,6 +27,7 @@ model User {
   adminHospitals      Hospital[] @relation("UserAdminHospitals")
   hospitalMemberships HospitalDoctor[] @relation("UserHospitalDoctor")
   doctorSlots         Slot[] @relation("UserDoctorSlots")
+  adminAuditLogs      AdminAuditLog[]
 
   // Associations for Slot Admin
   managedDoctorProfileId Int?
@@ -134,4 +135,17 @@ model Slot {
   doctor User @relation("UserDoctorSlots", fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, date, time])
+}
+
+// Audit logs for admin actions
+model AdminAuditLog {
+  id         Int      @id @default(autoincrement())
+  adminId    Int
+  action     String
+  entityType String
+  entityId   Int?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
 }
