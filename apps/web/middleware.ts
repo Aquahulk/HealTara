@@ -7,10 +7,15 @@ export function middleware(req: NextRequest) {
 
   // Only perform subdomain rewrites for non-localhost domains
   const isLocalhost = hostname === 'localhost';
+  // Skip subdomain routing on Vercel preview/production domains
+  const isVercelHost = hostname.endsWith('vercel.app') || hostname.endsWith('vercel.dev');
+  // Optional kill-switch via env var: set NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING="false" to disable
+  const subdomainRoutingEnabled = (process.env.NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING ?? 'true') !== 'false';
   const hostParts = hostname.split('.');
   const hasSubdomain = hostParts.length > 2; // e.g. sub.domain.tld
 
-  if (!isLocalhost && hasSubdomain) {
+  // Apply subdomain routing only when explicitly enabled and not on Vercel-hosted domains
+  if (!isLocalhost && !isVercelHost && subdomainRoutingEnabled && hasSubdomain) {
     const sub = hostParts[0];
 
     // Hospital subdomain patterns:
