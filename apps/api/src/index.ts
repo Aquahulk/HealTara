@@ -240,7 +240,7 @@ app.post('/api/doctor/profile', authMiddleware, async (req: Request, res: Respon
     // ============================================================================
     const newProfile = await prisma.doctorProfile.create({
       data: {
-        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug,
+        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug: slug.toLowerCase(),
         user: { connect: { id: user.userId } },              // Link profile to the authenticated user
       },
     });
@@ -434,6 +434,78 @@ app.post('/api/hospitals/:hospitalId/doctors', authMiddleware, hospitalAdminMidd
   }
 });
 
+// Create a new doctor account (without signup) and link to this hospital
+// Allows hospital admins to make profile-listed doctors bookable
+app.post('/api/hospitals/:hospitalId/doctors/create', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const { hospitalId } = req.params;
+  const { name, primarySpecialty, subSpecialty, departmentId } = req.body || {};
+  const idNum = Number(hospitalId);
+  if (!Number.isInteger(idNum) || idNum <= 0) {
+    return res.status(400).json({ message: 'Invalid hospitalId.' });
+  }
+  if (!name || typeof name !== 'string' || name.trim().length < 2) {
+    return res.status(400).json({ message: 'Doctor name is required.' });
+  }
+  try {
+    const hospital = await prisma.hospital.findUnique({ where: { id: idNum } });
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found.' });
+
+    // Generate a unique, internal-only email for the doctor account
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'doctor';
+    const uniqueTag = `${Date.now()}-${Math.floor(Math.random()*10000)}`;
+    const email = `doc-${idNum}-${slug}-${uniqueTag}@example.local`;
+    const passwordPlain = `HospDoc-${uniqueTag}`;
+    const hashedPassword = await bcrypt.hash(passwordPlain, 10);
+
+    // Create user with DOCTOR role
+    const doctorUser = await prisma.user.create({
+      data: { email, password: hashedPassword, role: 'DOCTOR' }
+    });
+
+    // Optionally create a minimal profile so frontend has basic labels
+    // Use hospital fields for required values if available; otherwise placeholders
+    const clinicAddress = hospital.address || `${hospital.name} - Address Pending`;
+    const phone = hospital.phone || '0000000000';
+    const consultationFee = 0;
+    await prisma.doctorProfile.create({
+      data: {
+        user: { connect: { id: doctorUser.id } },
+        specialization: primarySpecialty || 'General Medicine',
+        qualifications: subSpecialty || undefined,
+        experience: undefined,
+        clinicName: hospital.name,
+        clinicAddress,
+        city: hospital.city || undefined,
+        state: hospital.state || undefined,
+        phone,
+        consultationFee,
+        slug: `${slug}-${uniqueTag}`
+      }
+    });
+
+    // Link doctor to hospital (and optionally to department)
+    const link = await prisma.hospitalDoctor.create({
+      data: {
+        hospital: { connect: { id: idNum } },
+        doctor: { connect: { id: doctorUser.id } },
+        department: departmentId ? { connect: { id: Number(departmentId) } } : undefined,
+      }
+    });
+
+    return res.status(201).json({
+      message: 'Doctor created and linked to hospital successfully',
+      doctor: { id: doctorUser.id, email: doctorUser.email },
+      link,
+    });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Generated email already exists. Please retry.' });
+    }
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while creating and linking the doctor.' });
+  }
+});
+
 // List hospitals (basic listing with departments and doctor counts)
 app.get('/api/hospitals', async (_req: Request, res: Response) => {
   try {
@@ -604,8 +676,14 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/api/doctors/slug/:slug', async (req: Request, res: Response) => {
   const { slug } = req.params;
   try {
-    const doctorProfile = await prisma.doctorProfile.findUnique({
-      where: { slug: slug.toLowerCase() },
+    const doctorProfile = await prisma.doctorProfile.findFirst({
+      where: {
+        OR: [
+          { slug },
+          { slug: slug.toLowerCase() },
+          { slug: slug.toUpperCase() },
+        ],
+      },
       include: { user: true },
     });
     if (!doctorProfile) {
@@ -710,6 +788,18 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
     // --- Validate date is valid ---
     if (isNaN(requestedDate.getTime())) {
       return res.status(400).json({ message: 'Invalid date provided.' });
+    }
+
+    // --- Enforce one booking per doctor per day for the patient ---
+    const existingSameDayForPatient = await prisma.appointment.findFirst({
+      where: {
+        patientId: Number(patientId),
+        doctorId: normalizedDoctorId,
+        date: requestedDate,
+      }
+    });
+    if (existingSameDayForPatient) {
+      return res.status(409).json({ message: 'You already have an appointment with this doctor on the selected date.' });
     }
 
     // --- Determine sub-slot period for this doctor (capacity per hour = 60 / period) ---
@@ -1138,7 +1228,7 @@ app.put('/api/doctor/profile', authMiddleware, async (req: Request, res: Respons
     const updatedProfile = await prisma.doctorProfile.update({
       where: { userId: user.userId },
       data: {
-        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug,
+        specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug: slug.toLowerCase(),
       },
     });
     res.status(200).json({ message: 'Doctor profile updated successfully', profile: updatedProfile });
@@ -1220,6 +1310,52 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req: Request
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while fetching users.' });
+  }
+});
+
+// --- Delete User (Admin Only) ---
+app.delete('/api/admin/users/:userId', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const admin = req.user!;
+
+  try {
+    const id = parseInt(userId);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ message: 'Invalid user ID.' });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Delete associated doctor profile first if present to avoid FK issues
+    if (existing.role === 'DOCTOR') {
+      const profile = await prisma.doctorProfile.findUnique({ where: { userId: id } as any });
+      if (profile) {
+        await prisma.doctorProfile.delete({ where: { id: profile.id } });
+      }
+    }
+
+    await prisma.user.delete({ where: { id } });
+
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: admin.userId,
+        action: 'DELETE',
+        entityType: 'USER',
+        entityId: id,
+        details: `User ${existing.email} deleted by admin ${admin.email}`,
+      }
+    });
+
+    return res.status(200).json({ message: 'User deleted successfully.' });
+  } catch (error: any) {
+    if (error.code === 'P2003') {
+      return res.status(409).json({ message: 'Cannot delete user due to related records. Remove associations first.' });
+    }
+    console.error('Error deleting user:', error);
+    return res.status(500).json({ message: 'An error occurred while deleting the user.' });
   }
 });
 

@@ -39,7 +39,7 @@ export default function Header() {
   // 🎯 MAIN RENDER - Display the header navigation
   // ============================================================================
   return (
-    <header className="bg-white shadow-sm border-b fixed top-0 left-0 right-0 z-50 w-full">
+    <header className="bg-white/70 backdrop-blur border-b border-gray-200/80 fixed top-0 left-0 right-0 z-50 w-full">
       {/* ============================================================================
           📱 RESPONSIVE CONTAINER - Main header wrapper with responsive design
           ============================================================================ */}
@@ -60,24 +60,6 @@ export default function Header() {
               🧭 DESKTOP NAVIGATION - Main navigation links (hidden on mobile)
               ============================================================================ */}
           <nav className="hidden lg:flex space-x-8">
-            <Link href="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-              Home
-            </Link>
-            <Link href="/doctors" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-              Find Doctors
-            </Link>
-            <Link href="/hospitals" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-              Hospitals
-            </Link>
-            <Link href="/clinics" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-              Clinics
-            </Link>
-            <Link href="/reviews" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-              Reviews
-            </Link>
-            <Link href="/slot-admin/login" className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">
-              Slot Admin
-            </Link>
           </nav>
 
           {/* ============================================================================
@@ -88,12 +70,6 @@ export default function Header() {
             {/* ============================================================================
                 📅 BOOK APPOINTMENT BUTTON - Prominent CTA button (always visible)
                 ============================================================================ */}
-            <Link
-              href="/doctors"
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-full text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              Book Appointment
-            </Link>
             
             {/* ============================================================================
                 🔐 AUTHENTICATION STATUS - Show different content based on login state
@@ -165,18 +141,6 @@ export default function Header() {
                   className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   🔑 Login
-                </Link>
-                <Link
-                  href="/login/doctors"
-                  className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  👨‍⚕️ Doctor Login
-                </Link>
-                <Link
-                  href="/auth?mode=register"
-                  className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-md text-sm font-medium"
-                >
-                  📝 Register
                 </Link>
               </div>
             )}

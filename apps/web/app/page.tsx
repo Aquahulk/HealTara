@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
@@ -309,30 +309,30 @@ export default function HomePage() {
       {/* ============================================================================ */}
       {/* 🎯 HERO SECTION - Main landing area with search */}
       {/* ============================================================================ */}
-      <section 
-        className="relative py-20 px-4 text-white"
+      <section
+        className="relative py-12 md:py-16 px-4 text-white"
         style={{ background: data.hero.backgroundImage }}
       >
-        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-        <div className="relative max-w-7xl mx-auto text-center">
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+        <div className="absolute inset-0 bg-black/30"></div>
+        <div className="relative max-w-6xl mx-auto text-center">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
             {data.hero.title}
           </h1>
-          <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto opacity-90">
+          <p className="text-lg md:text-xl mb-6 max-w-2xl mx-auto opacity-90">
             {data.hero.subtitle}
           </p>
           
           {/* Search Bar */}
-          <div className="max-w-2xl mx-auto mb-8">
+          <div className="max-w-xl mx-auto mb-6">
             <div className="relative">
               <input
                 type="text"
                 placeholder={data.hero.searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-6 py-4 text-lg rounded-full text-gray-800 focus:outline-none focus:ring-4 focus:ring-white focus:ring-opacity-50 shadow-2xl"
+                className="w-full px-4 py-3 text-base rounded-full text-gray-800 focus:outline-none focus:ring-4 focus:ring-white/60 shadow-xl"
               />
-              <button className="absolute right-2 top-2 bg-blue-600 text-white px-6 py-2 rounded-full hover:bg-blue-700 transition-colors">
+              <button className="absolute right-2 top-2 bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-md">
                 Search
               </button>
             </div>
@@ -340,7 +340,7 @@ export default function HomePage() {
           
           <button 
             onClick={() => setShowAppointmentModal(true)}
-            className="bg-white text-blue-600 px-8 py-4 text-xl font-semibold rounded-full hover:bg-gray-100 transition-colors shadow-2xl"
+            className="bg-white text-blue-600 px-6 py-3 text-lg font-semibold rounded-full hover:bg-gray-100 transition-colors shadow-xl"
           >
             {data.hero.ctaText}
           </button>

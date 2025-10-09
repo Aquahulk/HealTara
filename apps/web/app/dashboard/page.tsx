@@ -80,15 +80,17 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');  // Currently selected tab
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'>('ALL'); // Doctor-only filter
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
+  const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
+  const isDoctorLike = !!(user && (user.role === 'DOCTOR' || user.role === 'HOSPITAL_ADMIN'));
 
   // ============================================================================
   // 🔄 TAB VALIDATION - Ensure non-doctors can't access doctor-specific tabs
   // ============================================================================
   useEffect(() => {
-    if (user && user.role !== 'DOCTOR' && ['patients', 'website', 'settings', 'slots'].includes(activeTab)) {
+    if (user && !isDoctorLike && ['patients', 'website', 'settings', 'slots'].includes(activeTab)) {
       setActiveTab('overview');
     }
-  }, [user, activeTab]);
+  }, [user, activeTab, isDoctorLike]);
 
   // ============================================================================
   // 🔄 SIDE EFFECTS - Code that runs when component mounts or updates
@@ -145,6 +147,28 @@ export default function DashboardPage() {
             console.warn('Failed to load slots:', e);
             setSlots([]);
           }
+        } else if (user.role === 'HOSPITAL_ADMIN') {
+          // Fetch hospital info for admin
+          try {
+            const myHospital = await apiClient.getMyHospital();
+            setHospitalProfile(myHospital || null);
+          } catch (e) {
+            console.warn('Failed to load hospital profile:', e);
+            setHospitalProfile(null);
+          }
+
+          // Hospital admins: doctor-specific profile not applicable
+          setDoctorProfile(null);
+          setStats({
+            totalAppointments: appointmentsResult.length,
+            pendingAppointments: appointmentsResult.filter(a => a.status === 'PENDING').length,
+            completedAppointments: appointmentsResult.filter(a => a.status === 'COMPLETED').length,
+            totalPatients: 0,
+            monthlyRevenue: 0,
+            websiteViews: 0,
+          });
+          // Slots are doctor-scoped; leave empty for hospital admins for now
+          setSlots([]);
         } else {
           // For non-doctors, set doctor-specific data to null/defaults
           setDoctorProfile(null);
@@ -295,7 +319,7 @@ export default function DashboardPage() {
               <div className="text-3xl">🏥</div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {user.role === 'DOCTOR' ? 'Doctor Dashboard' : 'Patient Dashboard'}
+                  {isDoctorLike ? 'Doctor Dashboard' : 'Patient Dashboard'}
                 </h1>
                 <p className="text-gray-600">
                   Welcome back, {user.role === 'DOCTOR' ? 'Dr. ' : ''}{user.email}
@@ -330,8 +354,8 @@ export default function DashboardPage() {
           {[
             { id: 'overview', name: '📊 Overview', icon: ChartBarIcon },
             { id: 'appointments', name: '📅 Appointments', icon: CalendarIcon },
-            // Only show doctor-specific tabs for doctors
-            ...(user.role === 'DOCTOR' ? [
+            // Show doctor-like tabs for doctors and hospital admins
+            ...(isDoctorLike ? [
                 { id: 'slots', name: '🕒 Slots', icon: ClockIcon },
                 { id: 'patients', name: '👥 Patients', icon: UserGroupIcon },
                 { id: 'website', name: '🌐 Website', icon: GlobeAltIcon },
@@ -519,7 +543,7 @@ export default function DashboardPage() {
             🕒 SLOTS TAB - Manage availability slots (DOCTORS ONLY)
             ==========================================================================
         */}
-        {activeTab === 'slots' && user.role === 'DOCTOR' && (
+        {activeTab === 'slots' && isDoctorLike && (
           <div className="space-y-8">
             {/* Create Slot */}
             <div className="bg-white shadow-lg rounded-lg overflow-hidden">
@@ -812,7 +836,7 @@ export default function DashboardPage() {
         {/* ============================================================================
             👥 PATIENTS TAB - Patient management interface (DOCTORS ONLY)
             ============================================================================ */}
-        {activeTab === 'patients' && user.role === 'DOCTOR' && (
+        {activeTab === 'patients' && isDoctorLike && (
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">Patient Management</h3>
@@ -826,7 +850,7 @@ export default function DashboardPage() {
         {/* ============================================================================
             🌐 WEBSITE TAB - Website customization interface (DOCTORS ONLY)
             ============================================================================ */}
-        {activeTab === 'website' && user.role === 'DOCTOR' && (
+        {activeTab === 'website' && isDoctorLike && (
           <div className="space-y-8">
             <div className="bg-white shadow-lg rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
@@ -834,52 +858,103 @@ export default function DashboardPage() {
                 <p className="text-sm text-gray-600 mt-1">Customize your professional website</p>
               </div>
               <div className="p-6">
-                {doctorProfile ? (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-lg font-medium text-gray-900 mb-4">Website Preview</h4>
-                        <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
-                          <p className="text-sm text-gray-600 mb-2">Your website URL:</p>
-                          <p className="font-mono text-blue-600">
-                            {doctorProfile.slug ? `https://${doctorProfile.slug}.docproc.com` : 'No website yet'}
-                          </p>
+                {user.role === 'DOCTOR' ? (
+                  doctorProfile ? (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="text-lg font-medium text-gray-900 mb-4">Website Preview</h4>
+                          <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <p className="text-sm text-gray-600 mb-2">Your website URL:</p>
+                            <p className="font-mono text-blue-600">
+                              {doctorProfile.slug ? `https://${doctorProfile.slug}.docproc.com` : 'No website yet'}
+                            </p>
+                          </div>
+                          <div className="mt-4">
+                            <Link 
+                              href={doctorProfile.slug ? `/site/${doctorProfile.slug}` : '#'}
+                              target="_blank"
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
+                            >
+                              View Website
+                            </Link>
+                          </div>
                         </div>
-                        <div className="mt-4">
-                          <Link 
-                            href={doctorProfile.slug ? `/site/${doctorProfile.slug}` : '#'}
-                            target="_blank"
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
-                          >
-                            View Website
-                          </Link>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h4>
-                        <div className="space-y-3">
-                          <button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
-                            Edit Profile Information
-                          </button>
-                          <button className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
-                            Customize Website Theme
-                          </button>
-                          <button className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
-                            Manage Services
-                          </button>
+                        <div>
+                          <h4 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h4>
+                          <div className="space-y-3">
+                            <button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                              Edit Profile Information
+                            </button>
+                            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                              Customize Website Theme
+                            </button>
+                            <button className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                              Manage Services
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-4xl mb-4">🌐</div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">No Website Profile</h4>
+                      <p className="text-gray-600 mb-4">Create your professional website to attract more patients</p>
+                      <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                        Create Website Profile
+                      </button>
+                    </div>
+                  )
                 ) : (
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-4">🌐</div>
-                    <h4 className="text-lg font-medium text-gray-900 mb-2">No Website Profile</h4>
-                    <p className="text-gray-600 mb-4">Create your professional website to attract more patients</p>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
-                      Create Website Profile
-                    </button>
-                  </div>
+                  hospitalProfile ? (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="text-lg font-medium text-gray-900 mb-4">Hospital Site Preview</h4>
+                          <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
+                            <p className="text-sm text-gray-600 mb-2">Your hospital site route:</p>
+                            <p className="font-mono text-blue-600">/hospital-site/{hospitalProfile.id}</p>
+                          </div>
+                          <div className="mt-4">
+                            <Link 
+                              href={`/hospital-site/${hospitalProfile.id}`}
+                              target="_blank"
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
+                            >
+                              View Website
+                            </Link>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h4>
+                          <div className="space-y-3">
+                            <button className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                              Edit Hospital Profile
+                            </button>
+                            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                              Customize Site Theme
+                            </button>
+                            <button className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                              Manage Services
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-4xl mb-4">🌐</div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">No Hospital Configured</h4>
+                      <p className="text-gray-600 mb-4">Create your hospital profile to enable the website</p>
+                      <Link 
+                        href="/hospital-admin/profile"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
+                      >
+                        Go to Hospital Profile
+                      </Link>
+                    </div>
+                  )
                 )}
               </div>
             </div>
@@ -889,8 +964,8 @@ export default function DashboardPage() {
         {/* ============================================================================
             ⚙️ SETTINGS TAB - Account and practice settings (DOCTORS ONLY)
             ============================================================================ */}
-        {activeTab === 'settings' && user.role === 'DOCTOR' && (
-          <DoctorSettings />
+        {activeTab === 'settings' && isDoctorLike && (
+          user.role === 'DOCTOR' ? <DoctorSettings /> : <HospitalSettings />
         )}
       </div>
     </div>
@@ -1059,6 +1134,120 @@ function DoctorSettings() {
           <p className="text-sm text-gray-600">
             After configuring, share the login URL with your staff: <Link href="/slot-admin/login" className="text-blue-600 underline">Slot Admin Login</Link>
           </p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ⚙️ HOSPITAL SETTINGS COMPONENT - Manage Hospital Slot Admin credentials
+// ============================================================================
+function HospitalSettings() {
+  const { user } = useAuth();
+  const [currentSlotAdminEmail, setCurrentSlotAdminEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = await apiClient.getHospitalSlotAdmin();
+        if (res?.slotAdmin) {
+          setCurrentSlotAdminEmail(res.slotAdmin.email);
+          setEmail(res.slotAdmin.email);
+        } else {
+          setCurrentSlotAdminEmail(null);
+        }
+      } catch (e: any) {
+        setMessage(e?.message || 'Failed to load Slot Admin info');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user?.role === 'HOSPITAL_ADMIN') load();
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!email || !password) {
+      setMessage('Please provide email and password');
+      return;
+    }
+    try {
+      setLoading(true);
+      setMessage(null);
+      const res = await apiClient.upsertHospitalSlotAdmin(email, password);
+      setCurrentSlotAdminEmail(res.slotAdmin.email);
+      setPassword('');
+      setMessage('Slot Admin credentials updated successfully');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to update Slot Admin credentials');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900">Settings</h3>
+      </div>
+      <div className="p-6 space-y-8">
+        {/* Slot Admin Credentials */}
+        <section>
+          <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Booking Admin</h4>
+          <p className="text-sm text-gray-600 mb-4">
+            Create or update a dedicated Slot Admin login for managing hospital slots.
+          </p>
+          {message && (
+            <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
+          )}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Current Slot Admin</label>
+              <div className="text-gray-800">
+                {currentSlotAdminEmail ? (
+                  <span className="font-mono">{currentSlotAdminEmail}</span>
+                ) : (
+                  <span className="text-gray-500">No Slot Admin configured yet</span>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Slot Admin Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="slot-admin@example.com"
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <div>
+              <button
+                onClick={handleSave}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
+              >
+                {loading ? 'Saving...' : 'Save Slot Admin'}
+              </button>
+            </div>
+          </div>
         </section>
       </div>
     </div>

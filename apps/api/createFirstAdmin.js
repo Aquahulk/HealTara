@@ -25,8 +25,7 @@ async function createFirstAdmin() {
       data: {
         email: 'zinny461@gmail.com',
         password: hashedPassword,
-        role: 'ADMIN',
-        isActive: true
+        role: 'ADMIN'
       }
     });
     

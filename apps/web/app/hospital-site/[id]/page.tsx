@@ -51,6 +51,7 @@ interface HospitalProfile {
     history?: string;
   };
   departments?: HospitalDepartment[];
+  doctors?: Array<{ name: string; doctorId?: number; primarySpecialty?: string; subSpecialty?: string; departments?: string[] }>;
 }
 
 interface HospitalProfileResponse {
@@ -163,9 +164,13 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
   const address = general.address || '';
   const logoUrl = general.logoUrl;
   const contacts = general.contacts || {};
+  const social = general.social || {};
   const departments = (profile?.departments && profile?.departments.length > 0) ? profile.departments : (details.departments || []);
   const about = profile?.about || {};
-  const doctorLinks = details.doctors || [];
+  // Use doctors explicitly linked to this hospital; do not fall back to global list
+  const doctorsToShow = details.doctors || [];
+  const profileDoctors = Array.isArray(profile?.doctors) ? profile!.doctors! : [];
+  const featuredServices = Array.from(new Set((departments || []).flatMap(d => d.services || []))).slice(0, 12);
 
   return (
     <div className="min-h-screen bg-white">
@@ -196,7 +201,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               <div className="bg-white/20 backdrop-blur rounded-xl p-6">
                 <div className="text-3xl">👩‍⚕️</div>
                 <div className="text-indigo-100 mt-2">Doctors</div>
-                <div className="text-2xl font-bold">{doctorLinks.length}</div>
+                <div className="text-2xl font-bold">{doctorsToShow.length}</div>
               </div>
               <div className="bg-white/20 backdrop-blur rounded-xl p-6">
                 <div className="text-3xl">🏬</div>
@@ -209,6 +214,27 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                 <div className="text-2xl font-bold">Premium</div>
               </div>
             </div>
+
+            {/* Social Links */}
+            {(social.facebook || social.instagram || social.linkedin || social.twitter || social.youtube) && (
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                {social.facebook && (
+                  <a href={social.facebook} target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 transition text-sm">Facebook</a>
+                )}
+                {social.instagram && (
+                  <a href={social.instagram} target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 transition text-sm">Instagram</a>
+                )}
+                {social.linkedin && (
+                  <a href={social.linkedin} target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 transition text-sm">LinkedIn</a>
+                )}
+                {social.twitter && (
+                  <a href={social.twitter} target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 transition text-sm">Twitter</a>
+                )}
+                {social.youtube && (
+                  <a href={social.youtube} target="_blank" rel="noopener noreferrer" className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 transition text-sm">YouTube</a>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -250,38 +276,25 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
           </div>
         </section>
 
-        {/* Doctors */}
-        <section>
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Our Doctors</h2>
-          {doctorLinks.length === 0 ? (
-            <p className="text-gray-600">No doctors linked yet.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {doctorLinks.map((link, idx) => {
-                const dp = link.doctor.doctorProfile || {};
-                const nameOrClinic = dp.clinicName || link.doctor.email;
-                const specialization = dp.specialization || 'Doctor';
-                return (
-                  <div key={idx} className="bg-gray-50 rounded-lg p-6 flex flex-col justify-between">
-                    <div>
-                      <div className="text-xl font-semibold text-gray-900">{nameOrClinic}</div>
-                      <div className="text-sm text-gray-600 mt-1">{specialization}</div>
-                      {dp.slug && (
-                        <a href={`/site/${dp.slug}`} className="text-blue-600 hover:underline mt-2 inline-block">View profile</a>
-                      )}
-                    </div>
-                    <div className="mt-4">
-                      <DoctorBookingCTA doctorId={link.doctor.id} clinicName={nameOrClinic} />
-                    </div>
-                  </div>
-                );
-              })}
+        {/* Featured Services */}
+        {featuredServices.length > 0 && (
+          <section>
+            <div className="text-center mb-6">
+              <h2 className="text-3xl font-bold text-gray-900">Featured Services</h2>
+              <p className="text-gray-600 mt-2">Top procedures and care offerings across departments</p>
             </div>
-          )}
-        </section>
+            <div className="flex flex-wrap gap-3">
+              {featuredServices.map((svc, i) => (
+                <span key={i} className="inline-block bg-gray-100 hover:bg-gray-200 text-gray-900 text-sm px-3 py-1 rounded-full border border-gray-200">
+                  {svc}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Doctors */}
-        {doctorLinks.length > 0 && (
+        {doctorsToShow.length > 0 && (
           <section>
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Our Doctors</h2>
@@ -291,8 +304,46 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
             {/* eslint-disable-next-line @typescript-eslint/no-var-requires */}
             {(() => {
               const HospitalDoctorsRoster = require("@/components/HospitalDoctorsRoster").default;
-              return <HospitalDoctorsRoster doctors={doctorLinks} />;
+              return <HospitalDoctorsRoster doctors={doctorsToShow} profileDoctors={profileDoctors} />;
             })()}
+          </section>
+        )}
+
+        {doctorsToShow.length === 0 && (
+          <section>
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Our Doctors</h2>
+              <p className="text-lg text-gray-600">No doctors linked to this hospital yet.</p>
+              <p className="text-sm text-gray-500">Hospital admins can add doctors in their dashboard to display and enable bookings here.</p>
+            </div>
+          </section>
+        )}
+
+        {/* Doctors added via Hospital Profile (informational list) */}
+        {profileDoctors.length > 0 && (
+          <section>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Doctors (from Hospital Profile)</h2>
+              <p className="text-sm text-gray-600">These entries are informational. Link real doctor accounts to enable booking.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {profileDoctors.map((d, idx) => (
+                <div key={idx} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                  <div className="text-5xl mb-4">👨‍⚕️</div>
+                  <h3 className="text-xl font-semibold text-gray-900">Dr. {d.name || 'Unnamed'}</h3>
+                  {d.primarySpecialty && (<p className="text-gray-600 mt-1">{d.primarySpecialty}</p>)}
+                  {d.subSpecialty && (<p className="text-gray-500 mt-1">{d.subSpecialty}</p>)}
+                  {Array.isArray(d.departments) && d.departments.length > 0 && (
+                    <div className="mt-3 text-sm text-gray-700">
+                      <span className="font-semibold">Departments:</span> {d.departments.join(', ')}
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <button disabled className="bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-lg cursor-not-allowed">Booking not yet enabled</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
@@ -375,6 +426,54 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
           </a>
         </section>
       </main>
+
+      {/* Sticky Contact Bar */}
+      {(contacts.emergency || contacts.appointment || general.googleMapsLink) && (
+        <div className="fixed bottom-0 inset-x-0 z-40">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-4">
+            <div className="bg-indigo-700 text-white rounded-xl shadow-lg flex flex-wrap items-center justify-center gap-4 p-3">
+              {contacts.emergency && (
+                <a href={`tel:${contacts.emergency}`} className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">
+                  <span>🚑</span>
+                  <span className="font-semibold">Emergency</span>
+                  <span className="opacity-90">{contacts.emergency}</span>
+                </a>
+              )}
+              {contacts.appointment && (
+                <a href={`tel:${contacts.appointment}`} className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg">
+                  <span>📅</span>
+                  <span className="font-semibold">Book</span>
+                  <span className="opacity-90">{contacts.appointment}</span>
+                </a>
+              )}
+              {general.googleMapsLink && (
+                <a href={general.googleMapsLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg">
+                  <span>📍</span>
+                  <span className="font-semibold">Directions</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SEO: Structured Data */}
+      {(() => {
+        const sameAs = [social.facebook, social.instagram, social.linkedin, social.twitter, social.youtube].filter(Boolean);
+        const orgJsonLd = {
+          '@context': 'https://schema.org',
+          '@type': 'Hospital',
+          name,
+          slogan: tagline,
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
+          address: address ? { '@type': 'PostalAddress', streetAddress: address } : undefined,
+          telephone: contacts.reception || contacts.appointment || undefined,
+          sameAs,
+        };
+        return (
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
+        );
+      })()}
     </div>
   );
 }

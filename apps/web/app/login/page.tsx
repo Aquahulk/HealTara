@@ -75,6 +75,13 @@ export default function PatientLoginPage() {
             Login here
           </Link>
         </div>
+
+        <div className="mt-2 text-sm text-center text-gray-600">
+          New here?{' '}
+          <Link href="http://localhost:3000/auth?mode=register" className="text-blue-600 hover:text-blue-700 font-semibold">
+            Register
+          </Link>
+        </div>
       </div>
     </div>
   );

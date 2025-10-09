@@ -243,7 +243,8 @@ export default function SecureAdminPanel() {
       // 👥 USER MANAGEMENT - Get all users for admin management
       // ============================================================================
       const usersData = await apiClient.getAdminUsers();
-      setUsers(usersData);
+      // Hide ADMIN accounts from the Users tab
+      setUsers(usersData.filter(u => u.role !== 'ADMIN'));
       
       // ============================================================================
       // 📅 APPOINTMENT MANAGEMENT - Get all appointments
@@ -278,6 +279,20 @@ export default function SecureAdminPanel() {
     } catch (error) {
       console.error('Error updating user status:', error);
       alert('Failed to update user status');
+    }
+  };
+
+  // Delete user (admin only)
+  const deleteUser = async (userId: number, email?: string) => {
+    const confirmed = window.confirm(`Are you sure you want to delete user${email ? ` ${email}` : ''}? This action cannot be undone.`);
+    if (!confirmed) return;
+    try {
+      await apiClient.deleteUser(userId);
+      await loadData();                                     // Refresh data after delete
+      alert('User deleted successfully');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user');
     }
   };
 
@@ -568,6 +583,12 @@ export default function SecureAdminPanel() {
                             className="text-sm text-green-600 hover:text-green-900"
                           >
                             Change Role
+                          </button>
+                          <button
+                            onClick={() => deleteUser(user.id, user.email)}
+                            className="text-sm text-red-600 hover:text-red-900"
+                          >
+                            Delete
                           </button>
                         </div>
                       </div>

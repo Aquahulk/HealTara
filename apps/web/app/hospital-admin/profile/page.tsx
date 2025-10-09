@@ -103,6 +103,7 @@ export default function HospitalAdminProfilePage() {
     // Allow both classic ADMIN and HOSPITAL_ADMIN roles
     if (!user || (user.role !== "ADMIN" && user.role !== "HOSPITAL_ADMIN")) return;
 
+
     const load = async () => {
       try {
         const mine = await apiClient.getMyHospital();
@@ -184,6 +185,37 @@ export default function HospitalAdminProfilePage() {
       list[idx] = { ...list[idx], [field]: value } as any;
       return { ...prev, doctors: list } as HospitalProfile;
     });
+  };
+
+  // Create and link a real doctor account for booking
+  const makeDoctorBookable = async (idx: number) => {
+    try {
+      setSaving(true);
+      const myHospital = await apiClient.getMyHospital();
+      if (!myHospital?.id) throw new Error('Hospital not found for admin');
+      const d = (profile.doctors || [])[idx];
+      const payload = {
+        name: d?.name || '',
+        primarySpecialty: d?.primarySpecialty || undefined,
+        subSpecialty: d?.subSpecialty || undefined,
+      };
+      const result = await apiClient.createHospitalDoctor(myHospital.id, payload);
+      // Link created doctor to hospital profile and persist immediately
+      if (result?.doctor?.id) {
+        const list = [...(profile.doctors || [])];
+        const doc = { ...(list[idx] || {}) } as any;
+        doc.doctorId = result.doctor.id;
+        list[idx] = doc;
+        const newProfile = { ...profile, doctors: list } as HospitalProfile;
+        setProfile(newProfile);
+        await apiClient.updateHospitalProfile(myHospital.id, newProfile);
+      }
+      alert(`Doctor made bookable: ${result?.doctor?.email || 'created'}`);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to make doctor bookable');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const removeDoctor = (idx: number) => {
@@ -269,7 +301,7 @@ export default function HospitalAdminProfilePage() {
     );
   }
 
-  if (user.role !== "ADMIN" && user.role !== "HOSPITAL_ADMIN") {
+  if (!user || (user.role !== "ADMIN" && user.role !== "HOSPITAL_ADMIN" && user.role !== "DOCTOR")) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <h1 className="text-2xl font-semibold">Access denied</h1>
@@ -489,6 +521,7 @@ export default function HospitalAdminProfilePage() {
                 <input className="border rounded p-2 flex-1" placeholder="Doctor Name" value={doc.name || ""} onChange={(e) => updateDoctor(idx, "name", e.target.value)} />
                 <input className="border rounded p-2 flex-1" placeholder="Primary Specialty" value={doc.primarySpecialty || ""} onChange={(e) => updateDoctor(idx, "primarySpecialty", e.target.value)} />
                 <input className="border rounded p-2 flex-1" placeholder="Sub-Specialty" value={doc.subSpecialty || ""} onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)} />
+                <button className="px-3 py-2 bg-green-600 text-white rounded" disabled={saving} onClick={() => makeDoctorBookable(idx)}>Make Bookable</button>
                 <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDoctor(idx)}>Remove</button>
               </div>
 

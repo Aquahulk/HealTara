@@ -26,6 +26,26 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Cannot book an appointment in the past.' });
     }
 
+    // Enforce: patient can book a particular doctor only once per day
+    const startOfDay = new Date(appointmentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(appointmentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingSameDay = await prisma.appointment.findFirst({
+      where: {
+        patientId,
+        doctorId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+    if (existingSameDay) {
+      return res.status(409).json({ message: 'You already have an appointment with this doctor on the selected date.' });
+    }
+
     const newAppointment = await prisma.appointment.create({
       data: { date: appointmentDate, time, notes: reason, doctorId, patientId },
     });

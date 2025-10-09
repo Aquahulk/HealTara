@@ -12,7 +12,7 @@
 // 🔗 API CONFIGURATION - Server connection settings
 // ============================================================================
 // Use environment variable in production; fall back to local dev default.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
 
 // ============================================================================
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
@@ -231,6 +231,14 @@ class ApiClient {
     return this.request<Doctor[]>('/api/doctors');
   }
 
+  // Create a new doctor account and link to a hospital (admin-only)
+  async createHospitalDoctor(hospitalId: number, payload: { name: string; primarySpecialty?: string; subSpecialty?: string; departmentId?: number }): Promise<any> {
+    return this.request(`/api/hospitals/${hospitalId}/doctors/create`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Get doctor by their unique slug
   async getDoctorBySlug(slug: string): Promise<Doctor> {
     return this.request<Doctor>(`/api/doctors/slug/${slug}`);
@@ -398,6 +406,13 @@ class ApiClient {
     return this.request(`/api/admin/users/${userId}/status`, {
       method: 'PATCH',                                      // HTTP PATCH method for updates
       body: JSON.stringify({ isActive }),                   // Send new status as JSON
+    });
+  }
+
+  // Delete user (admin only)
+  async deleteUser(userId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/api/admin/users/${userId}`, {
+      method: 'DELETE',
     });
   }
 

@@ -18,9 +18,11 @@ interface HospitalDoctorLinkProps {
     };
     department?: { id: number; name: string } | null;
   }>;
+  // Optional: doctors listed in the hospital profile JSON, may include a doctorId once linked
+  profileDoctors?: Array<{ doctorId?: number; name?: string }>;
 }
 
-export default function HospitalDoctorsRoster({ doctors }: HospitalDoctorLinkProps) {
+export default function HospitalDoctorsRoster({ doctors, profileDoctors }: HospitalDoctorLinkProps) {
   const [showModal, setShowModal] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
 
@@ -39,7 +41,10 @@ export default function HospitalDoctorsRoster({ doctors }: HospitalDoctorLinkPro
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {doctors.map((link, idx) => {
           const dp = link.doctor.doctorProfile || undefined;
-          const docName = link.doctor.email.split('@')[0];
+          const profileName = profileDoctors?.find(pd => pd.doctorId === link.doctor.id)?.name;
+          const docName = (profileName && profileName.trim().length > 0)
+            ? profileName.trim()
+            : link.doctor.email.split('@')[0];
           const specialization = dp?.specialization || 'Specialist';
           const clinicName = dp?.clinicName || 'Clinic';
           const slug = dp?.slug;
@@ -73,6 +78,12 @@ export default function HospitalDoctorsRoster({ doctors }: HospitalDoctorLinkPro
       {showModal && selectedDoctorId && (
         <BookAppointmentModal
           doctorId={selectedDoctorId}
+          doctorName={`Dr. ${(() => {
+            const link = doctors.find(d => d.doctor.id === selectedDoctorId);
+            const fromProfile = profileDoctors?.find(pd => pd.doctorId === selectedDoctorId)?.name;
+            const fallback = link?.doctor.email.split('@')[0] || '';
+            return (fromProfile && fromProfile.trim().length > 0) ? fromProfile.trim() : fallback;
+          })()}`}
           onClose={closeModal}
         />
       )}

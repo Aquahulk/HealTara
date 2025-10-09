@@ -176,6 +176,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // 🩺 DOCTOR REDIRECT - Send doctors to their dashboard
           // ============================================================================
           window.location.href = '/dashboard';
+        } else if (userData.role === 'HOSPITAL_ADMIN') {
+          // ============================================================================
+          // 🏥 HOSPITAL ADMIN REDIRECT - Send hospital admins to dashboard
+          // ============================================================================
+          window.location.href = '/dashboard';
         } else {
           // ============================================================================
           // 🏠 PATIENT REDIRECT - Send patients to homepage

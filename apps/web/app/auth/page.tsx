@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '../../lib/api'; // Import the centralized API client
 
 export default function AuthPage() {
-  const [isLoginMode, setIsLoginMode] = useState(true);
+  const searchParams = useSearchParams();
+  const initialIsLogin = (searchParams.get('mode') !== 'register');
+  const [isLoginMode, setIsLoginMode] = useState(initialIsLogin);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('PATIENT');
