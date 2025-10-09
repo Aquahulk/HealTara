@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -19,10 +18,21 @@ model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   password  String
-  role      String   // Will be 'PATIENT' or 'DOCTOR'
+  role      String   // 'PATIENT' | 'DOCTOR' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctorProfile DoctorProfile?
+  doctorProfile DoctorProfile? @relation("UserDoctorProfile")
+  patientAppointments Appointment[] @relation("PatientAppointments")
+  doctorAppointments  Appointment[] @relation("DoctorAppointments")
+  adminHospitals      Hospital[] @relation("UserAdminHospitals")
+  hospitalMemberships HospitalDoctor[] @relation("UserHospitalDoctor")
+  doctorSlots         Slot[] @relation("UserDoctorSlots")
+
+  // Associations for Slot Admin
+  managedDoctorProfileId Int?
+  managedDoctorProfile   DoctorProfile? @relation("UserManagedDoctorProfile", fields: [managedDoctorProfileId], references: [id], onDelete: SetNull)
+  managedHospitalId      Int?
+  managedHospital        Hospital?      @relation("UserManagedHospital", fields: [managedHospitalId], references: [id], onDelete: SetNull)
 }
 
 model DoctorProfile {
@@ -38,15 +48,90 @@ model DoctorProfile {
   state            String?
   phone            String
   consultationFee  Int
+  slotPeriodMinutes Int @default(15)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
+  // Opposite side for Slot Admin managing this doctor profile
+  slotAdmins User[] @relation("UserManagedDoctorProfile")
 }
-speed 
-city
-cli c  cvszsj i 
-i  o 
-datasource
-CHHAS
-cuco
+
+model Appointment {
+  id          Int      @id @default(autoincrement())
+  patientId   Int
+  doctorId    Int
+  date        DateTime
+  time        String
+  status      String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  patient User @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
+  doctor  User @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+}
+
+// New models to support hospitals with multiple doctors and departments
+model Hospital {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  city      String?
+  state     String?
+  phone     String?
+  profile   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Optional admin user who manages this hospital (role should be HOSPITAL_ADMIN)
+  adminId Int?
+  admin   User?    @relation("UserAdminHospitals", fields: [adminId], references: [id], onDelete: SetNull)
+
+  // Relations
+  departments   Department[]
+  doctors       HospitalDoctor[]
+  // Opposite side for Slot Admins managing this hospital
+  slotAdmins    User[] @relation("UserManagedHospital")
+}
+
+model Department {
+  id          Int      @id @default(autoincrement())
+  hospitalId  Int
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  doctors  HospitalDoctor[]
+}
+
+model HospitalDoctor {
+  id           Int        @id @default(autoincrement())
+  hospitalId   Int
+  doctorId     Int
+  departmentId Int?
+  createdAt    DateTime   @default(now())
+
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  doctor     User       @relation("UserHospitalDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@unique([hospitalId, doctorId])
+}
+
+// Time-slot availability for doctors
+model Slot {
+  id        Int      @id @default(autoincrement())
+  doctorId  Int
+  date      DateTime
+  time      String
+  status    String   @default("AVAILABLE") // AVAILABLE, BOOKED, CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor User @relation("UserDoctorSlots", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, date, time])
+}

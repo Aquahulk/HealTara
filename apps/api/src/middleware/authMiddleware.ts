@@ -64,7 +64,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     // This prevents issues if a user was deleted after getting a token
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, role: true, isActive: true }
+      select: { id: true, email: true, role: true }
     });
     
     if (!user) {
@@ -74,9 +74,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     // ============================================================================
     // 🚫 ACCOUNT STATUS CHECK - Ensure user account is active
     // ============================================================================
-    if (!user.isActive) {
-      return res.status(401).json({ message: 'User account is deactivated' });
-    }
+    // User is active by default (no isActive field in schema)
     
     // ============================================================================
     // ✅ AUTHENTICATION SUCCESS - Add user data to request object
@@ -86,7 +84,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     req.user = {
       userId: user.id,
       email: user.email,
-      role: user.role as 'PATIENT' | 'DOCTOR' | 'ADMIN'
+      role: user.role as 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN'
     };
     
     // ============================================================================

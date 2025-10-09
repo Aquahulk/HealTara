@@ -31,14 +31,13 @@ async function cleanupAndCreateAdmin() {
     // Create the new admin account
     console.log('👤 Creating new admin account...');
     
-    const hashedPassword = await bcrypt.hash('Monusinghamit@10', 10);
+    const hashedPassword = await bcrypt.hash('Monusinghamit10', 10);
     
     const newAdmin = await prisma.user.create({
       data: {
         email: 'zinny461@gmail.com',
         password: hashedPassword,
-        role: 'ADMIN',
-        isActive: true
+        role: 'ADMIN'
       }
     });
     
@@ -50,7 +49,7 @@ async function cleanupAndCreateAdmin() {
     
     console.log('\n🔐 Admin Login Credentials:');
     console.log(`   Email: zinny461@gmail.com`);
-    console.log(`   Password: Monusinghamit@10`);
+    console.log(`   Password: Monusinghamit10`);
     
     console.log('\n🌐 Access the secure admin panel at:');
     console.log(`   http://localhost:3000/admin-secure-panel-7x9y2z-2024/login`);

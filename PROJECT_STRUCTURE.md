@@ -109,7 +109,7 @@ docproc/
 
 ### **Prerequisites**
 - Node.js 18+
-- PostgreSQL database
+- SQLite database (dev.db)
 - npm or yarn
 
 ### **Installation**
@@ -141,7 +141,7 @@ npm run dev  # In web directory
 ### **Environment Variables**
 ```env
 # API Server (.env in apps/api/)
-DATABASE_URL="postgresql://..."
+# SQLite database (no DATABASE_URL needed)
 JWT_SECRET="your-secret-key"
 
 # Web App (.env in apps/web/)

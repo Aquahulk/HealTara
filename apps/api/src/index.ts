@@ -28,7 +28,7 @@ declare global {
       user?: {
         userId: number;                                    // Unique user ID from database
         email: string;                                     // User's email address
-        role: 'PATIENT' | 'DOCTOR' | 'ADMIN';             // User's role in the system
+        role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN';             // User's role in the system
       };
     }
   }
@@ -46,6 +46,54 @@ const port = process.env.PORT || 3001;                    // Use environment por
 // ============================================================================
 app.use(cors());                                           // Allow cross-origin requests (frontend ↔ backend)
 app.use(express.json());                                   // Parse JSON request bodies
+
+// IST timezone helpers
+const IST_OFFSET = '+05:30';
+const toISTMidnight = (dateOnly: string) => new Date(`${dateOnly}T00:00:00${IST_OFFSET}`);
+const toISTDateTime = (dateOnly: string, timeHM: string) => new Date(`${dateOnly}T${timeHM}:00${IST_OFFSET}`);
+
+// Doctor slot period persistence via Prisma DoctorProfile (minutes). Default: 15.
+
+// Doctor Slot Period endpoints
+app.get('/api/doctor/slot-period', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Only doctors can read slot period.' });
+  }
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId } });
+    const minutes = profile?.slotPeriodMinutes ?? 15;
+    res.json({ slotPeriodMinutes: minutes });
+  } catch (error) {
+    console.error('[slot-period:get] error', error);
+    res.status(500).json({ message: 'Failed to read slot period.' });
+  }
+});
+
+app.put('/api/doctor/slot-period', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Only doctors can update slot period.' });
+  }
+  const { slotPeriodMinutes } = req.body as { slotPeriodMinutes?: number };
+  const allowed = [10, 15, 20, 30, 60];
+  const minutes = Number(slotPeriodMinutes);
+  if (!allowed.includes(minutes)) {
+    return res.status(400).json({ message: 'Invalid slot period. Allowed: 10, 15, 20, 30, 60.' });
+  }
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId } });
+    if (!profile) {
+      return res.status(400).json({ message: 'Doctor profile not found. Please create a profile first.' });
+    }
+    const updated = await prisma.doctorProfile.update({ where: { userId: user.userId }, data: { slotPeriodMinutes: minutes } });
+    console.info('[slot-period] set', { doctorId: user.userId, minutes });
+    res.json({ slotPeriodMinutes: updated.slotPeriodMinutes });
+  } catch (error) {
+    console.error('[slot-period:put] error', error);
+    res.status(500).json({ message: 'Failed to update slot period.' });
+  }
+});
 
 // ============================================================================
 // 👤 USER REGISTRATION ENDPOINT - Creates new user accounts
@@ -297,6 +345,221 @@ app.get('/api/doctor/stats', authMiddleware, async (req: Request, res: Response)
   }
 });
 
+// ============================================================================
+// 🏥 HOSPITAL MANAGEMENT - Secure endpoints for hospital admins
+// ============================================================================
+const hospitalAdminMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const user = req.user;
+  if (!user || user.role !== 'HOSPITAL_ADMIN') {
+    return res.status(403).json({ message: 'Forbidden: Only users with HOSPITAL_ADMIN role can access this resource.' });
+  }
+  next();
+};
+
+// Create a hospital (admin becomes the hospital admin)
+app.post('/api/hospitals', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const { name, address, city, state, phone } = req.body;
+  if (!name) {
+    return res.status(400).json({ message: 'Hospital name is required.' });
+  }
+  try {
+    const hospital = await prisma.hospital.create({
+      data: {
+        name,
+        address: address || null,
+        city: city || null,
+        state: state || null,
+        phone: phone || null,
+        adminId: user.userId,
+      },
+    });
+    res.status(201).json(hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while creating the hospital.' });
+  }
+});
+
+// Add a department to a hospital
+app.post('/api/hospitals/:hospitalId/departments', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const { hospitalId } = req.params;
+  const { name, description } = req.body;
+  if (!name) {
+    return res.status(400).json({ message: 'Department name is required.' });
+  }
+  try {
+    const department = await prisma.department.create({
+      data: {
+        name,
+        description: description || null,
+        hospital: { connect: { id: Number(hospitalId) } },
+      },
+    });
+    res.status(201).json(department);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while creating the department.' });
+  }
+});
+
+// Link a doctor to a hospital (optionally to a department)
+app.post('/api/hospitals/:hospitalId/doctors', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const { hospitalId } = req.params;
+  const { doctorId, departmentId } = req.body;
+  if (!doctorId) {
+    return res.status(400).json({ message: 'doctorId is required.' });
+  }
+  try {
+    // Ensure the user is a doctor
+    const doctorUser = await prisma.user.findUnique({ where: { id: Number(doctorId) } });
+    if (!doctorUser || doctorUser.role !== 'DOCTOR') {
+      return res.status(400).json({ message: 'Provided doctorId does not belong to a DOCTOR user.' });
+    }
+
+    const link = await prisma.hospitalDoctor.create({
+      data: {
+        hospital: { connect: { id: Number(hospitalId) } },
+        doctor: { connect: { id: Number(doctorId) } },
+        department: departmentId ? { connect: { id: Number(departmentId) } } : undefined,
+      },
+    });
+    res.status(201).json(link);
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Doctor is already linked to this hospital.' });
+    }
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while linking the doctor to the hospital.' });
+  }
+});
+
+// List hospitals (basic listing with departments and doctor counts)
+app.get('/api/hospitals', async (_req: Request, res: Response) => {
+  try {
+    const hospitals = await prisma.hospital.findMany({
+      include: {
+        departments: true,
+        doctors: true,
+      },
+    });
+    res.status(200).json(hospitals);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching hospitals.' });
+  }
+});
+
+// Get hospital for the logged-in hospital admin
+app.get('/api/hospitals/my', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const admin = req.user!;
+  try {
+    const hospital = await prisma.hospital.findFirst({
+      where: { adminId: admin.userId },
+      select: { id: true, name: true, profile: true, city: true, state: true, phone: true }
+    });
+    if (!hospital) {
+      return res.status(404).json({ message: 'No hospital linked to this admin.' });
+    }
+    res.status(200).json(hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching your hospital.' });
+  }
+});
+
+// Get or update hospital profile (rich JSON content)
+app.get('/api/hospitals/:hospitalId/profile', async (req: Request, res: Response) => {
+  const { hospitalId } = req.params;
+  const id = Number(hospitalId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ message: 'Invalid hospitalId.' });
+  }
+  try {
+    const hospital = await prisma.hospital.findUnique({
+      where: { id },
+      select: { id: true, name: true, profile: true }
+    });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found.' });
+    }
+    res.status(200).json({ hospitalId: hospital.id, name: hospital.name, profile: hospital.profile || null });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching hospital profile.' });
+  }
+});
+
+app.put('/api/hospitals/:hospitalId/profile', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const { hospitalId } = req.params;
+  const id = Number(hospitalId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ message: 'Invalid hospitalId.' });
+  }
+  const admin = req.user!;
+  const profilePayload = req.body;
+
+  if (!profilePayload || typeof profilePayload !== 'object') {
+    return res.status(400).json({ message: 'Invalid profile payload. Expecting a JSON object.' });
+  }
+
+  try {
+    const hospital = await prisma.hospital.findUnique({ where: { id } });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found.' });
+    }
+
+    // Ensure this admin manages the hospital
+    if (hospital.adminId !== admin.userId) {
+      return res.status(403).json({ message: 'Forbidden: You are not the admin of this hospital.' });
+    }
+
+    const updated = await prisma.hospital.update({
+      where: { id },
+      data: { profile: profilePayload as any },
+      select: { id: true, profile: true }
+    });
+    return res.status(200).json({ message: 'Hospital profile updated successfully', hospitalId: updated.id, profile: updated.profile });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while updating hospital profile.' });
+  }
+});
+
+// Get hospital details
+app.get('/api/hospitals/:hospitalId', async (req: Request, res: Response) => {
+  const { hospitalId } = req.params;
+  const id = Number(hospitalId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ message: 'Invalid hospitalId.' });
+  }
+  try {
+    const hospital = await prisma.hospital.findUnique({
+      where: { id },
+      include: {
+        departments: true,
+        doctors: {
+          include: {
+            doctor: {
+              include: {
+                doctorProfile: true,
+              },
+            },
+            department: true,
+          },
+        },
+      },
+    });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found.' });
+    }
+    res.status(200).json(hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching the hospital.' });
+  }
+});
+
 // --- Get All Users Endpoint (for debugging) ---
 app.get('/api/users', async (req: Request, res: Response) => {
   try {
@@ -320,9 +583,21 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
     const doctorsWithProfiles = doctors.filter(doctor => doctor.doctorProfile);
     res.status(200).json(doctorsWithProfiles);
   } catch (error) {
+    // Graceful fallback: if database is not reachable or auth fails, return empty list
+    const code = (error as any)?.code;
+    const isDbInitError = code === 'P1000' || code === 'P1001' || code === 'P1011';
+    if (isDbInitError) {
+      console.warn('Database not ready or authentication failed. Returning empty doctors list.');
+      return res.status(200).json([]);
+    }
     console.error(error);
     res.status(500).json({ message: 'An error occurred while fetching doctors.' });
   }
+});
+
+// --- Simple health endpoint ---
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok' });
 });
 
 // --- Get Doctor by Slug Endpoint (Public) ---
@@ -355,30 +630,456 @@ app.get('/api/doctors/slug/:slug', async (req: Request, res: Response) => {
   }
 });
 
+// --- Availability by Hour Endpoint (Public) ---
+// Computes hour-level availability for a doctor/date based on their slot period
+// Capacity per hour = 60 / slotPeriodMinutes; when bookedCount >= capacity, mark as unavailable
+app.get('/api/availability', async (req: Request, res: Response) => {
+  const { doctorId, date } = req.query as { doctorId?: string; date?: string };
+  if (!doctorId || !date) {
+    return res.status(400).json({ message: 'doctorId and date are required.' });
+  }
+  try {
+    const normalizedDoctorId = Number(doctorId);
+    const requestedDate = toISTMidnight(String(date));
+    if (isNaN(requestedDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid date provided.' });
+    }
+
+    // Determine doctor slot period
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: normalizedDoctorId } });
+    const periodMinutes = profile?.slotPeriodMinutes ?? 15;
+    const segmentsPerHour = Math.max(1, Math.floor(60 / periodMinutes));
+
+    // Fetch appointments for the day (PENDING/CONFIRMED)
+    const dayAppointments = await prisma.appointment.findMany({
+      where: {
+        doctorId: normalizedDoctorId,
+        date: requestedDate,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+      },
+      select: { time: true }
+    });
+
+    // Determine which hours to show. Prefer published slots; otherwise default 9..21
+    const publishedSlots = await prisma.slot.findMany({
+      where: { doctorId: normalizedDoctorId, date: requestedDate, status: 'AVAILABLE' },
+      select: { time: true }
+    });
+
+    const hoursFromSlots = Array.from(new Set(publishedSlots.map(s => s.time.slice(0, 2)))).sort();
+    const defaultHours = Array.from({ length: 13 }, (_, i) => String(i + 9).padStart(2, '0')); // 09..21
+    const hoursToCheck = (hoursFromSlots.length ? hoursFromSlots : defaultHours);
+
+    const results = hoursToCheck.map((hourStr) => {
+      const segmentMinutes = Array.from({ length: segmentsPerHour }, (_, i) => String(i * periodMinutes).padStart(2, '0'));
+      const segmentTimes = segmentMinutes.map(m => `${hourStr}:${m}`);
+      const bookedCount = dayAppointments.filter(a => segmentTimes.includes(a.time)).length;
+      const capacity = segmentsPerHour;
+      const isFull = bookedCount >= capacity;
+      // Labels (IST hour window)
+      const labelFrom = `${hourStr}:00`;
+      const nextHour = String((Number(hourStr) + 1)).padStart(2, '0');
+      const labelTo = `${nextHour}:00`;
+      return { hour: hourStr, capacity, bookedCount, isFull, labelFrom, labelTo };
+    });
+
+    res.status(200).json({ periodMinutes, hours: results });
+  } catch (error) {
+    console.error('[availability] error', error);
+    res.status(500).json({ message: 'Failed to compute availability.' });
+  }
+});
+
 // --- Create Appointment Endpoint (Protected, Patient Role) ---
 app.post('/api/appointments', authMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;
   if (user.role !== 'PATIENT') {
     return res.status(403).json({ message: 'Forbidden: Only patients can book appointments.' });
   }
-  const { doctorId, date, reason } = req.body;
+  const { doctorId, date, time, reason } = req.body;
   const patientId = user.userId;
-  if (!doctorId || !date) {
-    return res.status(400).json({ message: 'Doctor ID and date are required.' });
+  if (!doctorId || !date || !time) {
+    return res.status(400).json({ message: 'Doctor ID, date, and time are required.' });
   }
   try {
-    const newAppointment = await prisma.appointment.create({
-      data: {
-        date: new Date(date),
-        reason: reason,
-        doctor: { connect: { id: doctorId } },
-        patient: { connect: { id: patientId } },
+    // --- Normalize inputs ---
+    const normalizedDoctorId = Number(doctorId);
+    const requestedDate = toISTMidnight(String(date));
+    const normalizedTime = String(time).length >= 5 ? String(time).slice(0, 5) : String(time);
+
+    // --- Validate date is valid ---
+    if (isNaN(requestedDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid date provided.' });
+    }
+
+    // --- Determine sub-slot period for this doctor (capacity per hour = 60 / period) ---
+    const profileForDoctor = await prisma.doctorProfile.findUnique({ where: { userId: normalizedDoctorId } });
+    const periodMinutes = profileForDoctor?.slotPeriodMinutes ?? 15;
+    const segmentsPerHour = Math.max(1, Math.floor(60 / periodMinutes));
+    const hourStr = normalizedTime.slice(0, 2);
+    const segmentMinutes = Array.from({ length: segmentsPerHour }, (_, i) => String(i * periodMinutes).padStart(2, '0'));
+    const segmentTimes = segmentMinutes.map(m => `${hourStr}:${m}`);
+    const preferredIsSegment = segmentTimes.includes(normalizedTime);
+
+    // Find existing appointments in this hour for the doctor
+    const existingQuarterAppointments = await prisma.appointment.findMany({
+      where: {
+        doctorId: normalizedDoctorId,
+        date: requestedDate,
+        time: { in: segmentTimes },
+        status: { in: ['PENDING', 'CONFIRMED'] }
       },
+      select: { time: true }
     });
-    res.status(201).json({ message: 'Appointment booked successfully', appointment: newAppointment });
+    const takenTimes = new Set(existingQuarterAppointments.map(a => a.time));
+
+    // Choose final 15-min time
+    let finalTime: string | null = null;
+    if (preferredIsSegment && !takenTimes.has(normalizedTime)) {
+      finalTime = normalizedTime;
+    } else {
+      for (const seg of segmentTimes) {
+        if (!takenTimes.has(seg)) {
+          finalTime = seg;
+          break;
+        }
+      }
+    }
+    if (!finalTime) {
+      console.info('[book] hour-full', { doctorId: normalizedDoctorId, date, hour: hourStr, requestedTime: normalizedTime, periodMinutes });
+      return res.status(409).json({ message: 'Selected hour is fully booked. Please choose another hour.' });
+    }
+
+    // --- Validate final time not in the past ---
+    const requestedDateTime = toISTDateTime(String(date), finalTime);
+    if (isNaN(requestedDateTime.getTime())) {
+      return res.status(400).json({ message: 'Invalid time provided.' });
+    }
+    const now = new Date();
+    if (requestedDateTime.getTime() < now.getTime()) {
+      return res.status(400).json({ message: 'Cannot book an appointment in the past.' });
+    }
+
+    // Prevent collisions on the chosen 15-min sub-slot
+    const existing = await prisma.appointment.findFirst({
+      where: {
+        doctorId: normalizedDoctorId,
+        date: requestedDate,
+        time: finalTime,
+        status: { in: ['PENDING', 'CONFIRMED'] }
+      }
+    });
+    if (existing) {
+      console.info('[book] conflict-existing', { doctorId: normalizedDoctorId, date, time: finalTime, appointmentId: existing.id });
+      return res.status(409).json({ message: 'Selected time slot is already booked for this doctor.' });
+    }
+
+    // Optional slot enforcement: If a matching slot exists, respect its status.
+    // If no slot exists, allow booking (subject to conflict and past checks).
+    const matchedSlot = await prisma.slot.findFirst({
+      where: {
+        doctorId: normalizedDoctorId,
+        date: requestedDate,
+        time: finalTime,
+      }
+    });
+
+    if (matchedSlot) {
+      if (matchedSlot.status === 'CANCELLED') {
+      console.info('[book] slot-found-cancelled', { slotId: matchedSlot.id, doctorId: normalizedDoctorId, date, time: finalTime });
+        return res.status(409).json({ message: 'Selected time has been cancelled by the doctor.' });
+      }
+      if (matchedSlot.status === 'BOOKED') {
+      console.info('[book] slot-found-booked', { slotId: matchedSlot.id, doctorId: normalizedDoctorId, date, time: finalTime });
+        return res.status(409).json({ message: 'Selected time slot is already booked for this doctor.' });
+      }
+      // AVAILABLE: book atomically and mark slot as BOOKED
+      console.info('[book] slot-found-available', { slotId: matchedSlot.id, doctorId: normalizedDoctorId, date, time: finalTime });
+      const result = await prisma.$transaction(async (tx) => {
+        const created = await tx.appointment.create({
+          data: {
+            date: requestedDate,
+            time: finalTime,
+            notes: reason,
+            doctor: { connect: { id: normalizedDoctorId } },
+            patient: { connect: { id: Number(patientId) } },
+          },
+        });
+        await tx.slot.update({
+          where: { id: matchedSlot.id },
+          data: { status: 'BOOKED' }
+        });
+        return created;
+      });
+      return res.status(201).json({ message: 'Appointment booked successfully', appointment: result });
+    } else {
+      // No slot exists: proceed with booking without slot constraints
+      console.info('[book] slot-optional-none', { doctorId: normalizedDoctorId, date, time: finalTime });
+      const created = await prisma.appointment.create({
+        data: {
+          date: requestedDate,
+          time: finalTime,
+          notes: reason,
+          doctor: { connect: { id: normalizedDoctorId } },
+          patient: { connect: { id: Number(patientId) } },
+        },
+      });
+      return res.status(201).json({ message: 'Appointment booked successfully', appointment: created });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while booking the appointment.' });
+  }
+});
+
+// ================================
+// Slot endpoints
+// ================================
+
+// Create a slot for the logged-in doctor
+app.post('/api/slots', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const { date, time } = req.body;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Only doctors can publish slots.' });
+  }
+  if (!date || !time) {
+    return res.status(400).json({ message: 'Date and time are required.' });
+  }
+  try {
+    const slotDate = toISTMidnight(String(date));
+    if (isNaN(slotDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid date provided.' });
+    }
+    if (slotDate.getTime() < Date.now()) {
+      return res.status(400).json({ message: 'Cannot create a slot in the past.' });
+    }
+    const slot = await prisma.slot.create({
+      data: {
+        doctorId: user.userId,
+        date: slotDate,
+        time: String(time),
+        status: 'AVAILABLE'
+      }
+    });
+    res.status(201).json({ message: 'Slot created', slot });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'A slot already exists for this date and time.' });
+    }
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while creating the slot.' });
+  }
+});
+
+// List slots (public) with optional filtering by doctorId and date (IST)
+app.get('/api/slots', async (req: Request, res: Response) => {
+  const { doctorId, date } = req.query as { doctorId?: string; date?: string };
+  try {
+    const where: any = {};
+    if (doctorId) where.doctorId = Number(doctorId);
+    if (date) {
+      const start = toISTMidnight(String(date));
+      const end = new Date(`${String(date)}T23:59:59${IST_OFFSET}`);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        where.date = { gte: start, lte: end };
+      }
+    }
+    const slots = await prisma.slot.findMany({ where, orderBy: [{ date: 'asc' }, { time: 'asc' }] });
+    console.info('[slots] query', { doctorId, date, where });
+    console.info('[slots] results', { count: slots.length, times: slots.map(s => s.time).slice(0, 10) });
+    res.status(200).json(slots);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching slots.' });
+  }
+});
+
+// Cancel a slot (doctor only)
+app.patch('/api/slots/:slotId/cancel', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const { slotId } = req.params;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Only doctors can cancel slots.' });
+  }
+  try {
+    const slot = await prisma.slot.findUnique({ where: { id: Number(slotId) } });
+    if (!slot || slot.doctorId !== user.userId) {
+      return res.status(404).json({ message: 'Slot not found for this doctor.' });
+    }
+    const updated = await prisma.slot.update({ where: { id: slot.id }, data: { status: 'CANCELLED' } });
+    res.status(200).json({ message: 'Slot cancelled', slot: updated });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while cancelling the slot.' });
+  }
+});
+
+// =============================================================
+// Slot Admin Management (Doctor/Hospital create or update login)
+// =============================================================
+
+// Get existing slot admin for the authenticated doctor
+app.get('/api/doctor/slot-admin', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only doctors can manage slot admin credentials.' });
+  }
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found.' });
+    const slotAdmin = await prisma.user.findFirst({ where: { role: 'SLOT_ADMIN', managedDoctorProfileId: profile.id } });
+    if (!slotAdmin) return res.status(200).json({ slotAdmin: null });
+    return res.status(200).json({ slotAdmin: { id: slotAdmin.id, email: slotAdmin.email } });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching slot admin.' });
+  }
+});
+
+// Create or update slot admin credentials for the authenticated doctor
+app.post('/api/doctor/slot-admin', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only doctors can manage slot admin credentials.' });
+  }
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found.' });
+
+    const existing = await prisma.user.findFirst({ where: { role: 'SLOT_ADMIN', managedDoctorProfileId: profile.id } });
+    const hashed = await bcrypt.hash(password, 10);
+    if (existing) {
+      // Update existing slot admin
+      const updated = await prisma.user.update({
+        where: { id: existing.id },
+        data: { email, password: hashed }
+      });
+      return res.status(200).json({ message: 'Slot admin updated', slotAdmin: { id: updated.id, email: updated.email } });
+    } else {
+      // Create new slot admin linked to doctor profile
+      const created = await prisma.user.create({
+        data: { email, password: hashed, role: 'SLOT_ADMIN', managedDoctorProfile: { connect: { id: profile.id } } }
+      });
+      return res.status(201).json({ message: 'Slot admin created', slotAdmin: { id: created.id, email: created.email } });
+    }
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Email already in use.' });
+    }
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while saving slot admin.' });
+  }
+});
+
+// Get slot admin tied to the authenticated hospital admin
+app.get('/api/hospital/slot-admin', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  try {
+    const hospital = await prisma.hospital.findFirst({ where: { adminId: user.userId } });
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found for admin.' });
+    const slotAdmin = await prisma.user.findFirst({ where: { role: 'SLOT_ADMIN', managedHospitalId: hospital.id } });
+    if (!slotAdmin) return res.status(200).json({ slotAdmin: null });
+    return res.status(200).json({ slotAdmin: { id: slotAdmin.id, email: slotAdmin.email } });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching slot admin.' });
+  }
+});
+
+// Create or update slot admin for hospital admin
+app.post('/api/hospital/slot-admin', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
+  try {
+    const hospital = await prisma.hospital.findFirst({ where: { adminId: user.userId } });
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found for admin.' });
+    const existing = await prisma.user.findFirst({ where: { role: 'SLOT_ADMIN', managedHospitalId: hospital.id } });
+    const hashed = await bcrypt.hash(password, 10);
+    if (existing) {
+      const updated = await prisma.user.update({ where: { id: existing.id }, data: { email, password: hashed } });
+      return res.status(200).json({ message: 'Slot admin updated', slotAdmin: { id: updated.id, email: updated.email } });
+    } else {
+      const created = await prisma.user.create({ data: { email, password: hashed, role: 'SLOT_ADMIN', managedHospital: { connect: { id: hospital.id } } } });
+      return res.status(201).json({ message: 'Slot admin created', slotAdmin: { id: created.id, email: created.email } });
+    }
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Email already in use.' });
+    }
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while saving slot admin.' });
+  }
+});
+
+// ==============================================
+// Slot Admin scoped slots listing and management
+// ==============================================
+
+// List slots for the slot admin's scope (doctor or hospital)
+app.get('/api/slot-admin/slots', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'SLOT_ADMIN') {
+    return res.status(403).json({ message: 'Forbidden: Only Slot Admins can view these slots.' });
+  }
+  try {
+    const admin = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { managedDoctorProfileId: true, managedHospitalId: true }
+    });
+    if (!admin) return res.status(401).json({ message: 'User not found.' });
+
+    let doctorIds: number[] = [];
+    if (admin.managedDoctorProfileId) {
+      const profile = await prisma.doctorProfile.findUnique({ where: { id: admin.managedDoctorProfileId } });
+      if (profile) doctorIds = [profile.userId];
+    } else if (admin.managedHospitalId) {
+      const memberships = await prisma.hospitalDoctor.findMany({ where: { hospitalId: admin.managedHospitalId } });
+      doctorIds = memberships.map(m => m.doctorId);
+    }
+
+    const where: any = {};
+    if (doctorIds.length) where.doctorId = { in: doctorIds };
+    const slots = await prisma.slot.findMany({ where, orderBy: [{ date: 'asc' }, { time: 'asc' }] });
+    return res.status(200).json(slots);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching scoped slots.' });
+  }
+});
+
+// Cancel a slot within the slot admin's scope
+app.patch('/api/slot-admin/slots/:slotId/cancel', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'SLOT_ADMIN') {
+    return res.status(403).json({ message: 'Forbidden: Only Slot Admins can manage slots.' });
+  }
+  const { slotId } = req.params;
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedDoctorProfileId: true, managedHospitalId: true } });
+    if (!admin) return res.status(401).json({ message: 'User not found.' });
+
+    let allowedDoctorIds: number[] = [];
+    if (admin.managedDoctorProfileId) {
+      const profile = await prisma.doctorProfile.findUnique({ where: { id: admin.managedDoctorProfileId } });
+      if (profile) allowedDoctorIds = [profile.userId];
+    } else if (admin.managedHospitalId) {
+      const memberships = await prisma.hospitalDoctor.findMany({ where: { hospitalId: admin.managedHospitalId } });
+      allowedDoctorIds = memberships.map(m => m.doctorId);
+    }
+
+    const slot = await prisma.slot.findUnique({ where: { id: Number(slotId) } });
+    if (!slot || (allowedDoctorIds.length && !allowedDoctorIds.includes(slot.doctorId))) {
+      return res.status(404).json({ message: 'Slot not found within your management scope.' });
+    }
+    const updated = await prisma.slot.update({ where: { id: Number(slotId) }, data: { status: 'CANCELLED' } });
+    return res.status(200).json({ message: 'Slot cancelled', slot: updated });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while cancelling the slot.' });
   }
 });
 
@@ -497,7 +1198,6 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req: Request
         id: true,
         email: true,
         role: true,
-        isActive: true,
         createdAt: true,
         doctorProfile: {
           select: {
@@ -524,33 +1224,7 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req: Request
 });
 
 // --- Update User Status (Admin Only) ---
-app.patch('/api/admin/users/:userId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
-  const { userId } = req.params;
-  const { isActive } = req.body;
-  
-  try {
-    const user = await prisma.user.update({
-      where: { id: parseInt(userId) },
-      data: { isActive },
-    });
-    
-    // Log the action
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId: req.user!.userId,
-        action: isActive ? 'ACTIVATE' : 'DEACTIVATE',
-        entityType: 'USER',
-        entityId: parseInt(userId),
-        details: JSON.stringify({ email: user.email, isActive }),
-      },
-    });
-    
-    res.json({ message: 'User status updated successfully', user });
-  } catch (error) {
-    console.error('Error updating user status:', error);
-    res.status(500).json({ message: 'Failed to update user status' });
-  }
-});
+// Note: User activation/deactivation functionality removed as isActive field doesn't exist in schema
 
 // --- Update user role (admin only)
 app.patch('/api/admin/users/:userId/role', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
@@ -661,6 +1335,202 @@ app.get('/api/admin/audit-logs', authMiddleware, adminMiddleware, async (req: Re
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while fetching audit logs.' });
+  }
+});
+
+// ============================================================================
+// 🏠 HOMEPAGE CONTENT MANAGEMENT ENDPOINTS - Admin content management
+// ============================================================================
+
+// --- Get Homepage Content (Public) ---
+app.get('/api/homepage/content', async (req: Request, res: Response) => {
+  try {
+    // For now, return default content
+    // TODO: Store and retrieve from database
+    const defaultContent = {
+      hero: {
+        title: "Find Trusted Healthcare Providers Near You",
+        subtitle: "Book appointments with verified doctors, clinics, and hospitals in seconds. Quality healthcare made simple.",
+        searchPlaceholder: "Search by doctor, specialty, or location...",
+        ctaText: "Find a Doctor Now",
+        backgroundImage: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+      },
+      stats: {
+        doctors: 1250,
+        patients: 50000,
+        cities: 45,
+        reviews: 12000
+      },
+      features: [
+        {
+          icon: "🏥",
+          title: "Verified Doctors",
+          description: "All doctors are verified with valid medical licenses",
+          color: "bg-blue-500"
+        },
+        {
+          icon: "⭐",
+          title: "Real Reviews",
+          description: "10,000+ verified patient reviews and ratings",
+          color: "bg-yellow-500"
+        },
+        {
+          icon: "🌐",
+          title: "Multi-language Support",
+          description: "Available in multiple languages for better accessibility",
+          color: "bg-green-500"
+        },
+        {
+          icon: "🔒",
+          title: "Secure & Private",
+          description: "Your health data is protected with enterprise-grade security",
+          color: "bg-purple-500"
+        }
+      ],
+      testimonials: [
+        {
+          name: "Sarah Johnson",
+          role: "Patient",
+          content: "Amazing platform! Found my perfect doctor in just 2 minutes. The booking process was so smooth.",
+          rating: 5,
+          avatar: "👩"
+        },
+        {
+          name: "Dr. Michael Chen",
+          role: "Cardiologist",
+          content: "This platform has helped me reach more patients and manage my appointments efficiently.",
+          rating: 5,
+          avatar: "👨‍⚕️"
+        },
+        {
+          name: "Emily Rodriguez",
+          role: "Patient",
+          content: "The reviews helped me choose the right doctor. The consultation was excellent!",
+          rating: 5,
+          avatar: "👩‍🦱"
+        }
+      ],
+      categories: [
+        {
+          title: "Hospitals",
+          description: "Find top-rated hospitals near you",
+          icon: "🏥",
+          color: "bg-red-500",
+          link: "/hospitals"
+        },
+        {
+          title: "Single Doctors",
+          description: "Connect with individual practitioners",
+          icon: "👨‍⚕️",
+          color: "bg-blue-500",
+          link: "/doctors"
+        },
+        {
+          title: "Multi-Doctor Clinics",
+          description: "Access comprehensive clinic services",
+          icon: "👩‍⚕️",
+          color: "bg-green-500",
+          link: "/clinics"
+        },
+        {
+          title: "Online Consultation",
+          description: "Get medical advice from home",
+          icon: "💻",
+          color: "bg-purple-500",
+          link: "/online"
+        },
+        {
+          title: "Labs & Diagnostics",
+          description: "Book lab tests and diagnostics",
+          icon: "🧪",
+          color: "bg-orange-500",
+          link: "/labs"
+        },
+        {
+          title: "Emergency Care",
+          description: "24/7 emergency medical services",
+          icon: "🚨",
+          color: "bg-red-600",
+          link: "/emergency"
+        }
+      ],
+      howItWorks: [
+        {
+          step: 1,
+          title: "Search & Find",
+          description: "Search by doctor, specialty, or location to find the right healthcare provider",
+          icon: "🔍"
+        },
+        {
+          step: 2,
+          title: "Book & Pay",
+          description: "Select your preferred time slot and complete the booking with secure payment",
+          icon: "📅"
+        },
+        {
+          step: 3,
+          title: "Visit & Rate",
+          description: "Attend your appointment and share your experience to help others",
+          icon: "⭐"
+        }
+      ],
+      whyChooseUs: [
+        {
+          title: "Verified Doctors Only",
+          description: "No scammers - all doctors are verified with valid medical licenses and credentials",
+          icon: "✅"
+        },
+        {
+          title: "Transparent Reviews",
+          description: "One booking equals one review - ensuring authentic patient feedback",
+          icon: "📝"
+        },
+        {
+          title: "Multi-language Support",
+          description: "Breaking language barriers to make healthcare accessible to everyone",
+          icon: "🌍"
+        },
+        {
+          title: "One-stop Healthcare",
+          description: "Complete ecosystem with doctors, clinics, hospitals, labs, and insurance",
+          icon: "🏥"
+        }
+      ]
+    };
+    
+    res.status(200).json(defaultContent);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching homepage content.' });
+  }
+});
+
+// --- Update Homepage Content (Admin Only) ---
+app.put('/api/admin/homepage/content', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const admin = req.user!;
+  const content = req.body;
+
+  try {
+    // TODO: Store content in database
+    // For now, just return success
+    console.log('Homepage content updated by admin:', admin.email);
+    console.log('New content:', JSON.stringify(content, null, 2));
+
+    // Log admin action
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: admin.userId,
+        action: 'UPDATE',
+        entityType: 'HOMEPAGE_CONTENT',
+        entityId: 1, // Assuming single homepage content record
+        details: JSON.stringify({ section: 'homepage_content', changes: 'content_updated' })
+      }
+    });
+
+    res.status(200).json({ message: 'Homepage content updated successfully', content });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while updating homepage content.' });
   }
 });
 
