@@ -54,9 +54,13 @@ const ensureSsl = (url?: string): string | undefined => {
   }
 };
 
-const prisma = rawDbUrl
-  ? new PrismaClient({ datasources: { db: { url: ensureSsl(rawDbUrl)! } } })
-  : new PrismaClient();                        // Create database connection
+// For environments where PrismaClient constructor expects zero args (e.g. Render build types),
+// set the DATABASE_URL with SSL enforced before instantiating the client.
+const secureUrl = ensureSsl(rawDbUrl);
+if (secureUrl && secureUrl !== rawDbUrl) {
+  process.env.DATABASE_URL = secureUrl;
+}
+const prisma = new PrismaClient();                        // Create database connection
 const app = express();                                     // Create Express application
 const port = process.env.PORT || 3001;                    // Use environment port or default to 3001
 
