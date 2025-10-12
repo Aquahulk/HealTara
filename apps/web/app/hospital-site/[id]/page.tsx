@@ -8,7 +8,6 @@
 
 import DoctorBookingCTA from '@/components/DoctorBookingCTA';
 import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
-import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
 
 interface HospitalProfileGeneral {
   legalName?: string;
