@@ -359,16 +359,16 @@ export default function DashboardPage() {
       setHospitalWorkingHours(
         arr.map((wh: any) => ({
           dayOfWeek: wh.dayOfWeek,
-          start: wh.start,
-          end: wh.end,
+          start: wh.startTime,
+          end: wh.endTime,
         }))
       );
       const next: Record<number, { start: string; end: string }> = { ...hospitalHoursInputs };
       arr.forEach((wh: any) => {
         if (typeof wh.dayOfWeek === 'number') {
           next[wh.dayOfWeek] = {
-            start: wh.start ? wh.start.slice(0,5) : '',
-            end: wh.end ? wh.end.slice(0,5) : '',
+            start: wh.startTime ? wh.startTime.slice(0,5) : '',
+            end: wh.endTime ? wh.endTime.slice(0,5) : '',
           };
         }
       });
@@ -381,11 +381,16 @@ export default function DashboardPage() {
   const saveHospitalDoctorWorkingHours = async () => {
     if (!hospitalProfile?.id || !selectedDoctorForTiming) return;
     try {
-      const payload = Object.keys(hospitalHoursInputs).map((k) => {
-        const day = Number(k);
-        const { start, end } = hospitalHoursInputs[day];
-        return { dayOfWeek: day, start: start ? `${start}:00` : null, end: end ? `${end}:00` : null };
-      });
+      const payload = Object.keys(hospitalHoursInputs)
+        .map((k) => {
+          const day = Number(k);
+          const { start, end } = hospitalHoursInputs[day];
+          if (start && end) {
+            return { dayOfWeek: day, startTime: `${start}:00`, endTime: `${end}:00` };
+          }
+          return null;
+        })
+        .filter((v): v is { dayOfWeek: number; startTime: string; endTime: string } => v !== null);
       await apiClient.setHospitalDoctorWorkingHours(hospitalProfile.id, selectedDoctorForTiming, payload);
       await loadHospitalDoctorWorkingHours(selectedDoctorForTiming);
       alert('Doctor timing saved');
