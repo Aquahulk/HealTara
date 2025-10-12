@@ -879,19 +879,21 @@ export default function DashboardPage() {
                             ) : (
                               <ul className="space-y-4">
                                 {(hospitalDoctorSlotsMap[doc.id] || []).map((slot) => {
+                                  const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                                  const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
                                   const slotAppointments = items.filter((a) => {
                                     const t = new Date(a.date).getTime();
-                                    return t >= new Date(slot.startTime).getTime() && t <= new Date(slot.endTime).getTime();
+                                    return t >= slotStart.getTime() && t <= slotEnd.getTime();
                                   });
                                   return (
                                     <li key={slot.id} className="border border-gray-200 rounded">
                                       <div className="px-3 py-2">
                                         <div className="text-sm font-medium text-gray-900">Slot #{slot.id}</div>
-                                        <div className="text-sm text-gray-700">{new Date(slot.startTime).toLocaleString()} → {new Date(slot.endTime).toLocaleString()}</div>
+                                        <div className="text-sm text-gray-700">{slotStart.toLocaleString()} → {slotEnd.toLocaleString()}</div>
                                         <div className="text-xs text-gray-500">Status: {slot.status || 'UNKNOWN'}</div>
                                         {(() => {
                                           // Availability badge when timing is selected for the doctor
-                                          const dayIdx = new Date(slot.startTime).getDay();
+                                          const dayIdx = slotStart.getDay();
                                           const wh = hospitalHoursInputs[dayIdx];
                                           const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
                                           const within = (() => {
@@ -900,8 +902,8 @@ export default function DashboardPage() {
                                               const [hh, mm] = t.split(':').map(Number);
                                               return hh * 60 + mm;
                                             };
-                                            const startMin = new Date(slot.startTime).getHours() * 60 + new Date(slot.startTime).getMinutes();
-                                            const endMin = new Date(slot.endTime).getHours() * 60 + new Date(slot.endTime).getMinutes();
+                                            const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+                                            const endMin = startMin + 60;
                                             const whStart = toMin(wh.start);
                                             const whEnd = toMin(wh.end);
                                             return startMin >= whStart && endMin <= whEnd;

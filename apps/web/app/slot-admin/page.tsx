@@ -705,12 +705,14 @@ export default function SlotAdminPanelPage() {
             ) : (
               <ul className="divide-y">
                 {slots.map((slot) => {
+                  const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                  const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
                   const inSlot = appointments.filter((a) => {
                     const t = new Date(a.date).getTime();
-                    return t >= new Date(slot.startTime).getTime() && t <= new Date(slot.endTime).getTime();
+                    return t >= slotStart.getTime() && t <= slotEnd.getTime();
                   });
                   // Availability check based on configured working hours
-                  const dayIdx = new Date(slot.startTime).getDay();
+                  const dayIdx = slotStart.getDay();
                   const wh = hoursInputs[dayIdx];
                   const hasTiming = wh && wh.start && wh.end;
                   const within = (() => {
@@ -719,8 +721,8 @@ export default function SlotAdminPanelPage() {
                       const [hh, mm] = t.split(':').map(Number);
                       return hh * 60 + mm;
                     };
-                    const startMin = new Date(slot.startTime).getHours() * 60 + new Date(slot.startTime).getMinutes();
-                    const endMin = new Date(slot.endTime).getHours() * 60 + new Date(slot.endTime).getMinutes();
+                    const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+                    const endMin = startMin + 60;
                     const whStart = toMin(wh.start);
                     const whEnd = toMin(wh.end);
                     return startMin >= whStart && endMin <= whEnd;
@@ -730,7 +732,7 @@ export default function SlotAdminPanelPage() {
                       <div className="flex-1">
                         <div className="font-mono text-sm text-gray-700">Slot #{slot.id}</div>
                         <div className="text-gray-800">
-                          {new Date(slot.startTime).toLocaleString()} → {new Date(slot.endTime).toLocaleString()}
+                          {slotStart.toLocaleString()} → {slotEnd.toLocaleString()}
                         </div>
                         <div className="text-sm text-gray-600 mb-2">
                           {slot.doctorProfileId ? `DoctorProfile: ${slot.doctorProfileId}` : ''}
