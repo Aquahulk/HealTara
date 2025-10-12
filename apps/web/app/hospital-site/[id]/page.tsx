@@ -8,6 +8,7 @@
 
 import DoctorBookingCTA from '@/components/DoctorBookingCTA';
 import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
+import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -663,6 +664,12 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                 {contacts.appointment && (<a href={`tel:${contacts.appointment}`} className="bg-white text-blue-700 font-bold py-6 px-12 rounded-2xl text-xl">📞 Book Appointment</a>)}
                 {general.googleMapsLink && (<a href={general.googleMapsLink} target="_blank" rel="noopener noreferrer" className="bg-transparent border-2 border-white text-white font-bold py-6 px-12 rounded-2xl text-xl">📍 Visit Us</a>)}
                 <a href="/doctors" className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-6 px-12 rounded-2xl text-xl">👩‍⚕️ Find Doctors</a>
+                {/* Inline booking sidebar trigger for quick scheduling */}
+                {doctorsToShow && doctorsToShow.length > 0 && (
+                  <div className="mt-6">
+                    <DoctorBookingSidebar doctors={doctorsToShow} hospitalName={name} contacts={contacts} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
