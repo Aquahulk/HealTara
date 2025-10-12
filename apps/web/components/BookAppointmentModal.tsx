@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient, Doctor } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -35,12 +35,26 @@ export default function BookAppointmentModal({
     const [date, setDate] = useState("");
     const [time, setTime] = useState("");
     const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+    const [loadingAvail, setLoadingAvail] = useState<boolean>(false);
     type HourAvailabilityData = { periodMinutes: number; hours: { hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }[] };
     const [hourAvailability, setHourAvailability] = useState<HourAvailabilityData | null>(null);
     const [reason, setReason] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Local caches to avoid re-fetching for the same doctor/date
+    const cacheRef = useRef<{ slots: Map<string, any[]>; availability: Map<string, HourAvailabilityData> }>({
+        slots: new Map(),
+        availability: new Map(),
+    });
+    const fetchSeqRef = useRef(0);
+    const bcRef = useRef<BroadcastChannel | null>(null);
+    useEffect(() => {
+        const bc = new BroadcastChannel('appointments-updates');
+        bcRef.current = bc;
+        return () => bc.close();
+    }, []);
 
     const effectiveDoctorId = (doctorId ?? doctor?.id) ?? null;
     const effectiveDoctorName = doctorName ?? doctor?.doctorProfile?.clinicName ?? undefined;
@@ -101,8 +115,32 @@ export default function BookAppointmentModal({
 
             if (onSubmit) {
                 await onSubmit(payload);
+                // We may not have the appointment ID here; still broadcast minimal payload
+                try {
+                    bcRef.current?.postMessage({
+                        type: 'appointment-booked',
+                        payload: {
+                            doctorId: effectiveDoctorId,
+                            date: dateOnly,
+                            time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                            reason: reason || undefined,
+                        },
+                    });
+                } catch {}
             } else {
-                await apiClient.bookAppointment(payload);
+                const result = await apiClient.bookAppointment(payload);
+                try {
+                    bcRef.current?.postMessage({
+                        type: 'appointment-booked',
+                        id: result?.appointmentId,
+                        payload: {
+                            doctorId: effectiveDoctorId,
+                            date: dateOnly,
+                            time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                            reason: reason || undefined,
+                        },
+                    });
+                } catch {}
             }
             setSuccess("Appointment booked successfully");
             setDate("");
@@ -118,27 +156,50 @@ export default function BookAppointmentModal({
 		}
 	};
 
-    // Fetch available slot times whenever doctorId or date changes
+    // Fetch available slot times whenever doctorId or date changes (with caching + parallel fetch)
     useEffect(() => {
         const run = async () => {
             setAvailableTimes([]);
+            setHourAvailability(null);
             setTime("");
             if (!effectiveDoctorId || !date) return;
-            try {
-                const [dateOnly] = date.includes('T') ? date.split('T') : [date];
-                // Load published slots (optional slots behavior remains)
-                const slots = await apiClient.getSlots({ doctorId: effectiveDoctorId, date: dateOnly });
-                const times = slots
-                    .filter((s: any) => s.status === 'AVAILABLE')
-                    .map((s: any) => String(s.time).slice(0,5));
-                const uniqueSorted = Array.from(new Set(times)).sort();
-                setAvailableTimes(uniqueSorted);
+            const [dateOnly] = date.includes('T') ? date.split('T') : [date];
+            const key = `${effectiveDoctorId}:${dateOnly}`;
 
-                // Load hour-level availability for capacity display
-                const availability = await apiClient.getAvailability({ doctorId: effectiveDoctorId, date: dateOnly });
-                setHourAvailability(availability);
+            // Serve cached data instantly if available
+            const cachedSlots = cacheRef.current.slots.get(key);
+            const cachedAvail = cacheRef.current.availability.get(key);
+            if (cachedSlots || cachedAvail) {
+                if (cachedSlots) {
+                    const times = cachedSlots
+                        .filter((s: any) => s.status === 'AVAILABLE')
+                        .map((s: any) => String(s.time).slice(0,5));
+                    setAvailableTimes(Array.from(new Set(times)).sort());
+                }
+                if (cachedAvail) setHourAvailability(cachedAvail);
+            }
+
+            setLoadingAvail(true);
+            const mySeq = ++fetchSeqRef.current;
+            try {
+                // Use the new optimized combined endpoint
+                const combinedData = await apiClient.getSlotsAndAvailability({ 
+                    doctorId: effectiveDoctorId, 
+                    date: dateOnly 
+                });
+                if (mySeq !== fetchSeqRef.current) return; // ignore stale responses
+                
+                // Cache the data
+                cacheRef.current.slots.set(key, Array.isArray(combinedData.slots) ? combinedData.slots : []);
+                cacheRef.current.availability.set(key, combinedData.availability as HourAvailabilityData);
+                
+                // Set the data directly from the combined response
+                setAvailableTimes(combinedData.availableTimes || []);
+                setHourAvailability(combinedData.availability as HourAvailabilityData);
             } catch (e) {
                 console.error('Failed to load slots/availability', e);
+            } finally {
+                setLoadingAvail(false);
             }
         };
         run();
@@ -186,9 +247,16 @@ export default function BookAppointmentModal({
                             />
                         )}
                         <div className="text-xs text-gray-500 mt-1">
-                            {availableTimes.length
-                                ? 'Select from published availability. All times are shown in IST.'
-                                : 'Pick an hour — we will assign the next available sub‑slot inside that hour based on the doctor’s slot period. All times are in IST.'}
+                            {loadingAvail
+                                ? (
+                                    <div className="flex items-center space-x-2">
+                                        <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                                        <span>Loading available slots...</span>
+                                    </div>
+                                )
+                                : availableTimes.length
+                                    ? 'Select from published availability. All times are shown in IST.'
+                                    : 'Pick an hour — we will assign the next available sub‑slot inside that hour based on the doctor\'s slot period. All times are in IST.'}
                         </div>
                     </div>
 					</div>
@@ -240,7 +308,14 @@ function HourAvailabilityGrid({ availability, date, selectedTime, onSelect }: { 
         return <div className="text-sm text-gray-500">Select a date to see available slots.</div>;
     }
     if (!availability) {
-        return <div className="text-sm text-gray-500">Loading availability…</div>;
+        return (
+            <div className="flex items-center justify-center py-8">
+                <div className="flex items-center space-x-2 text-gray-500">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="text-sm">Loading availability...</span>
+                </div>
+            </div>
+        );
     }
     const { hours } = availability;
     if (!hours?.length) {

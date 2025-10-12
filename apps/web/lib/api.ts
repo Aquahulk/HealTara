@@ -11,8 +11,9 @@
 // ============================================================================
 // 🔗 API CONFIGURATION - Server connection settings
 // ============================================================================
-// Use environment variable in production; fall back to local dev default.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+// Prefer relative paths with Next.js dev rewrites in the browser.
+// For server-side rendering, if no base URL is set, use the backend host.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 // ============================================================================
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
@@ -47,6 +48,7 @@ export interface Doctor extends User {
 export interface Appointment {
   id: number;                                              // Unique appointment identifier
   date: string;                                            // Appointment date and time
+  time?: string;                                           // Appointment time (HH:mm) if provided
   reason?: string;                                         // Reason for appointment (optional)
   status: string;                                          // Current status (PENDING, CONFIRMED, CANCELLED, COMPLETED)
   createdAt: string;                                       // When appointment was created
@@ -55,6 +57,28 @@ export interface Appointment {
   patientId: number;                                       // ID of the patient
   doctor: User;                                            // Doctor's user information
   patient: User;                                           // Patient's user information
+}
+
+// 📆 Doctor Time-Off periods (blackout windows where booking is blocked)
+export interface DoctorTimeOff {
+  id: number;
+  doctorProfileId: number;
+  start: string;         // ISO datetime string
+  end: string;           // ISO datetime string
+  reason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 🕒 Doctor Working Hours (day-wise)
+export interface DoctorWorkingHours {
+  id: number;
+  doctorProfileId: number;
+  dayOfWeek: number;      // 0=Sunday, 6=Saturday
+  startTime: string;       // HH:mm
+  endTime: string;         // HH:mm
+  createdAt: string;
+  updatedAt: string;
 }
 
 // =========================================================================
@@ -96,6 +120,11 @@ class ApiClient {
   // 🏗️ CONSTRUCTOR - Initialize the API client
   // ============================================================================
   constructor(baseURL: string = API_BASE_URL) {
+    // In SSR, relative '/api' won't pass through Next.js rewrites.
+    // Ensure server-side requests use an absolute backend URL.
+    if (typeof window === 'undefined' && (!baseURL || baseURL.trim() === '')) {
+      baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    }
     this.baseURL = baseURL;                                 // Set the server address
     this.token = this.getStoredToken();                     // Load any existing token from storage
   }
@@ -156,7 +185,7 @@ class ApiClient {
       // ============================================================================
       // 🔗 URL CONSTRUCTION - Build the full URL for the request
       // ============================================================================
-      const url = `${this.baseURL}${endpoint}`;
+      const url = `${this.baseURL}${endpoint}`; // if baseURL is empty, use relative path
       
       // ============================================================================
       // 📨 HEADER PREPARATION - Set up request headers
@@ -186,7 +215,12 @@ class ApiClient {
       // ============================================================================
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        const message = errorData.message || `HTTP error! status: ${response.status}`;
+        // Auto-handle invalid/expired tokens: clear and hint to re-login
+        if (typeof window !== 'undefined' && response.status === 401 && /invalid token|jwt|unauthorized/i.test(message)) {
+          try { localStorage.removeItem('authToken'); } catch {}
+        }
+        throw new Error(message);
       }
 
       // ============================================================================
@@ -226,9 +260,15 @@ class ApiClient {
   // 👨‍⚕️ DOCTOR ENDPOINTS - Doctor profile management
   // ============================================================================
   
-  // Get list of all doctors
-  async getDoctors(): Promise<Doctor[]> {
-    return this.request<Doctor[]>('/api/doctors');
+  // Get list of all doctors, with optional sort/pagination
+  async getDoctors(params?: { sort?: 'trending' | 'recent' | 'default'; page?: number; pageSize?: number }): Promise<Doctor[]> {
+    const query = new URLSearchParams();
+    if (params?.sort) query.set('sort', params.sort);
+    if (params?.page && params.page > 0) query.set('page', String(params.page));
+    if (params?.pageSize && params.pageSize > 0) query.set('pageSize', String(params.pageSize));
+    const qs = query.toString();
+    const endpoint = qs ? `/api/doctors?${qs}` : '/api/doctors';
+    return this.request<Doctor[]>(endpoint);
   }
 
   // Create a new doctor account and link to a hospital (admin-only)
@@ -340,6 +380,18 @@ class ApiClient {
     return this.request(`/api/availability?${query.toString()}`);
   }
 
+  // Combined slots and availability endpoint for better performance
+  async getSlotsAndAvailability(params: { doctorId: number; date: string }): Promise<{ 
+    slots: Slot[]; 
+    availability: { periodMinutes: number; hours: { hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }[] }; 
+    availableTimes: string[] 
+  }> {
+    const query = new URLSearchParams();
+    query.set('doctorId', String(params.doctorId));
+    query.set('date', params.date);
+    return this.request(`/api/slots-availability?${query.toString()}`);
+  }
+
   async createSlot(data: { date: string; time: string }): Promise<Slot> {
     return this.request<Slot>('/api/slots', {
       method: 'POST',
@@ -362,6 +414,69 @@ class ApiClient {
     return this.request<Slot>(`/api/slot-admin/slots/${slotId}/cancel`, {
       method: 'PATCH',
     });
+  }
+
+  // Slot Admin appointments for managed doctor
+  async getSlotAdminAppointments(): Promise<Appointment[]> {
+    return this.request<Appointment[]>(`/api/slot-admin/appointments`);
+  }
+
+  async updateSlotAdminAppointmentStatus(appointmentId: number, status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'): Promise<{ message: string; appointment: Appointment }> {
+    return this.request<{ message: string; appointment: Appointment }>(`/api/slot-admin/appointments/${appointmentId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async cancelSlotAdminAppointment(appointmentId: number, reason?: string): Promise<{ message: string; appointment: Appointment }> {
+    return this.request<{ message: string; appointment: Appointment }>(`/api/slot-admin/appointments/${appointmentId}/cancel`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // Slot Admin time-off management for managed doctor
+  async getSlotAdminTimeOff(params?: { doctorProfileId?: number }): Promise<DoctorTimeOff[]> {
+    const query = new URLSearchParams();
+    if (params?.doctorProfileId) query.set('doctorProfileId', String(params.doctorProfileId));
+    const qs = query.toString();
+    const endpoint = qs ? `/api/slot-admin/time-off?${qs}` : `/api/slot-admin/time-off`;
+    return this.request<DoctorTimeOff[]>(endpoint);
+  }
+
+  async getSlotAdminWorkingHours(params?: { doctorId?: number }): Promise<DoctorWorkingHours[]> {
+    const query = new URLSearchParams();
+    if (params?.doctorId) query.set('doctorId', String(params.doctorId));
+    const qs = query.toString();
+    const endpoint = qs ? `/api/slot-admin/working-hours?${qs}` : `/api/slot-admin/working-hours`;
+    return this.request<DoctorWorkingHours[]>(endpoint);
+  }
+
+  async setSlotAdminWorkingHours(hours: Array<{ dayOfWeek: number; startTime: string; endTime: string }>, doctorId?: number): Promise<DoctorWorkingHours[]> {
+    const body: any = { hours };
+    if (doctorId) body.doctorId = doctorId;
+    return this.request<DoctorWorkingHours[]>(`/api/slot-admin/working-hours`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async createSlotAdminTimeOff(data: { start: string; end: string; reason?: string; doctorProfileId?: number }): Promise<DoctorTimeOff> {
+    return this.request<DoctorTimeOff>(`/api/slot-admin/time-off`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSlotAdminTimeOff(id: number): Promise<{ message: string } | DoctorTimeOff> {
+    return this.request<{ message: string } | DoctorTimeOff>(`/api/slot-admin/time-off/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Slot Admin: list doctors within management scope
+  async getSlotAdminDoctors(): Promise<Array<{ id: number; email: string; doctorProfileId: number }>> {
+    return this.request<Array<{ id: number; email: string; doctorProfileId: number }>>(`/api/slot-admin/doctors`);
   }
 
   // ============================================================================
@@ -442,10 +557,31 @@ class ApiClient {
   }
 
   // ============================================================================
+  // 📈 ANALYTICS - Engagement tracking (lightweight)
+  // ============================================================================
+  async trackDoctorClick(doctorId: number, type: 'site' | 'book'): Promise<{ ok: boolean }>
+  {
+    try {
+      return await this.request<{ ok: boolean }>(`/api/analytics/doctor-click`, {
+        method: 'POST',
+        body: JSON.stringify({ doctorId, type }),
+      });
+    } catch (e) {
+      // ignore errors in client analytics
+      return { ok: false } as any;
+    }
+  }
+
+  // ============================================================================
   // 🏥 HOSPITAL ENDPOINTS - Hospital profile management
   // ============================================================================
   async getHospitals(): Promise<any[]> {
     return this.request<any[]>('/api/hospitals');
+  }
+
+  // Get hospital linked to a doctor (for redirecting hospital doctors)
+  async getHospitalByDoctorId(doctorId: number): Promise<{ hospitalId: number; hospital: { id: number; name: string } }> {
+    return this.request<{ hospitalId: number; hospital: { id: number; name: string } }>(`/api/hospitals/by-doctor/${doctorId}`);
   }
 
   async getHospitalProfile(hospitalId: number): Promise<any> {
@@ -470,15 +606,67 @@ class ApiClient {
     return this.request<any>('/api/hospitals/my');
   }
 
-  // Slot Admin management (Hospital Admin)
-  async getHospitalSlotAdmin(): Promise<{ slotAdmin: { id: number; email: string } | null }> {
-    return this.request('/api/hospital/slot-admin');
+  // Get detailed hospital info including linked doctors and departments
+  async getHospitalDetails(hospitalId: number): Promise<any> {
+    return this.request<any>(`/api/hospitals/${hospitalId}`);
   }
 
-  async upsertHospitalSlotAdmin(email: string, password: string): Promise<{ message: string; slotAdmin: { id: number; email: string } }> {
+  // Slot Admin management (Hospital Admin)
+  async getHospitalSlotAdmin(doctorId?: number): Promise<{ slotAdmin: { id: number; email: string } | null }> {
+    const qs = doctorId && doctorId > 0 ? `?doctorId=${doctorId}` : '';
+    return this.request(`/api/hospital/slot-admin${qs}`);
+  }
+
+  async upsertHospitalSlotAdmin(email: string, password: string, doctorId?: number): Promise<{ message: string; slotAdmin: { id: number; email: string } }> {
+    const body: any = { email, password };
+    if (doctorId && doctorId > 0) body.doctorId = doctorId;
     return this.request('/api/hospital/slot-admin', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
+    });
+  }
+
+  // Doctor Working Hours & Bookings (Hospital Admin)
+  async getHospitalDoctorWorkingHours(hospitalId: number, doctorId: number): Promise<DoctorWorkingHours[]> {
+    return this.request<DoctorWorkingHours[]>(`/api/hospitals/${hospitalId}/doctors/${doctorId}/working-hours`);
+  }
+
+  async setHospitalDoctorWorkingHours(
+    hospitalId: number,
+    doctorId: number,
+    hours: Array<{ dayOfWeek: number; startTime: string; endTime: string }>
+  ): Promise<DoctorWorkingHours[]> {
+    return this.request<DoctorWorkingHours[]>(`/api/hospitals/${hospitalId}/doctors/${doctorId}/working-hours`, {
+      method: 'PUT',
+      body: JSON.stringify({ hours }),
+    });
+  }
+
+  async getHospitalDoctorAppointments(
+    hospitalId: number,
+    doctorId: number,
+    params?: { status?: string; dateFrom?: string; dateTo?: string }
+  ): Promise<Appointment[]> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.dateFrom) query.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) query.set('dateTo', params.dateTo);
+    const qs = query.toString();
+    const endpoint = qs
+      ? `/api/hospitals/${hospitalId}/doctors/${doctorId}/appointments?${qs}`
+      : `/api/hospitals/${hospitalId}/doctors/${doctorId}/appointments`;
+    return this.request<Appointment[]>(endpoint);
+  }
+
+  async updateHospitalDoctorAppointment(
+    hospitalId: number,
+    doctorId: number,
+    appointmentId: number,
+    data: { status?: string; date?: string; time?: string; notes?: string }
+  ): Promise<Appointment> {
+    return this.request<Appointment>(`/api/hospitals/${hospitalId}/doctors/${doctorId}/appointments/${appointmentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   }
 

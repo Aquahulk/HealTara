@@ -29,6 +29,7 @@ model User {
   hospitalMemberships HospitalDoctor[] @relation("UserHospitalDoctor")
   doctorSlots         Slot[] @relation("UserDoctorSlots")
   adminAuditLogs      AdminAuditLog[]
+  doctorEngagements   DoctorEngagement[] @relation("UserDoctorEngagements")
 
   // Associations for Slot Admin
   managedDoctorProfileId Int?
@@ -58,6 +59,40 @@ model DoctorProfile {
   user User @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
   // Opposite side for Slot Admin managing this doctor profile
   slotAdmins User[] @relation("UserManagedDoctorProfile")
+
+  // Time-off windows for this doctor
+  timeOffs DoctorTimeOff[]
+
+  // Regular weekly working hours for this doctor
+  workingHours DoctorWorkingHours[]
+}
+
+// Represents blackout periods where booking is not allowed for a doctor
+model DoctorTimeOff {
+  id        Int      @id @default(autoincrement())
+  doctorProfileId Int
+  start     DateTime
+  end       DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+}
+
+// Weekly working hours per doctor (day-wise start/end times)
+model DoctorWorkingHours {
+  id               Int      @id @default(autoincrement())
+  doctorProfileId  Int
+  dayOfWeek        Int      // 0=Sunday, 6=Saturday
+  startTime        String   // HH:mm (24-hour)
+  endTime          String   // HH:mm (24-hour)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorProfileId, dayOfWeek])
 }
 
 model Appointment {
@@ -73,6 +108,11 @@ model Appointment {
 
   patient User @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
   doctor  User @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  // Performance indexes for faster queries
+  @@index([doctorId, date, status])
+  @@index([patientId, date])
+  @@index([date, time])
 }
 
 // New models to support hospitals with multiple doctors and departments
@@ -137,6 +177,10 @@ model Slot {
   doctor User @relation("UserDoctorSlots", fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, date, time])
+  // Performance indexes for faster queries
+  @@index([doctorId, date, status])
+  @@index([date, status])
+  @@index([status, time])
 }
 
 // Audit logs for admin actions
@@ -150,4 +194,18 @@ model AdminAuditLog {
   createdAt  DateTime @default(now())
 
   admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+// Lightweight engagement metrics per doctor (daily aggregates)
+model DoctorEngagement {
+  id         Int      @id @default(autoincrement())
+  doctorId   Int
+  date       DateTime @default(now())
+  cardViews  Int      @default(0)
+  siteClicks Int      @default(0)
+  bookClicks Int      @default(0)
+
+  doctor User @relation("UserDoctorEngagements", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, date])
 }

@@ -1,282 +1,76 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
-import BookAppointmentModal from '@/components/BookAppointmentModal';
-import DoctorCard from '@/components/DoctorCard';
 import Header from '@/components/Header';
-
-// ============================================================================
-// 🏠 ADVANCED HOMEPAGE - Modern Healthcare Platform Landing Page
-// ============================================================================
-// This is the main landing page with advanced UI and content management
-// All content can be edited from the admin panel
-// ============================================================================
-
-interface HomepageData {
-  hero: {
-    title: string;
-    subtitle: string;
-    searchPlaceholder: string;
-    ctaText: string;
-    backgroundImage: string;
-  };
-  stats: {
-    doctors: number;
-    patients: number;
-    cities: number;
-    reviews: number;
-  };
-  features: Array<{
-    icon: string;
-    title: string;
-    description: string;
-    color: string;
-  }>;
-  testimonials: Array<{
-    name: string;
-    role: string;
-    content: string;
-    rating: number;
-    avatar: string;
-  }>;
-  categories: Array<{
-    title: string;
-    description: string;
-    icon: string;
-    color: string;
-    link: string;
-  }>;
-  howItWorks: Array<{
-    step: number;
-    title: string;
-    description: string;
-    icon: string;
-  }>;
-  whyChooseUs: Array<{
-    title: string;
-    description: string;
-    icon: string;
-  }>;
-}
+import BookAppointmentModal from '@/components/BookAppointmentModal';
+import { 
+  Search, 
+  ArrowDown, 
+  MapPin, 
+  Clock, 
+  DollarSign,
+  Users,
+  Building2,
+  Shield,
+  Zap,
+  Heart,
+  Smartphone,
+  Stethoscope,
+  Pill,
+  Activity
+} from "lucide-react";
 
 export default function HomePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [doctors, setDoctors] = useState<any[]>([]);
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [homepageData, setHomepageData] = useState<HomepageData | null>(null);
 
-  // ============================================================================
-  // 📊 HOMEPAGE DATA - Default content (can be managed from admin panel)
-  // ============================================================================
-  const defaultHomepageData: HomepageData = {
-    hero: {
-      title: "Find Trusted Healthcare Providers Near You",
-      subtitle: "Book appointments with verified doctors, clinics, and hospitals in seconds. Quality healthcare made simple.",
-      searchPlaceholder: "Search by doctor, specialty, or location...",
-      ctaText: "Find a Doctor Now",
-      backgroundImage: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-    },
-    stats: {
-      doctors: 1250,
-      patients: 50000,
-      cities: 45,
-      reviews: 12000
-    },
-    features: [
-      {
-        icon: "🏥",
-        title: "Verified Doctors",
-        description: "All doctors are verified with valid medical licenses",
-        color: "bg-blue-500"
-      },
-      {
-        icon: "⭐",
-        title: "Real Reviews",
-        description: "10,000+ verified patient reviews and ratings",
-        color: "bg-yellow-500"
-      },
-      {
-        icon: "🌐",
-        title: "Multi-language Support",
-        description: "Available in multiple languages for better accessibility",
-        color: "bg-green-500"
-      },
-      {
-        icon: "🔒",
-        title: "Secure & Private",
-        description: "Your health data is protected with enterprise-grade security",
-        color: "bg-purple-500"
-      }
-    ],
-    categories: [
-      {
-        title: "Hospitals",
-        description: "Find top-rated hospitals near you",
-        icon: "🏥",
-        color: "bg-red-500",
-        link: "/hospitals"
-      },
-      {
-        title: "Single Doctors",
-        description: "Connect with individual practitioners",
-        icon: "👨‍⚕️",
-        color: "bg-blue-500",
-        link: "/doctors"
-      },
-      {
-        title: "Multi-Doctor Clinics",
-        description: "Access comprehensive clinic services",
-        icon: "👩‍⚕️",
-        color: "bg-green-500",
-        link: "/clinics"
-      },
-      {
-        title: "Online Consultation",
-        description: "Get medical advice from home",
-        icon: "💻",
-        color: "bg-purple-500",
-        link: "/online"
-      },
-      {
-        title: "Labs & Diagnostics",
-        description: "Book lab tests and diagnostics",
-        icon: "🧪",
-        color: "bg-orange-500",
-        link: "/labs"
-      },
-      {
-        title: "Emergency Care",
-        description: "24/7 emergency medical services",
-        icon: "🚨",
-        color: "bg-red-600",
-        link: "/emergency"
-      }
-    ],
-    howItWorks: [
-      {
-        step: 1,
-        title: "Search & Find",
-        description: "Search by doctor, specialty, or location to find the right healthcare provider",
-        icon: "🔍"
-      },
-      {
-        step: 2,
-        title: "Book & Pay",
-        description: "Select your preferred time slot and complete the booking with secure payment",
-        icon: "📅"
-      },
-      {
-        step: 3,
-        title: "Visit & Rate",
-        description: "Attend your appointment and share your experience to help others",
-        icon: "⭐"
-      }
-    ],
-    whyChooseUs: [
-      {
-        title: "Verified Doctors Only",
-        description: "No scammers - all doctors are verified with valid medical licenses and credentials",
-        icon: "✅"
-      },
-      {
-        title: "Transparent Reviews",
-        description: "One booking equals one review - ensuring authentic patient feedback",
-        icon: "📝"
-      },
-      {
-        title: "Multi-language Support",
-        description: "Breaking language barriers to make healthcare accessible to everyone",
-        icon: "🌍"
-      },
-      {
-        title: "One-stop Healthcare",
-        description: "Complete ecosystem with doctors, clinics, hospitals, labs, and insurance",
-        icon: "🏥"
-      }
-    ],
-    testimonials: [
-      {
-        name: "Sarah Johnson",
-        role: "Patient",
-        content: "Amazing platform! Found my perfect doctor in just 2 minutes. The booking process was so smooth.",
-        rating: 5,
-        avatar: "👩"
-      },
-      {
-        name: "Dr. Michael Chen",
-        role: "Cardiologist",
-        content: "This platform has helped me reach more patients and manage my appointments efficiently.",
-        rating: 5,
-        avatar: "👨‍⚕️"
-      },
-      {
-        name: "Emily Rodriguez",
-        role: "Patient",
-        content: "The reviews helped me choose the right doctor. The consultation was excellent!",
-        rating: 5,
-        avatar: "👩‍🦱"
-      }
-    ]
-  };
-
-  // ============================================================================
-  // 🔄 DATA LOADING - Load doctors and homepage content
-  // ============================================================================
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
+        console.log('Loading data...');
 
-        // Fetch doctors, hospitals, and homepage content in parallel to reduce TTFB
-        const [doctorsRes, hospitalsRes, homepageRes] = await Promise.allSettled([
-          apiClient.getDoctors(),
+        const [hospitalsRes, doctorsRes] = await Promise.allSettled([
           apiClient.getHospitals(),
-          apiClient.getHomepageContent(),
+          apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 12 })
         ]);
 
-        if (doctorsRes.status === 'fulfilled') {
-          setDoctors(doctorsRes.value || []);
-        } else {
-          console.warn('Failed to load doctors:', (doctorsRes as any)?.reason);
-          setDoctors([]);
-        }
+        console.log('Hospitals response:', hospitalsRes);
+        console.log('Doctors response:', doctorsRes);
 
         if (hospitalsRes.status === 'fulfilled') {
           setHospitals(hospitalsRes.value || []);
-        } else {
-          console.warn('Failed to load hospitals:', (hospitalsRes as any)?.reason);
-          setHospitals([]);
+          console.log('Hospitals loaded:', hospitalsRes.value?.length || 0);
         }
-
-        if (homepageRes.status === 'fulfilled') {
-          setHomepageData(homepageRes.value || null);
-        } else {
-          console.warn('Failed to load homepage content:', (homepageRes as any)?.reason);
-          setHomepageData(defaultHomepageData);
+        if (doctorsRes.status === 'fulfilled') {
+          setDoctors(doctorsRes.value || []);
+          console.log('Doctors loaded:', doctorsRes.value?.length || 0);
         }
       } catch (error) {
         console.error('Error loading data:', error);
-        setHomepageData(defaultHomepageData);
       } finally {
         setLoading(false);
       }
     };
-
     loadData();
   }, []);
 
-  // ============================================================================
-  // 🔍 SEARCH FUNCTIONALITY - Filter doctors based on search query
-  // ============================================================================
+  const handleBookAppointment = (doctor: any) => {
+    setSelectedDoctor(doctor);
+    setShowAppointmentModal(true);
+  };
+
   const filteredDoctors = doctors.filter((doctor: any) => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return true; // Show all doctors when search is empty
+    if (!query) return true;
     const profile = doctor.doctorProfile;
     return (
       profile?.specialization?.toLowerCase().includes(query) ||
@@ -286,351 +80,404 @@ export default function HomePage() {
     );
   });
 
-  // ============================================================================
-  // 📅 APPOINTMENT BOOKING - Handle appointment booking
-  // ============================================================================
-  const handleBookAppointment = (doctor: any) => {
-    setSelectedDoctor(doctor);
-    setShowAppointmentModal(true);
-  };
-
-  const handleAppointmentSubmit = async (appointmentData: any) => {
-    try {
-      await apiClient.bookAppointment(appointmentData);
-      setShowAppointmentModal(false);
-      setSelectedDoctor(null);
-      // Show success message
-      alert('Appointment booked successfully!');
-    } catch (error: any) {
-      console.error('Error booking appointment:', error);
-      alert('Failed to book appointment. Please try again.');
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50 to-blue-50 flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-16 h-16 border-4 border-emerald-500 rounded-full animate-spin"></div>
+          <p className="text-gray-600 font-medium">Loading healthcare providers...</p>
+        </div>
       </div>
     );
   }
 
-  const data = homepageData || defaultHomepageData;
-
   return (
-    <div className="min-h-screen bg-gray-50 pt-16">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800">
       <Header />
       
-      {/* ============================================================================ */}
-      {/* 🎯 HERO SECTION - Main landing area with search */}
-      {/* ============================================================================ */}
-      <section
-        className="relative py-12 md:py-16 px-4 text-white"
-        style={{ background: data.hero.backgroundImage }}
-      >
-        <div className="absolute inset-0 bg-black/30"></div>
-        <div className="relative max-w-6xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-            {data.hero.title}
-          </h1>
-          <p className="text-lg md:text-xl mb-6 max-w-2xl mx-auto opacity-90">
-            {data.hero.subtitle}
-          </p>
+      <main>
+        {/* Hero Section */}
+        <section className="relative py-16 px-4 overflow-hidden">
+          {/* Background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-slate-800 to-indigo-900" />
           
-          {/* Search Bar */}
-          <div className="max-w-xl mx-auto mb-6">
-            <div className="relative">
+          {/* Floating Medical Icons */}
+          <motion.div
+            animate={{
+              y: [0, -20, 0],
+              rotate: [0, 5, 0]
+            }}
+            transition={{
+              duration: 6,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="absolute top-20 left-20 text-6xl opacity-30"
+          >
+            <Stethoscope className="text-emerald-300" />
+          </motion.div>
+          
+          <motion.div
+            animate={{
+              y: [0, 15, 0],
+              rotate: [0, -5, 0]
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 1
+            }}
+            className="absolute top-32 right-32 text-5xl opacity-25"
+          >
+            <Pill className="text-blue-300" />
+          </motion.div>
+          
+          <motion.div
+            animate={{
+              y: [0, -10, 0],
+              scale: [1, 1.1, 1]
+            }}
+            transition={{
+              duration: 5,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 2
+            }}
+            className="absolute bottom-32 left-1/4 text-4xl opacity-30"
+          >
+            <Heart className="text-emerald-300" />
+          </motion.div>
+
+          <div className="relative z-10 max-w-6xl mx-auto text-center flex items-center justify-center min-h-[60vh]">
+            {/* Main Content */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <h1 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight">
+                Find Your Perfect
+                <span className="block bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent">
+                  Healthcare Provider
+                </span>
+          </h1>
+              
+              <p className="text-lg md:text-xl text-gray-200 mb-6 max-w-3xl mx-auto leading-relaxed">
+                Connect with top-rated doctors and hospitals. Book appointments instantly 
+                with our AI-powered matching system.
+              </p>
+            </motion.div>
+
+            {/* Search Container */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="max-w-3xl mx-auto mb-8"
+            >
+              <div className="bg-white/90 backdrop-blur-sm border border-emerald-300 rounded-2xl p-6 shadow-xl">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder={data.hero.searchPlaceholder}
+                      placeholder="Search doctors, hospitals, or specialties..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 text-base rounded-full text-gray-800 focus:outline-none focus:ring-4 focus:ring-white/60 shadow-xl"
+                      className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300"
               />
-              <button className="absolute right-2 top-2 bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-colors shadow-md">
+                  </div>
+                  <button className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg">
                 Search
               </button>
             </div>
           </div>
-          
-          <button 
-            onClick={() => setShowAppointmentModal(true)}
-            className="bg-white text-blue-600 px-6 py-3 text-lg font-semibold rounded-full hover:bg-gray-100 transition-colors shadow-xl"
-          >
-            {data.hero.ctaText}
-          </button>
+            </motion.div>
 
-          {/* Auth CTAs: Patient Login and Doctor/Hospital Registration */}
-          <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="/login"
-              className="bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 transition-colors shadow-lg"
+            {/* Scroll Indicator */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="absolute bottom-8 left-1/2 transform -translate-x-1/2"
             >
-              Patient Login
-            </a>
-            <a
-              href="/register/doctor-hospital"
-              className="bg-green-600 text-white px-6 py-3 rounded-full hover:bg-green-700 transition-colors shadow-lg"
-            >
-              Register as Doctor/Hospital
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================================ */}
-      {/* 📊 STATS SECTION - Trust indicators */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div className="p-6">
-              <div className="text-4xl font-bold text-blue-600 mb-2">{data.stats.doctors.toLocaleString()}+</div>
-              <div className="text-gray-600">Verified Doctors</div>
-            </div>
-            <div className="p-6">
-              <div className="text-4xl font-bold text-green-600 mb-2">{data.stats.patients.toLocaleString()}+</div>
-              <div className="text-gray-600">Patients Served</div>
-            </div>
-            <div className="p-6">
-              <div className="text-4xl font-bold text-purple-600 mb-2">{data.stats.cities}+</div>
-              <div className="text-gray-600">Cities Covered</div>
-            </div>
-            <div className="p-6">
-              <div className="text-4xl font-bold text-yellow-600 mb-2">{data.stats.reviews.toLocaleString()}+</div>
-              <div className="text-gray-600">Reviews</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================================ */}
-      {/* 🏷️ QUICK CATEGORIES - Navigation tiles */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-            Find the Right Care for You
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-            {data.categories.map((category, index) => (
-              <a
-                key={index}
-                href={category.link}
-                className="group bg-white rounded-2xl p-6 text-center hover:shadow-xl transition-all duration-300 hover:-translate-y-2"
+              <motion.div
+                animate={{ y: [0, 10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="text-gray-300"
               >
-                <div className={`w-16 h-16 ${category.color} rounded-full flex items-center justify-center text-2xl mx-auto mb-4 group-hover:scale-110 transition-transform`}>
-                  {category.icon}
-                </div>
-                <h3 className="font-semibold text-gray-800 mb-2">{category.title}</h3>
-                <p className="text-sm text-gray-600">{category.description}</p>
-              </a>
+                <ArrowDown className="w-6 h-6" />
+              </motion.div>
+            </motion.div>
+        </div>
+      </section>
+
+        {/* Statistics Section */}
+        <section className="relative py-12 px-4 bg-gradient-to-br from-emerald-600 via-blue-700 to-purple-800">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {[
+                { label: "Expert Doctors", value: 2500, icon: Users, color: "from-emerald-500 to-teal-500" },
+                { label: "Happy Patients", value: 100000, icon: Heart, color: "from-blue-600 to-slate-600" },
+                { label: "Cities Covered", value: 75, icon: MapPin, color: "from-slate-600 to-blue-700" },
+                { label: "Partner Hospitals", value: 150, icon: Building2, color: "from-blue-700 to-slate-800" }
+              ].map((stat, index) => (
+                <div key={index} className="text-center">
+                  <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100">
+                    <div className={`w-16 h-16 bg-gradient-to-r ${stat.color} rounded-xl flex items-center justify-center mx-auto mb-4`}>
+                      <stat.icon className="w-8 h-8 text-white" />
+            </div>
+                    <div className={`text-4xl font-black bg-gradient-to-r ${stat.color} bg-clip-text text-transparent mb-2`}>
+                      {stat.value.toLocaleString()}+
+            </div>
+                    <div className="text-gray-600 font-medium">{stat.label}</div>
+          </div>
+        </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ============================================================================ */}
-      {/* 👨‍⚕️ FEATURED DOCTORS - Top doctors carousel */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
+        {/* Doctors Section */}
+        <section className="relative py-12 px-4 bg-gradient-to-br from-purple-600 via-pink-700 to-red-600">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
             Featured Healthcare Providers
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredDoctors.map((doctor) => (
-              <DoctorCard
-                key={doctor.id}
-                doctor={doctor}
-                onBookAppointment={() => handleBookAppointment(doctor)}
-              />
-            ))}
+              <div className="w-20 h-1 bg-gradient-to-r from-purple-400 to-pink-400 mx-auto mb-4"></div>
+              <p className="text-lg text-gray-200 max-w-2xl mx-auto">
+                Meet our top-rated doctors and specialists, verified by our AI system for excellence in care.
+              </p>
           </div>
-          {filteredDoctors.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No doctors found matching your search.</p>
+
+            {/* Vertical Doctor Cards - One per row */}
+            <div className="space-y-4 mb-8">
+              {filteredDoctors.slice(0, 6).map((doctor, index) => (
+                <motion.div 
+                key={doctor.id}
+                  initial={{ opacity: 0, x: -50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <div className="group bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-gray-100 w-full">
+                    <div className="flex items-center justify-between">
+                      {/* Doctor Info */}
+                      <div className="flex items-center flex-1">
+                        <div className="w-20 h-20 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl mr-6">
+                          👨‍⚕️
+          </div>
+                        <div className="flex-1">
+                          <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                            Dr. {doctor.email.split('@')[0]}
+                          </h3>
+                          <p className="text-emerald-600 font-semibold text-lg mb-3">
+                            {doctor.doctorProfile?.specialization || 'General Practitioner'}
+                          </p>
+                          
+                          <div className="flex flex-wrap gap-6">
+                            {doctor.doctorProfile?.city && (
+                              <div className="flex items-center text-gray-600">
+                                <MapPin className="w-5 h-5 text-emerald-500 mr-2" />
+                                <span>{doctor.doctorProfile.city}, {doctor.doctorProfile.state}</span>
+            </div>
+          )}
+                            
+                            {doctor.doctorProfile?.experience && (
+                              <div className="flex items-center text-gray-600">
+                                <Clock className="w-5 h-5 text-blue-500 mr-2" />
+                                <span>{doctor.doctorProfile.experience}+ Years Experience</span>
+            </div>
+          )}
+                            
+                            {doctor.doctorProfile?.consultationFee && (
+                              <div className="flex items-center text-gray-600">
+                                <DollarSign className="w-5 h-5 text-green-500 mr-2" />
+                                <span>₹{doctor.doctorProfile.consultationFee}</span>
             </div>
           )}
         </div>
+                        </div>
+                      </div>
+
+                      {/* Book Button */}
+                      <div className="ml-6">
+                        <button 
+                          onClick={() => handleBookAppointment(doctor)}
+                          className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold py-4 px-8 rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-emerald-200 min-w-[200px]"
+                        >
+                          Book Appointment
+                        </button>
+                      </div>
+                </div>
+              </div>
+                </motion.div>
+            ))}
+          </div>
+        </div>
       </section>
 
-      {/* ============================================================================ */}
-      {/* 🏨 PARTNER HOSPITALS - OYO-style grid */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-            Partner Hospitals
+        {/* Hospitals Section */}
+        <section className="relative py-12 px-4 bg-gradient-to-br from-orange-600 via-yellow-600 to-green-600">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+                Partner Hospitals
           </h2>
-          {hospitals.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {hospitals.slice(0, 9).map((hospital: any) => {
-                const name = hospital.name || hospital.brandName || 'Hospital';
-                const city = hospital.city || '';
-                const state = hospital.state || '';
-                const location = [city, state].filter(Boolean).join(', ');
-                const logoUrl = hospital.logoUrl || hospital.general?.logoUrl;
+              <div className="w-20 h-1 bg-gradient-to-r from-orange-400 to-green-400 mx-auto mb-4"></div>
+              <p className="text-lg text-gray-200 max-w-2xl mx-auto">
+                Discover our partner hospitals offering world-class healthcare services and specialized treatments.
+              </p>
+            </div>
+
+            {/* Vertical Hospital Cards - One per row */}
+            <div className="space-y-4 mb-8">
+              {hospitals.slice(0, 6).map((hospital, index) => {
+                const name = hospital.name || 'Hospital Name';
+                const location = hospital.address ? `${hospital.city || ''}, ${hospital.state || ''}`.trim() : 'Location';
+                
                 return (
-                  <div key={hospital.id} className="bg-white rounded-2xl shadow hover:shadow-xl transition-all overflow-hidden border border-gray-200">
-                    <div className="h-40 bg-gray-100 flex items-center justify-center">
-                      {logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={logoUrl} alt={name} className="h-20 object-contain" />
-                      ) : (
-                        <div className="text-5xl">🏥</div>
-                      )}
-                    </div>
-                    <div className="p-6">
-                      <h3 className="text-xl font-semibold text-gray-900">{name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{location}</p>
-                      <div className="mt-4 flex items-center justify-between">
-                        <a href={`/hospital-site/${hospital.id}`} className="text-blue-600 hover:text-blue-700 font-medium">View Site</a>
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Partner</span>
-                      </div>
-                    </div>
-                  </div>
+                  <motion.div 
+                    key={hospital.id}
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <div className="group bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-gray-100 w-full">
+                      <div className="flex items-center justify-between">
+                        {/* Hospital Info */}
+                        <div className="flex items-center flex-1">
+                          <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-slate-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mr-6">
+                            🏥
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2">{name}</h3>
+                            <p className="text-blue-600 font-semibold text-lg mb-3">Multi-Specialty Hospital</p>
+                            
+                            <div className="flex flex-wrap gap-6">
+                              {location && (
+                                <div className="flex items-center text-gray-600">
+                                  <MapPin className="w-5 h-5 text-blue-500 mr-2" />
+                                  <span>{location}</span>
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center text-gray-600">
+                                <Building2 className="w-5 h-5 text-emerald-500 mr-2" />
+                                <span>{hospital._count?.departments || 0} Departments</span>
+                              </div>
+                              
+                              <div className="flex items-center text-gray-600">
+                                <Users className="w-5 h-5 text-green-500 mr-2" />
+                                <span>{hospital._count?.doctors || 0} Doctors</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Visit Button */}
+                        <div className="ml-6">
+                          <a
+                            href={`/hospital-site/${hospital.id}`}
+                            className="bg-gradient-to-r from-blue-600 to-slate-600 text-white font-bold py-4 px-8 rounded-xl hover:from-blue-700 hover:to-slate-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-blue-200 block text-center min-w-[200px]"
+                          >
+                            Visit Hospital
+                          </a>
+                        </div>
+                </div>
+              </div>
+                  </motion.div>
                 );
               })}
+          </div>
+        </div>
+      </section>
+
+        {/* Features Section */}
+        <section className="relative py-12 px-4 bg-gradient-to-br from-indigo-600 via-cyan-600 to-teal-600">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+                Why Choose Our Platform?
+              </h2>
+              <div className="w-20 h-1 bg-gradient-to-r from-indigo-400 to-teal-400 mx-auto mb-4"></div>
+              <p className="text-lg text-gray-200 max-w-2xl mx-auto">
+                Experience the future of healthcare with our revolutionary platform features.
+              </p>
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">Hospitals listing coming soon.</p>
-            </div>
-          )}
-        </div>
-      </section>
 
-      {/* ============================================================================ */}
-      {/* ⭐ TRUST FEATURES - Why choose us */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-            Why Choose Our Platform
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {data.features.map((feature, index) => (
-              <div key={index} className="text-center">
-                <div className={`w-20 h-20 ${feature.color} rounded-full flex items-center justify-center text-3xl mx-auto mb-6`}>
-                  {feature.icon}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  icon: Shield,
+                  title: "AI-Powered Matching",
+                  description: "Advanced algorithms match you with the perfect healthcare provider",
+                  color: "from-emerald-500 to-teal-500"
+                },
+                {
+                  icon: Zap,
+                  title: "Instant Booking",
+                  description: "Book appointments in seconds with real-time availability",
+                  color: "from-blue-600 to-slate-600"
+                },
+                {
+                  icon: Building2,
+                  title: "Hospital Network",
+                  description: "Access to premium hospitals and specialized departments",
+                  color: "from-slate-600 to-blue-700"
+                },
+                {
+                  icon: Smartphone,
+                  title: "Mobile First",
+                  description: "Seamless experience across all devices and platforms",
+                  color: "from-blue-700 to-slate-800"
+                }
+              ].map((feature, index) => (
+                <div key={index}>
+                  <div className="group bg-white rounded-2xl p-6 text-center hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 hover:border-emerald-200">
+                    <div className={`w-16 h-16 bg-gradient-to-r ${feature.color} rounded-xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                      <feature.icon className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-4 text-gray-800">{feature.title}</h3>
-                <p className="text-gray-600">{feature.description}</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">{feature.title}</h3>
+                    <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
+      </main>
 
-      {/* ============================================================================ */}
-      {/* 🔄 HOW IT WORKS - Process explanation */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-            How It Works
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {data.howItWorks.map((step, index) => (
-              <div key={index} className="text-center">
-                <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">
-                  {step.icon}
-                </div>
-                <div className="text-2xl font-bold text-blue-600 mb-4">Step {step.step}</div>
-                <h3 className="text-xl font-semibold mb-4 text-gray-800">{step.title}</h3>
-                <p className="text-gray-600">{step.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================================ */}
-      {/* 💬 TESTIMONIALS - Patient reviews */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-            What Our Patients Say
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {data.testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-white rounded-2xl p-8 shadow-lg">
-                <div className="flex items-center mb-4">
-                  <div className="text-4xl mr-4">{testimonial.avatar}</div>
-                  <div>
-                    <h4 className="font-semibold text-gray-800">{testimonial.name}</h4>
-                    <p className="text-gray-600 text-sm">{testimonial.role}</p>
-                  </div>
-                </div>
-                <div className="flex mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <span key={i} className="text-yellow-400 text-xl">⭐</span>
-                  ))}
-                </div>
-                <p className="text-gray-700 italic">"{testimonial.content}"</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================================ */}
-      {/* 📍 LOCATION SECTION - Map and location search */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-            Find Healthcare Near You
-          </h2>
-          <div className="bg-gray-100 rounded-2xl p-8 text-center">
-            <div className="text-6xl mb-4">🗺️</div>
-            <h3 className="text-2xl font-semibold mb-4 text-gray-800">Interactive Location Search</h3>
-            <p className="text-gray-600 mb-6">Discover healthcare providers in your area with our interactive map</p>
-            <button className="bg-blue-600 text-white px-8 py-3 rounded-full hover:bg-blue-700 transition-colors">
-              Find Doctors in My Area
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================================ */}
-      {/* 🎯 CALL TO ACTION - Final conversion section */}
-      {/* ============================================================================ */}
-      <section className="py-16 bg-blue-600 text-white">
-        <div className="max-w-4xl mx-auto text-center px-4">
-          <h2 className="text-4xl font-bold mb-6">
-            Ready to Find Your Perfect Healthcare Provider?
-          </h2>
-          <p className="text-xl mb-8 opacity-90">
-            Join thousands of patients who trust our platform for their healthcare needs
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button 
-              onClick={() => setShowAppointmentModal(true)}
-              className="bg-white text-blue-600 px-8 py-4 text-xl font-semibold rounded-full hover:bg-gray-100 transition-colors"
-            >
-              Book Appointment Now
-            </button>
-            <a
-              href="/doctors"
-              className="border-2 border-white text-white px-8 py-4 text-xl font-semibold rounded-full hover:bg-white hover:text-blue-600 transition-colors"
-            >
-              Browse Doctors
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================================================================ */}
-      {/* 📅 APPOINTMENT MODAL - Booking interface */}
-      {/* ============================================================================ */}
-      {showAppointmentModal && (
+      {/* Booking Modal */}
+      {showAppointmentModal && selectedDoctor && (
         <BookAppointmentModal
+          open={showAppointmentModal}
+          onClose={() => {
+            setShowAppointmentModal(false);
+            setSelectedDoctor(null);
+          }}
           doctor={selectedDoctor}
-          onClose={() => setShowAppointmentModal(false)}
-          onSubmit={handleAppointmentSubmit}
+          doctorId={selectedDoctor.id}
+          doctorName={`Dr. ${selectedDoctor.email.split('@')[0]}`}
+          onSubmit={async (appointmentData) => {
+            try {
+              if (appointmentData.time) {
+                await apiClient.bookAppointment({
+                  ...appointmentData,
+                  time: appointmentData.time
+                });
+                setShowAppointmentModal(false);
+                setSelectedDoctor(null);
+                alert('Appointment booked successfully!');
+              }
+            } catch (error) {
+              console.error('Error booking appointment:', error);
+              alert('Failed to book appointment. Please try again.');
+            }
+          }}
+          patientLoggedIn={!!user}
+          patientRole={user?.role}
         />
       )}
     </div>

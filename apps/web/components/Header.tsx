@@ -39,7 +39,7 @@ export default function Header() {
   // 🎯 MAIN RENDER - Display the header navigation
   // ============================================================================
   return (
-    <header className="bg-white/70 backdrop-blur border-b border-gray-200/80 fixed top-0 left-0 right-0 z-50 w-full">
+    <header className="bg-[#003a9f] text-white fixed top-0 left-0 right-0 z-50 w-full shadow">
       {/* ============================================================================
           📱 RESPONSIVE CONTAINER - Main header wrapper with responsive design
           ============================================================================ */}
@@ -52,7 +52,7 @@ export default function Header() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
               <div className="text-2xl">🏥</div>
-              <span className="text-xl font-bold text-gray-900">DocProc</span>
+              <span className="text-xl font-bold text-white">DocProc</span>
             </Link>
           </div>
 
@@ -81,7 +81,7 @@ export default function Header() {
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
+                  className="flex items-center space-x-2 text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                 >
                   <span>👤 {user.email}</span>
                   <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
@@ -138,7 +138,7 @@ export default function Header() {
               <div className="flex space-x-4">
                 <Link
                   href="/login"
-                  className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                 >
                   🔑 Login
                 </Link>
@@ -150,7 +150,7 @@ export default function Header() {
                 ============================================================================ */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-blue-600 hover:bg-gray-100"
+              className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-white hover:text-white hover:bg-white/10"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {isMenuOpen ? (
@@ -167,39 +167,39 @@ export default function Header() {
             📱 MOBILE NAVIGATION - Collapsible menu for mobile devices
             ============================================================================ */}
         {isMenuOpen && (
-          <div className="lg:hidden border-t border-gray-200">
+          <div className="lg:hidden border-t border-white/20">
             <div className="px-2 pt-2 pb-3 space-y-1">
               <Link
                 href="/"
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 🏠 Home
               </Link>
               <Link
                 href="/doctors"
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 👨‍⚕️ Find Doctors
               </Link>
               <Link
                 href="/hospitals"
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 🏥 Hospitals
               </Link>
               <Link
                 href="/clinics"
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 🏥 Clinics
               </Link>
               <Link
                 href="/reviews"
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 ⭐ Reviews
@@ -211,7 +211,7 @@ export default function Header() {
               {user?.role === 'ADMIN' && (
                 <a
                   href="/admin-panel/content"
-                  className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                  className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   🔒 Admin Panel
@@ -219,7 +219,7 @@ export default function Header() {
               )}
               <Link
                 href="/slot-admin/login"
-                className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
                 🕒 Slot Admin
@@ -232,21 +232,21 @@ export default function Header() {
                 <>
                   <Link
                     href="/dashboard"
-                    className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     🏠 Dashboard
                   </Link>
                   <Link
                     href="/dashboard/profile"
-                    className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     👤 Profile
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="text-gray-700 hover:text-blue-600 block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="text-white/90 hover:text-white block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors"
                   >
                     🚪 Logout
                   </button>
@@ -255,21 +255,21 @@ export default function Header() {
                 <>
                   <Link
                     href="/login"
-                    className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     🔑 Login
                   </Link>
                   <Link
                     href="/login/doctors"
-                    className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     👨‍⚕️ Doctor Login
                   </Link>
                   <Link
                     href="/auth?mode=register"
-                    className="bg-blue-600 text-white hover:bg-blue-700 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+                    className="bg-white text-[#003a9f] hover:bg-white/90 block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     📝 Register

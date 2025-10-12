@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
-import Link from "next/link";
+// Link removed as hospital-wide Slot Admin UI has been deprecated
 
 type HospitalProfile = {
   general?: {
@@ -93,10 +93,7 @@ export default function HospitalAdminProfilePage() {
   const [departmentsExpanded, setDepartmentsExpanded] = useState(true);
   const [aboutExpanded, setAboutExpanded] = useState(true);
   const [generalExpanded, setGeneralExpanded] = useState(true);
-  const [slotAdminEmail, setSlotAdminEmail] = useState("");
-  const [currentSlotAdminEmail, setCurrentSlotAdminEmail] = useState<string | null>(null);
-  const [slotAdminPassword, setSlotAdminPassword] = useState("");
-  const [slotAdminSaving, setSlotAdminSaving] = useState(false);
+  const [doctorAdmins, setDoctorAdmins] = useState<Record<number, { currentEmail?: string; email: string; password: string; saving: boolean; loading: boolean }>>({});
 
   useEffect(() => {
     if (loading) return;
@@ -114,20 +111,42 @@ export default function HospitalAdminProfilePage() {
         setHospitalId(mine.id);
         const profRes = await apiClient.getHospitalProfile(mine.id);
         if (profRes?.profile) setProfile(profRes.profile as HospitalProfile);
-        // Load existing Slot Admin
-        const sa = await apiClient.getHospitalSlotAdmin();
-        if (sa?.slotAdmin) {
-          setCurrentSlotAdminEmail(sa.slotAdmin.email);
-          setSlotAdminEmail(sa.slotAdmin.email);
-        } else {
-          setCurrentSlotAdminEmail(null);
-        }
       } catch (e: any) {
         setMessage(e?.message || "Failed to load hospital profile.");
       }
     };
     load();
   }, [user, loading]);
+
+  // Load per-doctor slot admin details when doctors list changes
+  useEffect(() => {
+    const doctors = profile.doctors || [];
+    const loadPerDoctor = async () => {
+      const next: Record<number, { currentEmail?: string; email: string; password: string; saving: boolean; loading: boolean }> = { ...doctorAdmins };
+      for (const d of doctors) {
+        if (d.doctorId && !next[d.doctorId]) {
+          next[d.doctorId] = { email: "", password: "", saving: false, loading: true };
+          setDoctorAdmins({ ...next });
+          try {
+            const sa = await apiClient.getHospitalSlotAdmin(d.doctorId);
+            next[d.doctorId] = {
+              currentEmail: sa?.slotAdmin?.email,
+              email: sa?.slotAdmin?.email || "",
+              password: "",
+              saving: false,
+              loading: false,
+            };
+            setDoctorAdmins({ ...next });
+          } catch (e) {
+            next[d.doctorId] = { email: "", password: "", saving: false, loading: false };
+            setDoctorAdmins({ ...next });
+          }
+        }
+      }
+    };
+    loadPerDoctor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.doctors]);
 
   const updateGeneralField = (path: (keyof NonNullable<HospitalProfile["general"]>) | string, value: any) => {
     setProfile((prev) => ({
@@ -274,21 +293,30 @@ export default function HospitalAdminProfilePage() {
     }
   };
 
-  const saveHospitalSlotAdmin = async () => {
-    if (!slotAdminEmail || !slotAdminPassword) {
-      setMessage("Please provide Slot Admin email and password");
+  // Removed hospital-wide Slot Admin save handler; only doctor-scoped Slot Admins remain
+
+  const saveDoctorSlotAdmin = async (doctorId?: number) => {
+    if (!hospitalId) {
+      setMessage("Create your hospital first, then add Slot Admin.");
       return;
     }
-    setSlotAdminSaving(true);
+    if (!doctorId || !Number.isInteger(doctorId)) {
+      setMessage("Link a real doctor first (Make Bookable) to assign a Slot Admin.");
+      return;
+    }
+    const current = doctorAdmins[doctorId] || { email: "", password: "", saving: false, loading: false };
+    if (!current.email || !current.password) {
+      setMessage("Please provide Slot Admin email and password for the doctor.");
+      return;
+    }
+    setDoctorAdmins((prev) => ({ ...prev, [doctorId]: { ...current, saving: true } }));
     try {
-      const res = await apiClient.upsertHospitalSlotAdmin(slotAdminEmail, slotAdminPassword);
-      setCurrentSlotAdminEmail(res.slotAdmin.email);
-      setSlotAdminPassword("");
-      setMessage("Slot Admin credentials updated successfully.");
+      const res = await apiClient.upsertHospitalSlotAdmin(current.email, current.password, doctorId);
+      setDoctorAdmins((prev) => ({ ...prev, [doctorId]: { ...prev[doctorId], currentEmail: res.slotAdmin.email, password: "", saving: false } }));
+      setMessage("Doctor Slot Admin credentials updated successfully.");
     } catch (e: any) {
-      setMessage(e?.message || "Failed to update Slot Admin credentials.");
-    } finally {
-      setSlotAdminSaving(false);
+      setMessage(e?.message || "Failed to update Doctor Slot Admin credentials.");
+      setDoctorAdmins((prev) => ({ ...prev, [doctorId]: { ...prev[doctorId], saving: false } }));
     }
   };
 
@@ -310,40 +338,15 @@ export default function HospitalAdminProfilePage() {
     );
   }
 
+  // Frontend guard: surface clearer hint if not HOSPITAL_ADMIN
+  const isHospitalAdmin = user.role === "HOSPITAL_ADMIN";
+
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8 min-h-screen bg-gray-50 text-gray-900">
       <h1 className="text-3xl font-bold">Hospital Profile</h1>
       {message && <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>}
 
-      {/* Slot Admin Settings */}
-      <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-        <h2 className="text-xl font-semibold mb-3">Slot Booking Admin</h2>
-        <p className="text-sm text-gray-600 mb-4">Create or update a dedicated Slot Admin login for your hospital staff.</p>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Current Slot Admin</label>
-            <div className="text-gray-800">{currentSlotAdminEmail ? <span className="font-mono">{currentSlotAdminEmail}</span> : <span className="text-gray-500">No Slot Admin configured yet</span>}</div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Slot Admin Email</label>
-              <input type="email" value={slotAdminEmail} onChange={(e) => setSlotAdminEmail(e.target.value)} placeholder="slot-admin@example.com" className="w-full border rounded-lg px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-              <input type="password" value={slotAdminPassword} onChange={(e) => setSlotAdminPassword(e.target.value)} placeholder="Enter new password" className="w-full border rounded-lg px-3 py-2" />
-            </div>
-          </div>
-          <div>
-            <button onClick={saveHospitalSlotAdmin} disabled={slotAdminSaving} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 disabled:opacity-50">
-              {slotAdminSaving ? "Saving..." : (currentSlotAdminEmail ? "Update Slot Admin" : "Create Slot Admin")}
-            </button>
-          </div>
-          <p className="text-sm text-gray-600">
-            Share the login URL with staff: <Link href="/slot-admin/login" className="text-blue-600 underline">Slot Admin Login</Link>
-          </p>
-        </div>
-      </section>
+      {/* Hospital-wide Slot Admin section removed. Only per-doctor Slot Admin controls remain below. */}
 
       {!hospitalId && (
         <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
@@ -523,6 +526,55 @@ export default function HospitalAdminProfilePage() {
                 <input className="border rounded p-2 flex-1" placeholder="Sub-Specialty" value={doc.subSpecialty || ""} onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)} />
                 <button className="px-3 py-2 bg-green-600 text-white rounded" disabled={saving} onClick={() => makeDoctorBookable(idx)}>Make Bookable</button>
                 <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDoctor(idx)}>Remove</button>
+              </div>
+
+              {/* Doctor-scoped Slot Admin */}
+              <div className="mt-2 border rounded p-3 bg-gray-50">
+                <h3 className="font-semibold">Doctor Slot Admin</h3>
+                {!doc.doctorId && (
+                  <div className="text-sm text-gray-700 mt-1">
+                    Link this doctor to a real account first by clicking <span className="font-semibold">Make Bookable</span>.
+                  </div>
+                )}
+                {doc.doctorId && (
+                  <div className="space-y-2 mt-2">
+                    <div className="text-sm text-gray-700">
+                      Current Slot Admin: {doctorAdmins[doc.doctorId]?.currentEmail ? (
+                        <span className="font-mono">{doctorAdmins[doc.doctorId]?.currentEmail}</span>
+                      ) : (
+                        <span className="text-gray-500">None</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <input
+                        type="email"
+                        className="border rounded p-2"
+                        placeholder="Slot Admin Email"
+                        value={doctorAdmins[doc.doctorId]?.email || ""}
+                        onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], email: e.target.value } }))}
+                        disabled={doctorAdmins[doc.doctorId]?.loading}
+                      />
+                      <input
+                        type="password"
+                        className="border rounded p-2"
+                        placeholder="New Password"
+                        value={doctorAdmins[doc.doctorId]?.password || ""}
+                        onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], password: e.target.value } }))}
+                        disabled={doctorAdmins[doc.doctorId]?.loading}
+                      />
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                        onClick={() => saveDoctorSlotAdmin(doc.doctorId)}
+                        disabled={doctorAdmins[doc.doctorId]?.saving || doctorAdmins[doc.doctorId]?.loading}
+                      >
+                        {doctorAdmins[doc.doctorId]?.saving ? 'Saving...' : (doctorAdmins[doc.doctorId]?.currentEmail ? 'Update Slot Admin' : 'Create Slot Admin')}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Associate with Departments */}

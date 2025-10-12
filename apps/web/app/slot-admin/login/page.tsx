@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = ""; // use relative URLs with Next.js dev rewrites
 
 export default function SlotAdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -20,7 +20,7 @@ export default function SlotAdminLoginPage() {
     }
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/api/login`, {
+      const res = await fetch(`/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

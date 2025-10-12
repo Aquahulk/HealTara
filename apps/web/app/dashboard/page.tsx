@@ -29,6 +29,7 @@ import {
   PhoneIcon,
   EnvelopeIcon
 } from '@heroicons/react/24/outline';                      // Heroicons for beautiful icons
+import { doctorMicrositeUrl, hospitalMicrositeUrl } from '@/lib/subdomain';
 
 // ============================================================================
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
@@ -81,6 +82,21 @@ export default function DashboardPage() {
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'>('ALL'); // Doctor-only filter
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
+  const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any }>>([]); // Linked doctors
+  const [doctorAppointmentsMap, setDoctorAppointmentsMap] = useState<Record<number, Appointment[]>>({}); // Appointments per doctor
+  const [loadingHospitalBookings, setLoadingHospitalBookings] = useState(false); // Loading flag for hospital bookings
+  const [hospitalDoctorSlotsMap, setHospitalDoctorSlotsMap] = useState<Record<number, Slot[]>>({}); // Slots per doctor (hospital admin)
+  const [selectedDoctorForTiming, setSelectedDoctorForTiming] = useState<number | null>(null);
+  const [hospitalWorkingHours, setHospitalWorkingHours] = useState<Array<{ dayOfWeek: number; start: string | null; end: string | null }>>([]);
+  const [hospitalHoursInputs, setHospitalHoursInputs] = useState<Record<number, { start: string; end: string }>>({
+    0: { start: "09:00", end: "17:00" },
+    1: { start: "09:00", end: "17:00" },
+    2: { start: "09:00", end: "17:00" },
+    3: { start: "09:00", end: "17:00" },
+    4: { start: "09:00", end: "17:00" },
+    5: { start: "10:00", end: "14:00" },
+    6: { start: "", end: "" },
+  });
   const isDoctorLike = !!(user && (user.role === 'DOCTOR' || user.role === 'HOSPITAL_ADMIN'));
 
   // ============================================================================
@@ -192,6 +208,191 @@ export default function DashboardPage() {
 
     fetchDashboardData();
   }, [user]);
+
+  // Load hospital doctors and their bookings for hospital admins
+  useEffect(() => {
+    const loadHospitalBookings = async () => {
+      if (!user || user.role !== 'HOSPITAL_ADMIN' || !hospitalProfile?.id) return;
+      try {
+        setLoadingHospitalBookings(true);
+        // Fetch detailed hospital info to get linked doctors
+        const details = await apiClient.getHospitalDetails(hospitalProfile.id);
+        const links = ((details?.doctors || []) as Array<any>)
+          .map((l) => l?.doctor)
+          .filter((d) => d && typeof d.id === 'number');
+        setHospitalDoctors(links);
+
+        const perDoctor: Record<number, Appointment[]> = {};
+        const perDoctorSlots: Record<number, Slot[]> = {};
+        await Promise.all(
+          links.map(async (d) => {
+            try {
+              const [items, s] = await Promise.all([
+                apiClient.getHospitalDoctorAppointments(hospitalProfile.id, d.id),
+                apiClient.getSlots({ doctorId: d.id }),
+              ]);
+              perDoctor[d.id] = Array.isArray(items) ? items : [];
+              perDoctorSlots[d.id] = Array.isArray(s) ? s : [];
+            } catch {
+              if (!perDoctor[d.id]) perDoctor[d.id] = [];
+              if (!perDoctorSlots[d.id]) perDoctorSlots[d.id] = [];
+            }
+          })
+        );
+        setDoctorAppointmentsMap(perDoctor);
+        setHospitalDoctorSlotsMap(perDoctorSlots);
+      } catch (e) {
+        console.warn('Failed to load hospital doctor bookings:', e);
+      } finally {
+        setLoadingHospitalBookings(false);
+      }
+    };
+
+    loadHospitalBookings();
+  }, [user, hospitalProfile]);
+
+  // Update appointment status (hospital admin -> per doctor)
+  const updateDoctorAppointmentStatus = async (doctorId: number, appointmentId: number, newStatus: string) => {
+    if (!hospitalProfile?.id) return;
+    // Optimistically update UI immediately, then reconcile with server response
+    let previous: Appointment[] | undefined;
+    setDoctorAppointmentsMap((prev) => {
+      previous = prev[doctorId];
+      const nextList = (prev[doctorId] || []).map((a) =>
+        a.id === appointmentId ? { ...a, status: newStatus } : a
+      );
+      return { ...prev, [doctorId]: nextList };
+    });
+    // Broadcast to other dashboards (e.g., Slot Admin) for instant reflection
+    try {
+      const bc = new BroadcastChannel('appointments-updates');
+      bc.postMessage({ type: 'appointment-update', id: appointmentId, status: newStatus });
+      bc.close();
+    } catch {}
+    try {
+      const updated = await apiClient.updateHospitalDoctorAppointment(
+        hospitalProfile.id,
+        doctorId,
+        appointmentId,
+        { status: newStatus }
+      );
+      setDoctorAppointmentsMap((prev) => ({
+        ...prev,
+        [doctorId]: (prev[doctorId] || []).map((a) => (a.id === appointmentId ? updated : a)),
+      }));
+    } catch (e: any) {
+      // Revert on failure
+      setDoctorAppointmentsMap((prev) => ({
+        ...prev,
+        [doctorId]: previous || (prev[doctorId] || []),
+      }));
+      alert(e?.message || 'Failed to update appointment status');
+    }
+  };
+
+  // Listen for cross-dashboard updates to keep Hospital Admin in sync
+  useEffect(() => {
+    const channel = new BroadcastChannel('appointments-updates');
+    channel.onmessage = (ev) => {
+      const msg = ev.data as any;
+      if (msg?.type === 'appointment-update') {
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const did = Number(key);
+            next[did] = (next[did] || []).map((a) => (a.id === msg.id ? { ...a, status: msg.status } : a));
+          });
+          return next;
+        });
+      } else if (msg?.type === 'appointment-cancel') {
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const did = Number(key);
+            next[did] = (next[did] || []).filter((a) => a.id !== msg.id);
+          });
+          return next;
+        });
+      } else if (msg?.type === 'appointment-booked') {
+        // On patient booking, refresh that doctor's appointments and slots for instant reflection
+        const payload = msg?.payload || {};
+        const did = Number(payload.doctorId);
+        if (!did) return;
+
+        const refreshForHospital = async (hid: number) => {
+          try {
+            const [items, slots] = await Promise.all([
+              apiClient.getHospitalDoctorAppointments(hid, did),
+              apiClient.getSlots({ doctorId: did }),
+            ]);
+            setDoctorAppointmentsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(items) ? items : [],
+            }));
+            setHospitalDoctorSlotsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(slots) ? slots : [],
+            }));
+          } catch (e) {
+            // keep UI graceful
+          }
+        };
+
+        if (hospitalProfile?.id) {
+          refreshForHospital(hospitalProfile.id);
+        } else {
+          // Fallback: fetch my hospital first if not yet loaded
+          apiClient.getMyHospital().then((h) => {
+            if (h?.id) refreshForHospital(h.id);
+          }).catch(() => {});
+        }
+      }
+    };
+    return () => channel.close();
+  }, []);
+
+  const loadHospitalDoctorWorkingHours = async (doctorId: number) => {
+    if (!hospitalProfile?.id) return;
+    try {
+      const list = await apiClient.getHospitalDoctorWorkingHours(hospitalProfile.id, doctorId);
+      const arr = Array.isArray(list) ? list : [];
+      setHospitalWorkingHours(
+        arr.map((wh: any) => ({
+          dayOfWeek: wh.dayOfWeek,
+          start: wh.start,
+          end: wh.end,
+        }))
+      );
+      const next: Record<number, { start: string; end: string }> = { ...hospitalHoursInputs };
+      arr.forEach((wh: any) => {
+        if (typeof wh.dayOfWeek === 'number') {
+          next[wh.dayOfWeek] = {
+            start: wh.start ? wh.start.slice(0,5) : '',
+            end: wh.end ? wh.end.slice(0,5) : '',
+          };
+        }
+      });
+      setHospitalHoursInputs(next);
+    } catch (e) {
+      // keep UI graceful
+    }
+  };
+
+  const saveHospitalDoctorWorkingHours = async () => {
+    if (!hospitalProfile?.id || !selectedDoctorForTiming) return;
+    try {
+      const payload = Object.keys(hospitalHoursInputs).map((k) => {
+        const day = Number(k);
+        const { start, end } = hospitalHoursInputs[day];
+        return { dayOfWeek: day, start: start ? `${start}:00` : null, end: end ? `${end}:00` : null };
+      });
+      await apiClient.setHospitalDoctorWorkingHours(hospitalProfile.id, selectedDoctorForTiming, payload);
+      await loadHospitalDoctorWorkingHours(selectedDoctorForTiming);
+      alert('Doctor timing saved');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to save timing');
+    }
+  };
 
   // Create a new slot
   const handleCreateSlot = async () => {
@@ -644,11 +845,189 @@ export default function DashboardPage() {
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">
-                {user.role === 'DOCTOR' ? 'Appointment Management' : 'My Appointments'}
+                {user.role === 'DOCTOR' ? 'Appointment Management' : user.role === 'HOSPITAL_ADMIN' ? 'Hospital Bookings by Doctor' : 'My Appointments'}
               </h3>
             </div>
             <div className="p-6">
-              {appointments.length > 0 ? (
+              {user.role === 'HOSPITAL_ADMIN' ? (
+                <div>
+                  {loadingHospitalBookings && (
+                    <div className="text-center py-4 text-gray-600">Loading doctor bookings…</div>
+                  )}
+                  {(!loadingHospitalBookings && hospitalDoctors.length === 0) && (
+                    <div className="text-center py-8 text-gray-600">No doctors linked to your hospital yet.</div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {hospitalDoctors.map((doc) => {
+                      const items = doctorAppointmentsMap[doc.id] || [];
+                      return (
+                        <div key={doc.id} className="border rounded-lg overflow-hidden">
+                          <div className="px-4 py-3 border-b bg-gray-50">
+                            <div className="font-semibold text-gray-900">Doctor: {doc.email}</div>
+                            {doc.doctorProfile?.clinicName && (
+                              <div className="text-sm text-gray-600">{doc.doctorProfile.clinicName}</div>
+                            )}
+                          </div>
+                          <div className="p-4">
+                            {(items.length === 0 && (hospitalDoctorSlotsMap[doc.id] || []).length === 0) ? (
+                              <div className="text-sm text-gray-500">No bookings or slots found for this doctor.</div>
+                            ) : (
+                              <ul className="space-y-4">
+                                {(hospitalDoctorSlotsMap[doc.id] || []).map((slot) => {
+                                  const slotAppointments = items.filter((a) => {
+                                    const t = new Date(a.date).getTime();
+                                    return t >= new Date(slot.startTime).getTime() && t <= new Date(slot.endTime).getTime();
+                                  });
+                                  return (
+                                    <li key={slot.id} className="border border-gray-200 rounded">
+                                      <div className="px-3 py-2">
+                                        <div className="text-sm font-medium text-gray-900">Slot #{slot.id}</div>
+                                        <div className="text-sm text-gray-700">{new Date(slot.startTime).toLocaleString()} → {new Date(slot.endTime).toLocaleString()}</div>
+                                        <div className="text-xs text-gray-500">Status: {slot.status || 'UNKNOWN'}</div>
+                                        {(() => {
+                                          // Availability badge when timing is selected for the doctor
+                                          const dayIdx = new Date(slot.startTime).getDay();
+                                          const wh = hospitalHoursInputs[dayIdx];
+                                          const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
+                                          const within = (() => {
+                                            if (!hasTiming) return true;
+                                            const toMin = (t: string) => {
+                                              const [hh, mm] = t.split(':').map(Number);
+                                              return hh * 60 + mm;
+                                            };
+                                            const startMin = new Date(slot.startTime).getHours() * 60 + new Date(slot.startTime).getMinutes();
+                                            const endMin = new Date(slot.endTime).getHours() * 60 + new Date(slot.endTime).getMinutes();
+                                            const whStart = toMin(wh.start);
+                                            const whEnd = toMin(wh.end);
+                                            return startMin >= whStart && endMin <= whEnd;
+                                          })();
+                                          return hasTiming && !within ? (
+                                            <div className="mt-1 inline-block px-2 py-0.5 text-xs rounded bg-red-100 text-red-700">Not available</div>
+                                          ) : null;
+                                        })()}
+                                      </div>
+                                      <div className="px-3 pb-3">
+                                        {slotAppointments.length === 0 ? (
+                                          <div className="text-sm text-gray-500">No bookings in this slot.</div>
+                                        ) : (
+                                          <ul className="space-y-2">
+                                            {slotAppointments.map((a) => (
+                                              <li key={a.id} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
+                                                <div>
+                                                  <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleTimeString()}</div>
+                                                  <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
+                                                </div>
+                                                <div>
+                                                  <select
+                                                    className="border rounded px-2 py-1 text-xs"
+                                                    value={a.status}
+                                                    onChange={(e) => updateDoctorAppointmentStatus(doc.id, a.id, e.target.value)}
+                                                  >
+                                                    <option value="PENDING">Pending</option>
+                                                    <option value="CONFIRMED">Confirmed</option>
+                                                    <option value="CANCELLED">Cancelled</option>
+                                                    <option value="COMPLETED">Completed</option>
+                                                  </select>
+                                                </div>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                                {((hospitalDoctorSlotsMap[doc.id] || []).length === 0 && items.length > 0) && (
+                                  <li key={`fallback-${doc.id}`} className="border border-gray-200 rounded">
+                                    <div className="px-3 py-2">
+                                      <div className="text-sm font-medium text-gray-900">Appointments (no slots configured)</div>
+                                    </div>
+                                    <div className="px-3 pb-3">
+                                      <ul className="space-y-2">
+                                        {items.map((a) => (
+                                          <li key={`appt-${a.id}`} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
+                                            <div>
+                                              <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleString()}</div>
+                                              <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
+                                            </div>
+                                            <div>
+                                              <select
+                                                className="border rounded px-2 py-1 text-xs"
+                                                value={a.status}
+                                                onChange={(e) => updateDoctorAppointmentStatus(doc.id, a.id, e.target.value)}
+                                              >
+                                                <option value="PENDING">Pending</option>
+                                                <option value="CONFIRMED">Confirmed</option>
+                                                <option value="CANCELLED">Cancelled</option>
+                                                <option value="COMPLETED">Completed</option>
+                                              </select>
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </li>
+                                )}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-6 border rounded-lg overflow-hidden">
+                    <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+                      <div className="font-semibold text-gray-900">Doctor Timing</div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="border rounded px-3 py-2 text-sm"
+                          value={selectedDoctorForTiming ?? ''}
+                          onChange={async (e) => {
+                            const val = Number(e.target.value);
+                            setSelectedDoctorForTiming(Number.isInteger(val) && val > 0 ? val : null);
+                            if (Number.isInteger(val) && val > 0) await loadHospitalDoctorWorkingHours(val);
+                          }}
+                        >
+                          <option value="">Select a doctor</option>
+                          {hospitalDoctors.map((d) => (
+                            <option key={d.id} value={d.id}>{d.email}</option>
+                          ))}
+                        </select>
+                        <button onClick={() => selectedDoctorForTiming && loadHospitalDoctorWorkingHours(selectedDoctorForTiming)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">Refresh</button>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      {selectedDoctorForTiming ? (
+                        <div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day, idx) => (
+                              <div key={idx} className="border rounded p-3">
+                                <div className="font-medium mb-2">{day}</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="block text-xs text-gray-600 mb-1">Start</label>
+                                    <input type="time" value={hospitalHoursInputs[idx]?.start ?? ''} onChange={(e) => setHospitalHoursInputs((prev) => ({ ...prev, [idx]: { start: e.target.value, end: prev[idx]?.end ?? '' } }))} className="w-full border rounded px-3 py-2 text-sm" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs text-gray-600 mb-1">End</label>
+                                    <input type="time" value={hospitalHoursInputs[idx]?.end ?? ''} onChange={(e) => setHospitalHoursInputs((prev) => ({ ...prev, [idx]: { start: prev[idx]?.start ?? '', end: e.target.value } }))} className="w-full border rounded px-3 py-2 text-sm" />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-4">
+                            <button onClick={saveHospitalDoctorWorkingHours} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Save Timing</button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">These hours define booking windows per day for the selected doctor.</p>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600">Select a doctor to configure timing.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : appointments.length > 0 ? (
                 user.role === 'DOCTOR' ? (
                   <div className="space-y-8">
                     {/* Doctor-only controls */}
@@ -867,13 +1246,19 @@ export default function DashboardPage() {
                           <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
                             <p className="text-sm text-gray-600 mb-2">Your website URL:</p>
                             <p className="font-mono text-blue-600">
-                              {doctorProfile.slug ? `https://${doctorProfile.slug}.docproc.com` : 'No website yet'}
+                              {doctorProfile.slug ? doctorMicrositeUrl(doctorProfile.slug) : 'No website yet'}
                             </p>
                           </div>
                           <div className="mt-4">
                             <Link 
                               href={doctorProfile.slug ? `/site/${doctorProfile.slug}` : '#'}
                               target="_blank"
+                              onClick={(e) => {
+                                if (doctorProfile.slug) {
+                                  e.preventDefault();
+                                  window.open(doctorMicrositeUrl(doctorProfile.slug), '_blank');
+                                }
+                              }}
                               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
                             >
                               View Website
@@ -913,13 +1298,20 @@ export default function DashboardPage() {
                         <div>
                           <h4 className="text-lg font-medium text-gray-900 mb-4">Hospital Site Preview</h4>
                           <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
-                            <p className="text-sm text-gray-600 mb-2">Your hospital site route:</p>
-                            <p className="font-mono text-blue-600">/hospital-site/{hospitalProfile.id}</p>
+                            <p className="text-sm text-gray-600 mb-2">Your hospital site URL:</p>
+                            <p className="font-mono text-blue-600">
+                              {hospitalMicrositeUrl((hospitalProfile as any)?.general?.name || String(hospitalProfile.id))}
+                            </p>
                           </div>
                           <div className="mt-4">
                             <Link 
                               href={`/hospital-site/${hospitalProfile.id}`}
                               target="_blank"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const name = (hospitalProfile as any)?.general?.name || String(hospitalProfile.id);
+                                window.open(hospitalMicrositeUrl(name), '_blank');
+                              }}
                               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
                             >
                               View Website
