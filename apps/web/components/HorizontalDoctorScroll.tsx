@@ -4,23 +4,7 @@ import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, MapPin, Clock, DollarSign } from "lucide-react";
 import BookAppointmentModal from "./BookAppointmentModal";
-
-interface Doctor {
-  id: number;
-  email: string;
-  role: string;
-  doctorProfile?: {
-    specialization?: string;
-    clinicName?: string;
-    clinicAddress?: string;
-    city?: string;
-    state?: string;
-    phone?: string;
-    consultationFee?: number;
-    experience?: number;
-    qualifications?: string;
-  };
-}
+import { Doctor } from '@/lib/api';
 
 interface HorizontalDoctorScrollProps {
   doctors: Doctor[];

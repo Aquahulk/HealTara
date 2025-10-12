@@ -5,14 +5,14 @@ import Link from "next/link";
 
 const API_URL = ""; // use relative URLs with Next.js dev rewrites
 
-type Slot = {
-  id: number;
-  startTime: string;
-  endTime: string;
-  doctorProfileId?: number | null;
-  hospitalId?: number | null;
-  status?: string;
-};
+ type Slot = {
+   id: number;
+   date: string;   // YYYY-MM-DD
+   time: string;   // HH:mm
+   doctorProfileId?: number | null;
+   hospitalId?: number | null;
+   status?: string;
+ };
 
 type Appointment = {
   id: number;

@@ -13,7 +13,7 @@ interface BookAppointmentModalProps {
     doctorId?: number | null;
     doctorName?: string;
     // Optional: if not provided, booking can be handled externally or we skip
-    onSubmit?: (payload: { doctorId: number; date: string; reason?: string; time?: string }) => Promise<void>;
+    onSubmit?: (payload: { doctorId: number; date: string; time: string; reason?: string }) => Promise<void>;
     // Deprecated: the modal reads auth internally now; props kept for compatibility
     patientLoggedIn?: boolean;
     patientRole?: string | null;
