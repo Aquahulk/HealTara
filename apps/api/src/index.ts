@@ -12,7 +12,7 @@ import 'dotenv/config';
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
 import express, { Request, Response, NextFunction } from 'express';  // Web framework for building APIs
-import { PrismaClient, Prisma } from '@prisma/client';               // Database ORM for easy database operations
+import { PrismaClient } from '@prisma/client';                        // Database ORM for easy database operations
 import bcrypt from 'bcryptjs';                                      // Password hashing for security
 import jwt from 'jsonwebtoken';                                     // JWT tokens for user authentication
 import cors from 'cors';                                            // Allows frontend to communicate with API
@@ -55,7 +55,7 @@ const ensureSsl = (url?: string): string | undefined => {
 };
 
 const prisma = rawDbUrl
-  ? new PrismaClient({ datasourceUrl: ensureSsl(rawDbUrl)! })
+  ? new PrismaClient({ datasources: { db: { url: ensureSsl(rawDbUrl)! } } })
   : new PrismaClient();                        // Create database connection
 const app = express();                                     // Create Express application
 const port = process.env.PORT || 3001;                    // Use environment port or default to 3001
