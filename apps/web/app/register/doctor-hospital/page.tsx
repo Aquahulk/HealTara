@@ -1,11 +1,13 @@
 "use client";
+// Disable prerendering to avoid build-time rendering of client-only hooks
+export const dynamic = "force-dynamic";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import Header from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function DoctorHospitalRegisterPage() {
+function RegisterClient() {
   const { register } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -160,5 +162,13 @@ export default function DoctorHospitalRegisterPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function DoctorHospitalRegisterPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-gray-600">Loading registration...</div>}>
+      <RegisterClient />
+    </Suspense>
   );
 }
