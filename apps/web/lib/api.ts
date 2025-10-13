@@ -120,10 +120,14 @@ class ApiClient {
   // 🏗️ CONSTRUCTOR - Initialize the API client
   // ============================================================================
   constructor(baseURL: string = API_BASE_URL) {
-    // In SSR, relative '/api' won't pass through Next.js rewrites.
-    // Ensure server-side requests use an absolute backend URL.
-    if (typeof window === 'undefined' && (!baseURL || baseURL.trim() === '')) {
-      baseURL = process.env.NEXT_PUBLIC_API_URL || '';
+    // In the browser, use relative '/api' so Next.js rewrites proxy to backend
+    if (typeof window !== 'undefined') {
+      baseURL = '';
+    } else {
+      // In SSR, relative paths won't go through rewrites; use absolute backend URL
+      if (!baseURL || baseURL.trim() === '') {
+        baseURL = process.env.NEXT_PUBLIC_API_URL || '';
+      }
     }
     this.baseURL = baseURL;                                 // Set the server address
     this.token = this.getStoredToken();                     // Load any existing token from storage
