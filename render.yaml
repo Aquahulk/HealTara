@@ -21,6 +21,7 @@ services:
     region: oregon
     buildCommand: npm install && npm run build
     startCommand: npm run start
+    postDeployCommand: npm run prisma:migrate
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
