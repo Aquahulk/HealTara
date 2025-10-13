@@ -12,6 +12,7 @@
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
 // ============================================================================
 import DoctorBookingCTA from "@/components/DoctorBookingCTA";
+import EmergencyBookingForm from "@/components/EmergencyBookingForm";
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -124,7 +125,7 @@ interface HospitalDetailsResponse {
 // ============================================================================
 async function getHospitalProfileBySlug(slug: string): Promise<HospitalProfileResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
     // First try to get hospital by slug, if that doesn't work, try by ID
     const res = await fetch(`${apiHost}/api/hospitals/slug/${slug}/profile`, {
       cache: 'no-store',
@@ -148,7 +149,7 @@ async function getHospitalProfileBySlug(slug: string): Promise<HospitalProfileRe
 
 async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
     // First try to get hospital by slug, if that doesn't work, try by ID
     const res = await fetch(`${apiHost}/api/hospitals/slug/${slug}`, {
       cache: 'no-store',
@@ -1064,6 +1065,40 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             </div>
           </div>
         </section>
+
+        {/* ============================================================================
+            🚨 EMERGENCY BOOKING - Immediate attention requests
+            ============================================================================ */}
+        {doctorsToShow.length > 0 && (
+          <section className="relative">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+              <div className="lg:col-span-2">
+                <div className="bg-red-50 border border-red-100 rounded-3xl p-8 shadow">
+                  <div className="flex items-center mb-4">
+                    <div className="text-4xl mr-3">🚑</div>
+                    <h2 className="text-3xl font-bold text-red-700">Emergency Appointments</h2>
+                  </div>
+                  <p className="text-red-800 mb-4">
+                    If you need urgent attention, submit an emergency booking. Our team will prioritize your case and allocate the earliest available slot.
+                  </p>
+                  <EmergencyBookingForm doctors={doctorsToShow.map((link) => ({ id: link.doctor.id, email: link.doctor.email }))} />
+                </div>
+              </div>
+              <div>
+                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Emergency Contact</h3>
+                  {contacts.emergency ? (
+                    <a href={`tel:${contacts.emergency}`} className="inline-flex items-center bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                      <span className="mr-2">📞</span> {contacts.emergency}
+                    </a>
+                  ) : (
+                    <p className="text-gray-600">Emergency services are available 24/7.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* ============================================================================

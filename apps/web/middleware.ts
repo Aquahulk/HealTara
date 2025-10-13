@@ -32,9 +32,8 @@ export async function middleware(req: NextRequest) {
 
     // Name-only hospital subdomains: match subdomain against hospital names
     try {
-      // In middleware (edge/server), relative '/api' won't hit dev rewrites.
-      // Use absolute backend URL for the lookup.
-      const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      // In middleware (edge/server), use explicit API host if provided; else fallback to current origin
+      const apiHost = process.env.NEXT_PUBLIC_API_URL || req.nextUrl.origin;
       const res = await fetch(`${apiHost}/api/hospitals`, { cache: 'no-store' });
       if (res.ok) {
         const hospitals: Array<{ id: number; name: string }> = await res.json();

@@ -58,6 +58,8 @@ export default function SlotAdminPanelPage() {
   const [editReason, setEditReason] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [allotDateMap, setAllotDateMap] = useState<Record<number, string>>({});
+  const [allotTimeMap, setAllotTimeMap] = useState<Record<number, string>>({});
   const [workingHours, setWorkingHours] = useState<Array<{ dayOfWeek: number; start: string | null; end: string | null }>>([]);
   const [hoursInputs, setHoursInputs] = useState<Record<number, { start: string; end: string }>>({
     0: { start: "09:00", end: "17:00" },
@@ -105,10 +107,11 @@ export default function SlotAdminPanelPage() {
           await loadDoctors(tkn);
         }
       }
-      // After context, load time-off and working hours for selected doctorProfileId (if any)
+      // After context, load time-off and working hours for selected doctor
       if (doctorProfileId) {
         await loadTimeOff(tkn, doctorProfileId);
-        await loadWorkingHours(tkn, doctorProfileId);
+        const targetDoctorId = doc ? doc.id : (doctorId ?? undefined);
+        await loadWorkingHours(tkn, targetDoctorId);
       }
     } catch {
       // ignore
@@ -194,9 +197,10 @@ export default function SlotAdminPanelPage() {
     }
   };
 
-  const loadWorkingHours = async (tkn: string, dpid?: number) => {
+  // Load working hours; for hospital-managed admins, doctorId is required
+  const loadWorkingHours = async (tkn: string, docId?: number) => {
     try {
-      const qs = dpid ? `?doctorProfileId=${dpid}` : '';
+      const qs = docId ? `?doctorId=${docId}` : '';
       const res = await fetch(`/api/slot-admin/working-hours${qs}`, {
         headers: { Authorization: `Bearer ${tkn}` },
       });
@@ -208,8 +212,8 @@ export default function SlotAdminPanelPage() {
       list.forEach((wh: any) => {
         if (typeof wh.dayOfWeek === 'number') {
           nextInputs[wh.dayOfWeek] = {
-            start: wh.start ? wh.start.slice(0,5) : "",
-            end: wh.end ? wh.end.slice(0,5) : "",
+            start: wh.startTime ? wh.startTime.slice(0,5) : "",
+            end: wh.endTime ? wh.endTime.slice(0,5) : "",
           };
         }
       });
@@ -330,33 +334,62 @@ export default function SlotAdminPanelPage() {
     }
   };
 
+  // Allot pending expired booking: set new date/time and optionally confirm
+  const allotPendingAppointment = async (id: number, date: string, time: string, status?: string) => {
+    if (!token) return;
+    try {
+      setMessage(null);
+      const body: any = { date, time };
+      if (status) body.status = status;
+      const res = await fetch(`/api/slot-admin/appointments/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to allot appointment' }));
+        throw new Error(err.message || 'Failed to allot appointment');
+      }
+      const json = await res.json();
+      const appointment = json?.appointment || json;
+      setAppointments((prev) => prev.map((a) => (a.id === id ? appointment : a)));
+      setMessage('Pending booking allotted');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to allot appointment');
+    }
+  };
+
   const saveWorkingHours = async () => {
     if (!token) return;
-    if (!doctorProfileId && hospitalName) {
+    // For hospital-managed admins, require selecting a doctor
+    if (!doctorId && hospitalName) {
       setMessage('Please select a doctor to set timing.');
       return;
     }
     try {
       setMessage(null);
-      const payload = Object.keys(hoursInputs).map((k) => {
+      // Only include days with both start and end set; backend expects HH:mm
+      const hours = Object.keys(hoursInputs).map((k) => {
         const day = Number(k);
         const { start, end } = hoursInputs[day];
-        return { dayOfWeek: day, start: start ? `${start}:00` : null, end: end ? `${end}:00` : null };
-      });
-      const qs = doctorProfileId ? `?doctorProfileId=${doctorProfileId}` : '';
-      const res = await fetch(`/api/slot-admin/working-hours${qs}`, {
+        return { dayOfWeek: day, startTime: start || '', endTime: end || '' };
+      }).filter((h) => h.startTime && h.endTime);
+      const res = await fetch(`/api/slot-admin/working-hours`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ workingHours: payload }),
+        body: JSON.stringify({ hours, doctorId: doctorId ?? undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Failed to save working hours' }));
         throw new Error(err.message || 'Failed to save working hours');
       }
-      await loadWorkingHours(token, doctorProfileId ?? undefined);
+      await loadWorkingHours(token, doctorId ?? undefined);
       setMessage('Doctor timing saved');
     } catch (e: any) {
       setMessage(e?.message || 'Failed to save working hours');
@@ -538,6 +571,7 @@ export default function SlotAdminPanelPage() {
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full border rounded px-3 py-2 text-sm">
                   <option value="">All</option>
                   <option value="PENDING">Pending</option>
+                  <option value="EMERGENCY">Emergency</option>
                   <option value="CONFIRMED">Confirmed</option>
                   <option value="COMPLETED">Completed</option>
                   <option value="CANCELLED">Cancelled</option>
@@ -589,6 +623,146 @@ export default function SlotAdminPanelPage() {
           </div>
         </div>
 
+        {/* Pending Bookings Panel - expired PENDING appointments to allot */}
+        <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Pending Bookings (Expired)</h2>
+            <span className="text-sm text-gray-600">Admin can allot slot by setting date/time</span>
+          </div>
+          <div className="p-6">
+            {(() => {
+              const now = new Date();
+              const items = appointments.filter((a) => {
+                if (a.status !== 'PENDING') return false;
+                const d = new Date(a.date);
+                try {
+                  const [hh, mm] = (a.time || '00:00').split(':').map((x: string) => parseInt(x));
+                  d.setHours(hh || 0, mm || 0, 0, 0);
+                } catch {}
+                return d.getTime() < now.getTime();
+              });
+              if (items.length === 0) {
+                return <div className="text-gray-600">No expired pending bookings.</div>;
+              }
+              return (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appt</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Original</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Time</th>
+                      <th className="px-4 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {items.map((a) => (
+                      <tr key={a.id}>
+                        <td className="px-4 py-2 text-sm text-gray-900">#{a.id}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{a.doctor?.email || a.doctorId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{a.patient?.email || a.patientId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500">{new Date(a.date).toLocaleDateString()} {a.time}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="date"
+                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                            value={allotDateMap[a.id] || ''}
+                            onChange={(e) => setAllotDateMap((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="time"
+                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                            value={allotTimeMap[a.id] || ''}
+                            onChange={(e) => setAllotTimeMap((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <button
+                            className="px-3 py-1 rounded bg-blue-600 text-white text-sm disabled:opacity-50"
+                            disabled={!allotDateMap[a.id] || !allotTimeMap[a.id]}
+                            onClick={() => allotPendingAppointment(a.id, allotDateMap[a.id], allotTimeMap[a.id], 'CONFIRMED')}
+                          >
+                            Allot & Confirm
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Emergency Requests - EMERGENCY appointments to allot immediately */}
+        <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Emergency Requests</h2>
+            <span className="text-sm text-gray-600">Prioritize by allotting a slot and confirming</span>
+          </div>
+          <div className="p-6">
+            {(() => {
+              const items = appointments.filter((a) => a.status === 'EMERGENCY');
+              if (items.length === 0) {
+                return <div className="text-gray-600">No emergency requests at the moment.</div>;
+              }
+              return (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appt</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Time</th>
+                      <th className="px-4 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {items.map((a) => (
+                      <tr key={a.id}>
+                        <td className="px-4 py-2 text-sm text-gray-900">#{a.id}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{a.doctor?.email || a.doctorId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{a.patient?.email || a.patientId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{a.reason || '—'}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="date"
+                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                            value={allotDateMap[a.id] || ''}
+                            onChange={(e) => setAllotDateMap((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="time"
+                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                            value={allotTimeMap[a.id] || ''}
+                            onChange={(e) => setAllotTimeMap((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <button
+                            className="px-3 py-1 rounded bg-red-600 text-white text-sm disabled:opacity-50"
+                            disabled={!allotDateMap[a.id] || !allotTimeMap[a.id]}
+                            onClick={() => allotPendingAppointment(a.id, allotDateMap[a.id], allotTimeMap[a.id], 'CONFIRMED')}
+                          >
+                            Allot & Confirm
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            })()}
+          </div>
+        </div>
         {/* Time-Off (Blackout) management */}
         <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
           <div className="px-6 py-4 border-b border-gray-200">
@@ -820,16 +994,16 @@ export default function SlotAdminPanelPage() {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day, idx) => (
-                <div key={idx} className="border rounded p-3">
+                <div key={idx} className="border border-gray-200 rounded p-3 bg-gray-50">
                   <div className="font-medium mb-2">{day}</div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">Start</label>
-                      <input type="time" value={hoursInputs[idx]?.start ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: e.target.value, end: prev[idx]?.end ?? '' } }))} className="w-full border rounded px-3 py-2 text-sm" />
+                      <input type="time" value={hoursInputs[idx]?.start ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: e.target.value, end: prev[idx]?.end ?? '' } }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400" />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">End</label>
-                      <input type="time" value={hoursInputs[idx]?.end ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: prev[idx]?.start ?? '', end: e.target.value } }))} className="w-full border rounded px-3 py-2 text-sm" />
+                      <input type="time" value={hoursInputs[idx]?.end ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: prev[idx]?.start ?? '', end: e.target.value } }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400" />
                     </div>
                   </div>
                 </div>

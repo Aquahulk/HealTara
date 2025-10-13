@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Header from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 export default function DoctorHospitalRegisterPage() {
   const { register } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const selectedRole = useMemo(() => {
+    const role = (searchParams.get('role') || '').toLowerCase();
+    return role === 'hospital' ? 'hospital' : 'doctor';
+  }, [searchParams]);
 
   const [doctorEmail, setDoctorEmail] = useState('');
   const [doctorPassword, setDoctorPassword] = useState('');
@@ -45,15 +53,37 @@ export default function DoctorHospitalRegisterPage() {
     }
   };
 
+  const switchRole = (role: 'doctor' | 'hospital') => {
+    const url = `/register/doctor-hospital?role=${role}`;
+    router.replace(url);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       <section className="py-12">
         <div className="max-w-4xl mx-auto px-4">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">Register as Doctor or Hospital Admin</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Doctor Registration */}
-            <div className="bg-white rounded-2xl shadow p-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Register as Doctor or Hospital Admin</h1>
+
+          {/* Role Switcher */}
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <button
+              onClick={() => switchRole('doctor')}
+              className={`px-4 py-2 rounded-md border ${selectedRole === 'doctor' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-800 border-gray-300'}`}
+            >
+              Doctor
+            </button>
+            <button
+              onClick={() => switchRole('hospital')}
+              className={`px-4 py-2 rounded-md border ${selectedRole === 'hospital' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-800 border-gray-300'}`}
+            >
+              Hospital Admin
+            </button>
+          </div>
+
+          {/* Selected Registration Form */}
+          {selectedRole === 'doctor' && (
+            <div className="max-w-lg mx-auto bg-white rounded-2xl shadow p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Doctor Registration</h2>
               <form onSubmit={handleDoctorRegister} className="space-y-4">
                 <div>
@@ -88,9 +118,10 @@ export default function DoctorHospitalRegisterPage() {
                 )}
               </form>
             </div>
+          )}
 
-            {/* Hospital Admin Registration */}
-            <div className="bg-white rounded-2xl shadow p-6">
+          {selectedRole === 'hospital' && (
+            <div className="max-w-lg mx-auto bg-white rounded-2xl shadow p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Hospital Admin Registration</h2>
               <form onSubmit={handleHospitalRegister} className="space-y-4">
                 <div>
@@ -125,7 +156,7 @@ export default function DoctorHospitalRegisterPage() {
                 )}
               </form>
             </div>
-          </div>
+          )}
         </div>
       </section>
     </div>

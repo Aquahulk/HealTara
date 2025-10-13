@@ -237,6 +237,34 @@ export default function HospitalAdminProfilePage() {
     }
   };
 
+  // Toggle ON/OFF for doctor bookable status
+  const toggleDoctorBookable = async (idx: number) => {
+    const d = (profile.doctors || [])[idx];
+    // If currently OFF (no doctorId), turn ON by creating and linking
+    if (!d?.doctorId) {
+      await makeDoctorBookable(idx);
+      return;
+    }
+    // If currently ON, turn OFF by unlinking from profile (soft disable)
+    try {
+      setSaving(true);
+      const myHospital = await apiClient.getMyHospital();
+      if (!myHospital?.id) throw new Error('Hospital not found for admin');
+      const list = [...(profile.doctors || [])];
+      const doc = { ...(list[idx] || {}) } as any;
+      delete doc.doctorId;
+      list[idx] = doc;
+      const newProfile = { ...profile, doctors: list } as HospitalProfile;
+      setProfile(newProfile);
+      await apiClient.updateHospitalProfile(myHospital.id, newProfile);
+      setMessage('Doctor set to OFF (not bookable).');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to set doctor OFF');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const removeDoctor = (idx: number) => {
     setProfile((prev) => {
       const list = [...(prev.doctors || [])];
@@ -256,6 +284,18 @@ export default function HospitalAdminProfilePage() {
         depts.add(deptName);
       }
       doc.departments = Array.from(depts);
+      list[idx] = doc;
+      return { ...prev, doctors: list } as HospitalProfile;
+    });
+  };
+
+  // Set a single department via dropdown selection
+  const setDoctorDepartment = (idx: number, deptName: string) => {
+    setProfile((prev) => {
+      const list = [...(prev.doctors || [])];
+      const doc = { ...list[idx] } as any;
+      // store as single-selection array to keep schema compatibility
+      doc.departments = deptName ? [deptName] : [];
       list[idx] = doc;
       return { ...prev, doctors: list } as HospitalProfile;
     });
@@ -524,7 +564,22 @@ export default function HospitalAdminProfilePage() {
                 <input className="border rounded p-2 flex-1" placeholder="Doctor Name" value={doc.name || ""} onChange={(e) => updateDoctor(idx, "name", e.target.value)} />
                 <input className="border rounded p-2 flex-1" placeholder="Primary Specialty" value={doc.primarySpecialty || ""} onChange={(e) => updateDoctor(idx, "primarySpecialty", e.target.value)} />
                 <input className="border rounded p-2 flex-1" placeholder="Sub-Specialty" value={doc.subSpecialty || ""} onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)} />
-                <button className="px-3 py-2 bg-green-600 text-white rounded" disabled={saving} onClick={() => makeDoctorBookable(idx)}>Make Bookable</button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-700">Bookable</span>
+            <label className="inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={Boolean((profile.doctors || [])[idx]?.doctorId)}
+                onChange={() => toggleDoctorBookable(idx)}
+                disabled={saving}
+              />
+              <div className="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-green-600 transition-colors relative">
+                <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+              </div>
+              <span className="ml-2 text-sm text-gray-800">{Boolean((profile.doctors || [])[idx]?.doctorId) ? 'ON' : 'OFF'}</span>
+            </label>
+          </div>
                 <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDoctor(idx)}>Remove</button>
               </div>
 
@@ -581,16 +636,17 @@ export default function HospitalAdminProfilePage() {
               {(profile.departments || []).length > 0 && (
                 <div>
                   <h3 className="font-semibold">Associate with Departments</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                    {(profile.departments || []).map((d, i) => {
-                      const checked = (doc.departments || []).includes(d.name);
-                      return (
-                        <label key={i} className="flex items-center gap-2 text-sm">
-                          <input type="checkbox" checked={checked} onChange={() => toggleDoctorDepartment(idx, d.name)} />
-                          <span>{d.name || `Dept ${i+1}`}</span>
-                        </label>
-                      );
-                    })}
+                  <div className="mt-2">
+                    <select
+                      className="border rounded p-2 w-full"
+                      value={(doc.departments && doc.departments[0]) || ""}
+                      onChange={(e) => setDoctorDepartment(idx, e.target.value)}
+                    >
+                      <option value="" disabled>Select a department</option>
+                      {(profile.departments || []).map((d, i) => (
+                        <option key={i} value={d.name}>{d.name || `Dept ${i+1}`}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}

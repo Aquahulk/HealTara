@@ -195,6 +195,33 @@ export default function HomePage() {
           </div>
             </motion.div>
 
+            {/* Auth CTAs: Patient Login and Doctor/Hospital Registration */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="mt-6 flex flex-col sm:flex-row gap-4 justify-center"
+            >
+              <a
+                href="/login"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-full hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-lg"
+              >
+                Patient Login
+              </a>
+              <a
+                href="/register/doctor-hospital?role=doctor"
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-3 rounded-full hover:from-emerald-600 hover:to-teal-600 transition-colors shadow-lg"
+              >
+                Register as Doctor
+              </a>
+              <a
+                href="/register/doctor-hospital?role=hospital"
+                className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-6 py-3 rounded-full hover:from-green-700 hover:to-blue-700 transition-colors shadow-lg"
+              >
+                Register as Hospital
+              </a>
+            </motion.div>
+
             {/* Scroll Indicator */}
             <motion.div
               initial={{ opacity: 0 }}

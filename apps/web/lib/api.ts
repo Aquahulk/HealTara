@@ -123,7 +123,7 @@ class ApiClient {
     // In SSR, relative '/api' won't pass through Next.js rewrites.
     // Ensure server-side requests use an absolute backend URL.
     if (typeof window === 'undefined' && (!baseURL || baseURL.trim() === '')) {
-      baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      baseURL = process.env.NEXT_PUBLIC_API_URL || '';
     }
     this.baseURL = baseURL;                                 // Set the server address
     this.token = this.getStoredToken();                     // Load any existing token from storage
@@ -354,6 +354,14 @@ class ApiClient {
     });
   }
 
+  // Book an emergency appointment (patient selects doctor; created as EMERGENCY)
+  async bookEmergencyAppointment(data: { doctorId: number; reason?: string }): Promise<any> {
+    return this.request('/api/appointments/emergency', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Get user's appointments
   async getMyAppointments(): Promise<Appointment[]> {
     return this.request<Appointment[]>('/api/my-appointments');
@@ -421,10 +429,18 @@ class ApiClient {
     return this.request<Appointment[]>(`/api/slot-admin/appointments`);
   }
 
-  async updateSlotAdminAppointmentStatus(appointmentId: number, status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'): Promise<{ message: string; appointment: Appointment }> {
+  async updateSlotAdminAppointmentStatus(appointmentId: number, status: 'PENDING' | 'EMERGENCY' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'): Promise<{ message: string; appointment: Appointment }> {
     return this.request<{ message: string; appointment: Appointment }>(`/api/slot-admin/appointments/${appointmentId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    });
+  }
+
+  // Update appointment fields within slot admin scope (allot date/time, optionally status)
+  async updateSlotAdminAppointment(appointmentId: number, data: { status?: string; date?: string; time?: string; notes?: string }): Promise<{ message: string; appointment: Appointment }> {
+    return this.request<{ message: string; appointment: Appointment }>(`/api/slot-admin/appointments/${appointmentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   }
 

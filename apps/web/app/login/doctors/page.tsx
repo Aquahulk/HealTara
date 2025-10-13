@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
 export default function DoctorLoginPage() {
@@ -31,6 +32,15 @@ export default function DoctorLoginPage() {
           <div className="text-4xl mb-2">👨‍⚕️</div>
           <h1 className="text-2xl font-bold text-gray-900">Doctor Login</h1>
           <p className="text-gray-600 text-sm">Sign in to access your dashboard and manage your practice.</p>
+        </div>
+
+        {/* Role Switcher */}
+        <div className="mb-6">
+          <div className="flex items-center justify-center bg-gray-100 rounded-full p-1 text-sm font-medium">
+            <Link href="/login" className="px-3 py-1 rounded-full text-gray-600 hover:text-gray-900">Patient</Link>
+            <Link href="/login/doctors" className="px-3 py-1 rounded-full bg-white text-gray-900 shadow">Doctor</Link>
+            <Link href="/auth?mode=login&role=HOSPITAL_ADMIN" className="px-3 py-1 rounded-full text-gray-600 hover:text-gray-900">Hospital Admin</Link>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

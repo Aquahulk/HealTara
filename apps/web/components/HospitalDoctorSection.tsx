@@ -115,19 +115,19 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
           {dayNames.map((name, idx) => {
             const v = hoursByDay[idx] || { startTime: '', endTime: '' };
             return (
-              <div key={idx} className="border rounded p-4">
+              <div key={idx} className="border border-gray-200 rounded p-4 bg-gray-50">
                 <div className="font-medium mb-2">{name}</div>
                 <div className="flex items-center gap-2">
                   <input
                     type="time"
-                    className="border rounded px-2 py-1 w-28"
+                    className="border border-gray-300 rounded px-2 py-1 w-28 bg-white text-gray-900 placeholder-gray-400"
                     value={v.startTime || ''}
                     onChange={(e) => setDayTime(idx, 'start', e.target.value)}
                   />
                   <span className="text-gray-500">to</span>
                   <input
                     type="time"
-                    className="border rounded px-2 py-1 w-28"
+                    className="border border-gray-300 rounded px-2 py-1 w-28 bg-white text-gray-900 placeholder-gray-400"
                     value={v.endTime || ''}
                     onChange={(e) => setDayTime(idx, 'end', e.target.value)}
                   />
@@ -155,7 +155,7 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
           {appointments.map(appt => (
             <div key={appt.id} className="border rounded p-4 flex items-center justify-between">
               <div>
-                <div className="font-medium">{new Date(appt.date).toLocaleString()} • {appt.time}</div>
+y
                 <div className="text-sm text-gray-600">Patient: {appt.patient?.email || appt.patientId}</div>
               </div>
               <div className="flex items-center gap-2">
@@ -172,7 +172,7 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
                 <input
                   type="time"
                   className="border rounded px-2 py-1"
-                  defaultValue={appt.time}
+                  defaultValue={appt.date ? new Date(appt.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}
                   onBlur={(e) => updateAppointment(appt.id, { time: e.target.value })}
                 />
               </div>

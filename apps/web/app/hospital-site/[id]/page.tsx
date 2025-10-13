@@ -8,6 +8,7 @@
 
 import DoctorBookingCTA from '@/components/DoctorBookingCTA';
 import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
+import EmergencyBookingForm from '@/components/EmergencyBookingForm';
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -85,7 +86,7 @@ interface HospitalProfileResponse {
 
 async function getHospitalProfileById(id: string): Promise<HospitalProfileResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
     const res = await fetch(`${apiHost}/api/hospitals/${id}/profile`, {
       cache: 'no-store',
     });
@@ -129,7 +130,7 @@ interface HospitalDetailsResponse {
 
 async function getHospitalDetailsById(id: string): Promise<HospitalDetailsResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
     const res = await fetch(`${apiHost}/api/hospitals/${id}`, {
       cache: 'no-store',
     });
@@ -667,6 +668,9 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                 {doctorsToShow && doctorsToShow.length > 0 && (
                   <div className="mt-6">
                     <DoctorBookingSidebar doctors={doctorsToShow} hospitalName={name} contacts={contacts} />
+                    <div className="mt-6">
+                      <EmergencyBookingForm doctors={(doctorsToShow || []).map((l: any) => l?.doctor).filter((d: any) => d && typeof d.id === 'number')} />
+                    </div>
                   </div>
                 )}
               </div>

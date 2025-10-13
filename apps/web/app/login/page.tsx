@@ -34,6 +34,15 @@ export default function PatientLoginPage() {
           <p className="text-gray-600 text-sm">Sign in to book appointments and manage your visits.</p>
         </div>
 
+        {/* Role Switcher */}
+        <div className="mb-6">
+          <div className="flex items-center justify-center bg-gray-100 rounded-full p-1 text-sm font-medium">
+            <Link href="/login" className="px-3 py-1 rounded-full bg-white text-gray-900 shadow">Patient</Link>
+            <Link href="/login/doctors" className="px-3 py-1 rounded-full text-gray-600 hover:text-gray-900">Doctor</Link>
+            <Link href="/auth?mode=login&role=HOSPITAL_ADMIN" className="px-3 py-1 rounded-full text-gray-600 hover:text-gray-900">Hospital Admin</Link>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Email</label>
@@ -70,15 +79,8 @@ export default function PatientLoginPage() {
         </form>
 
         <div className="mt-6 text-sm text-center text-gray-600">
-          Are you a doctor?{' '}
-          <Link href="/login/doctors" className="text-blue-600 hover:text-blue-700 font-semibold">
-            Login here
-          </Link>
-        </div>
-
-        <div className="mt-2 text-sm text-center text-gray-600">
           New here?{' '}
-          <Link href="http://localhost:3000/auth?mode=register" className="text-blue-600 hover:text-blue-700 font-semibold">
+          <Link href="/auth?mode=register" className="text-blue-600 hover:text-blue-700 font-semibold">
             Register
           </Link>
         </div>

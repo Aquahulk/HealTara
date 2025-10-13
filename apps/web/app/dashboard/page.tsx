@@ -79,7 +79,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);        // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
   const [activeTab, setActiveTab] = useState('overview');  // Currently selected tab
-  const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'>('ALL'); // Doctor-only filter
+  const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'|'EMERGENCY'>('ALL'); // Doctor-only filter
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
   const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any }>>([]); // Linked doctors
@@ -729,6 +729,7 @@ export default function DashboardPage() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
                           appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                          appointment.status === 'EMERGENCY' ? 'bg-orange-100 text-orange-800' :
                           appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
@@ -873,55 +874,103 @@ export default function DashboardPage() {
                               <div className="text-sm text-gray-600">{doc.doctorProfile.clinicName}</div>
                             )}
                           </div>
-                          <div className="p-4">
+                  <div className="p-4">
                             {(items.length === 0 && (hospitalDoctorSlotsMap[doc.id] || []).length === 0) ? (
                               <div className="text-sm text-gray-500">No bookings or slots found for this doctor.</div>
                             ) : (
                               <ul className="space-y-4">
-                                {(hospitalDoctorSlotsMap[doc.id] || []).map((slot) => {
-                                  const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
-                                  const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
-                                  const slotAppointments = items.filter((a) => {
-                                    const t = new Date(a.date).getTime();
-                                    return t >= slotStart.getTime() && t <= slotEnd.getTime();
+                                {(() => {
+                                  const slots = (hospitalDoctorSlotsMap[doc.id] || []).filter((slot) => {
+                                    const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                                    const dayIdx = slotStart.getDay();
+                                    const wh = hospitalHoursInputs[dayIdx];
+                                    const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
+                                    if (!hasTiming) return true;
+                                    const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
+                                    const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+                                    const endMin = startMin + 60;
+                                    const whStart = toMin(wh.start);
+                                    const whEnd = toMin(wh.end);
+                                    return startMin >= whStart && endMin <= whEnd;
                                   });
-                                  return (
-                                    <li key={slot.id} className="border border-gray-200 rounded">
-                                      <div className="px-3 py-2">
-                                        <div className="text-sm font-medium text-gray-900">Slot #{slot.id}</div>
-                                        <div className="text-sm text-gray-700">{slotStart.toLocaleString()} → {slotEnd.toLocaleString()}</div>
-                                        <div className="text-xs text-gray-500">Status: {slot.status || 'UNKNOWN'}</div>
-                                        {(() => {
-                                          // Availability badge when timing is selected for the doctor
-                                          const dayIdx = slotStart.getDay();
-                                          const wh = hospitalHoursInputs[dayIdx];
-                                          const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
-                                          const within = (() => {
-                                            if (!hasTiming) return true;
-                                            const toMin = (t: string) => {
-                                              const [hh, mm] = t.split(':').map(Number);
-                                              return hh * 60 + mm;
-                                            };
-                                            const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
-                                            const endMin = startMin + 60;
-                                            const whStart = toMin(wh.start);
-                                            const whEnd = toMin(wh.end);
-                                            return startMin >= whStart && endMin <= whEnd;
-                                          })();
-                                          return hasTiming && !within ? (
-                                            <div className="mt-1 inline-block px-2 py-0.5 text-xs rounded bg-red-100 text-red-700">Not available</div>
-                                          ) : null;
-                                        })()}
-                                      </div>
-                                      <div className="px-3 pb-3">
-                                        {slotAppointments.length === 0 ? (
-                                          <div className="text-sm text-gray-500">No bookings in this slot.</div>
-                                        ) : (
+                                  const children = slots.map((slot) => {
+                                    const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                                    const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+                                    const slotAppointments = items.filter((a) => {
+                                      const t = new Date(a.date).getTime();
+                                      return t >= slotStart.getTime() && t <= slotEnd.getTime();
+                                    });
+                                    return (
+                                      <li key={slot.id} className="border border-gray-200 rounded">
+                                        <div className="px-3 py-2">
+                                          <div className="text-sm font-medium text-gray-900">Slot #{slot.id}</div>
+                                          <div className="text-sm text-gray-700">{slotStart.toLocaleString()} → {slotEnd.toLocaleString()}</div>
+                                          <div className="text-xs text-gray-500">Status: {slot.status || 'UNKNOWN'}</div>
+                                          {(() => {
+                                            const dayIdx = slotStart.getDay();
+                                            const wh = hospitalHoursInputs[dayIdx];
+                                            const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
+                                            const within = (() => {
+                                              if (!hasTiming) return true;
+                                              const toMin = (t: string) => {
+                                                const [hh, mm] = t.split(':').map(Number);
+                                                return hh * 60 + mm;
+                                              };
+                                              const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+                                              const endMin = startMin + 60;
+                                              const whStart = toMin(wh.start);
+                                              const whEnd = toMin(wh.end);
+                                              return startMin >= whStart && endMin <= whEnd;
+                                            })();
+                                            return hasTiming && !within ? (
+                                              <div className="mt-1 inline-block px-2 py-0.5 text-xs rounded bg-red-100 text-red-700">Not available</div>
+                                            ) : null;
+                                          })()}
+                                        </div>
+                                        <div className="px-3 pb-3">
+                                          {slotAppointments.length === 0 ? (
+                                            <div className="text-sm text-gray-500">No bookings in this slot.</div>
+                                          ) : (
+                                            <ul className="space-y-2">
+                                              {slotAppointments.map((a) => (
+                                                <li key={a.id} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
+                                                  <div>
+                                                    <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleTimeString()}</div>
+                                                    <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
+                                                  </div>
+                                                  <div>
+                                                    <select
+                                                      className="border rounded px-2 py-1 text-xs"
+                                                      value={a.status}
+                                                      onChange={(e) => updateDoctorAppointmentStatus(doc.id, a.id, e.target.value)}
+                                                    >
+                                                      <option value="PENDING">Pending</option>
+                                                      <option value="EMERGENCY">Emergency</option>
+                                                      <option value="CONFIRMED">Confirmed</option>
+                                                      <option value="CANCELLED">Cancelled</option>
+                                                      <option value="COMPLETED">Completed</option>
+                                                    </select>
+                                                  </div>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          )}
+                                        </div>
+                                      </li>
+                                    );
+                                  });
+                                  if (slots.length === 0 && items.length > 0) {
+                                    children.push(
+                                      <li key={`fallback-${doc.id}`} className="border border-gray-200 rounded">
+                                        <div className="px-3 py-2">
+                                          <div className="text-sm font-medium text-gray-900">Appointments (no slots configured)</div>
+                                        </div>
+                                        <div className="px-3 pb-3">
                                           <ul className="space-y-2">
-                                            {slotAppointments.map((a) => (
-                                              <li key={a.id} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
+                                            {items.map((a) => (
+                                              <li key={`appt-${a.id}`} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
                                                 <div>
-                                                  <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleTimeString()}</div>
+                                                  <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleString()}</div>
                                                   <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
                                                 </div>
                                                 <div>
@@ -931,6 +980,7 @@ export default function DashboardPage() {
                                                     onChange={(e) => updateDoctorAppointmentStatus(doc.id, a.id, e.target.value)}
                                                   >
                                                     <option value="PENDING">Pending</option>
+                                                    <option value="EMERGENCY">Emergency</option>
                                                     <option value="CONFIRMED">Confirmed</option>
                                                     <option value="CANCELLED">Cancelled</option>
                                                     <option value="COMPLETED">Completed</option>
@@ -939,42 +989,12 @@ export default function DashboardPage() {
                                               </li>
                                             ))}
                                           </ul>
-                                        )}
-                                      </div>
-                                    </li>
-                                  );
-                                })}
-                                {((hospitalDoctorSlotsMap[doc.id] || []).length === 0 && items.length > 0) && (
-                                  <li key={`fallback-${doc.id}`} className="border border-gray-200 rounded">
-                                    <div className="px-3 py-2">
-                                      <div className="text-sm font-medium text-gray-900">Appointments (no slots configured)</div>
-                                    </div>
-                                    <div className="px-3 pb-3">
-                                      <ul className="space-y-2">
-                                        {items.map((a) => (
-                                          <li key={`appt-${a.id}`} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
-                                            <div>
-                                              <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleString()}</div>
-                                              <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
-                                            </div>
-                                            <div>
-                                              <select
-                                                className="border rounded px-2 py-1 text-xs"
-                                                value={a.status}
-                                                onChange={(e) => updateDoctorAppointmentStatus(doc.id, a.id, e.target.value)}
-                                              >
-                                                <option value="PENDING">Pending</option>
-                                                <option value="CONFIRMED">Confirmed</option>
-                                                <option value="CANCELLED">Cancelled</option>
-                                                <option value="COMPLETED">Completed</option>
-                                              </select>
-                                            </div>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  </li>
-                                )}
+                                        </div>
+                                      </li>
+                                    );
+                                  }
+                                  return children;
+                                })()}
                               </ul>
                             )}
                           </div>
@@ -1008,16 +1028,16 @@ export default function DashboardPage() {
                         <div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day, idx) => (
-                              <div key={idx} className="border rounded p-3">
+                              <div key={idx} className="border border-gray-200 rounded p-3 bg-gray-50">
                                 <div className="font-medium mb-2">{day}</div>
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <label className="block text-xs text-gray-600 mb-1">Start</label>
-                                    <input type="time" value={hospitalHoursInputs[idx]?.start ?? ''} onChange={(e) => setHospitalHoursInputs((prev) => ({ ...prev, [idx]: { start: e.target.value, end: prev[idx]?.end ?? '' } }))} className="w-full border rounded px-3 py-2 text-sm" />
+                                    <input type="time" value={hospitalHoursInputs[idx]?.start ?? ''} onChange={(e) => setHospitalHoursInputs((prev) => ({ ...prev, [idx]: { start: e.target.value, end: prev[idx]?.end ?? '' } }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400" />
                                   </div>
                                   <div>
                                     <label className="block text-xs text-gray-600 mb-1">End</label>
-                                    <input type="time" value={hospitalHoursInputs[idx]?.end ?? ''} onChange={(e) => setHospitalHoursInputs((prev) => ({ ...prev, [idx]: { start: prev[idx]?.start ?? '', end: e.target.value } }))} className="w-full border rounded px-3 py-2 text-sm" />
+                                    <input type="time" value={hospitalHoursInputs[idx]?.end ?? ''} onChange={(e) => setHospitalHoursInputs((prev) => ({ ...prev, [idx]: { start: prev[idx]?.start ?? '', end: e.target.value } }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400" />
                                   </div>
                                 </div>
                               </div>
@@ -1049,6 +1069,7 @@ export default function DashboardPage() {
                           <option value="ALL">All</option>
                           <option value="CONFIRMED">Confirmed</option>
                           <option value="PENDING">Pending</option>
+                          <option value="EMERGENCY">Emergency</option>
                           <option value="CANCELLED">Cancelled</option>
                         </select>
                       </div>
@@ -1095,6 +1116,7 @@ export default function DashboardPage() {
                                 const counts = {
                                   CONFIRMED: items.filter(a => a.status === 'CONFIRMED').length,
                                   PENDING: items.filter(a => a.status === 'PENDING').length,
+                                  EMERGENCY: items.filter(a => a.status === 'EMERGENCY').length,
                                   CANCELLED: items.filter(a => a.status === 'CANCELLED').length,
                                 };
                                 const key = `${dateKey}-${hourStr}`;
@@ -1383,6 +1405,9 @@ function DoctorSettings() {
   const [message, setMessage] = useState<string | null>(null);
   // Doctor-configurable slot period (view preference); persisted in backend
   const [slotPeriodMinutes, setSlotPeriodMinutes] = useState<number>(15);
+  // Bookable ON/OFF switch state
+  const [isBookable, setIsBookable] = useState<boolean>(true);
+  const [savingBookable, setSavingBookable] = useState<boolean>(false);
   useEffect(() => {
     const loadSlotPeriod = async () => {
       try {
@@ -1392,7 +1417,14 @@ function DoctorSettings() {
         console.error('Failed to load slot period', e);
       }
     };
-    if (user?.role === 'DOCTOR') loadSlotPeriod();
+    const loadProfile = async () => {
+      try {
+        const prof = await apiClient.getDoctorProfile();
+        const flag = (prof as any)?.isBookable;
+        if (typeof flag === 'boolean') setIsBookable(flag);
+      } catch {}
+    };
+    if (user?.role === 'DOCTOR') { loadSlotPeriod(); loadProfile(); }
   }, [user]);
 
   useEffect(() => {
@@ -1434,12 +1466,45 @@ function DoctorSettings() {
     }
   };
 
+  const handleToggleBookable = async (nextVal: boolean) => {
+    setIsBookable(nextVal);
+    try {
+      setSavingBookable(true);
+      setMessage(null);
+      await apiClient.updateDoctorProfile({ isBookable: nextVal });
+      setMessage(nextVal ? 'Bookings enabled' : 'Bookings disabled');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to update booking status');
+    } finally {
+      setSavingBookable(false);
+    }
+  };
+
   return (
     <div className="bg-white shadow-lg rounded-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900">Settings</h3>
       </div>
       <div className="p-6 space-y-8">
+        {/* Bookable ON/OFF */}
+        <section>
+          <h4 className="text-md font-semibold text-gray-900 mb-2">Make Bookable</h4>
+          <p className="text-sm text-gray-600 mb-4">Turn patient booking on or off for your profile.</p>
+          <div className="flex items-center justify-between bg-gray-50 border rounded-lg px-4 py-3">
+            <span className="text-gray-800">Currently {isBookable ? 'ON' : 'OFF'}</span>
+            <label className="inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isBookable}
+                onChange={(e) => handleToggleBookable(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
+              <div className="-ml-8 w-5 h-5 bg-white rounded-full shadow transform peer-checked:translate-x-5 transition-transform"></div>
+            </label>
+          </div>
+          {savingBookable && <p className="text-xs text-gray-500 mt-2">Saving…</p>}
+        </section>
         {/* Slot Period Preference */}
         <section>
           <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Period</h4>
@@ -1549,6 +1614,9 @@ function HospitalSettings() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [hospitalId, setHospitalId] = useState<number | null>(null);
+  const [doctors, setDoctors] = useState<Array<{ id: number; email: string }>>([]);
+  const [doctorAdminForm, setDoctorAdminForm] = useState<Record<number, { currentEmail?: string | null; email: string; password: string; loading: boolean; message?: string | null }>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -1569,6 +1637,74 @@ function HospitalSettings() {
     };
     if (user?.role === 'HOSPITAL_ADMIN') load();
   }, [user]);
+
+  // Load doctors linked to this hospital and their current Slot Admin emails
+  useEffect(() => {
+    const loadDoctors = async () => {
+      if (!user || user.role !== 'HOSPITAL_ADMIN') return;
+      try {
+        const myHospital = await apiClient.getMyHospital();
+        const hid = myHospital?.id;
+        if (!hid) return;
+        setHospitalId(hid);
+        const details = await apiClient.getHospitalDetails(hid);
+        const links = ((details?.doctors || []) as Array<any>)
+          .map((l) => l?.doctor)
+          .filter((d) => d && typeof d.id === 'number');
+        setDoctors(links);
+        // Initialize form state per doctor and load current slot admin emails
+        const initial: Record<number, { currentEmail?: string | null; email: string; password: string; loading: boolean; message?: string | null }> = {};
+        await Promise.all(
+          links.map(async (d: any) => {
+            initial[d.id] = { currentEmail: null, email: '', password: '', loading: true, message: null };
+            try {
+              const res = await apiClient.getHospitalSlotAdmin(d.id);
+              const cur = res?.slotAdmin?.email || null;
+              initial[d.id] = { currentEmail: cur, email: cur || '', password: '', loading: false, message: null };
+            } catch (e: any) {
+              initial[d.id] = { currentEmail: null, email: '', password: '', loading: false, message: e?.message || null };
+            }
+          })
+        );
+        setDoctorAdminForm(initial);
+      } catch (e) {
+        // Silent fail to avoid blocking settings UI
+        console.warn('Failed to load hospital doctors or doctor slot admins', e);
+      }
+    };
+    loadDoctors();
+  }, [user]);
+
+  const updateDoctorAdminField = (doctorId: number, field: 'email' | 'password', value: string) => {
+    setDoctorAdminForm((prev) => ({
+      ...prev,
+      [doctorId]: { ...(prev[doctorId] || { email: '', password: '', loading: false }), [field]: value },
+    }));
+  };
+
+  const saveDoctorAdmin = async (doctorId: number) => {
+    const form = doctorAdminForm[doctorId] || { email: '', password: '' };
+    if (!form.email || !form.password) {
+      setDoctorAdminForm((prev) => ({
+        ...prev,
+        [doctorId]: { ...(prev[doctorId] || { email: '', password: '' }), message: 'Please provide email and password' },
+      }));
+      return;
+    }
+    try {
+      setDoctorAdminForm((prev) => ({ ...prev, [doctorId]: { ...(prev[doctorId] || {}), loading: true, message: null } }));
+      const res = await apiClient.upsertHospitalSlotAdmin(form.email, form.password, doctorId);
+      setDoctorAdminForm((prev) => ({
+        ...prev,
+        [doctorId]: { ...(prev[doctorId] || {}), currentEmail: res.slotAdmin.email, password: '', loading: false, message: 'Updated successfully' },
+      }));
+    } catch (e: any) {
+      setDoctorAdminForm((prev) => ({
+        ...prev,
+        [doctorId]: { ...(prev[doctorId] || {}), loading: false, message: e?.message || 'Failed to update' },
+      }));
+    }
+  };
 
   const handleSave = async () => {
     if (!email || !password) {
@@ -1647,6 +1783,67 @@ function HospitalSettings() {
               </button>
             </div>
           </div>
+        </section>
+
+        {/* Doctor-specific Slot Admins */}
+        <section className="pt-6 border-t border-gray-200">
+          <h4 className="text-md font-semibold text-gray-900 mb-2">Doctor Slot Admin Credentials</h4>
+          <p className="text-sm text-gray-600 mb-4">View and set Slot Admin login per doctor.</p>
+          {doctors.length === 0 ? (
+            <p className="text-sm text-gray-500">No linked doctors found.</p>
+          ) : (
+            <div className="space-y-4">
+              {doctors.map((d) => {
+                const form = doctorAdminForm[d.id] || { email: '', password: '', currentEmail: null, loading: false, message: null };
+                return (
+                  <div key={d.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <div>
+                        <p className="text-sm text-gray-600">Doctor</p>
+                        <p className="font-medium text-gray-900">{d.email}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600">Current Slot Admin</p>
+                        <p className="font-mono text-gray-900">{form.currentEmail || 'Not set'}</p>
+                      </div>
+                    </div>
+                    {form.message && (
+                      <div className="mb-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{form.message}</div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => updateDoctorAdminField(d.id, 'email', e.target.value)}
+                        placeholder="slot-admin@example.com"
+                        className="w-full border rounded-lg px-3 py-2"
+                      />
+                      <input
+                        type="password"
+                        value={form.password}
+                        onChange={(e) => updateDoctorAdminField(d.id, 'password', e.target.value)}
+                        placeholder="New password"
+                        className="w-full border rounded-lg px-3 py-2"
+                      />
+                      <button
+                        onClick={() => saveDoctorAdmin(d.id)}
+                        disabled={!!form.loading}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold px-4 py-2 rounded-lg"
+                      >
+                        {form.loading ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+        {/* Helpful Link */}
+        <section className="pt-4 border-t border-gray-200">
+          <p className="text-sm text-gray-600">
+            Share the login URL with your staff: <Link href="/slot-admin/login" className="text-blue-600 underline">Slot Admin Login</Link>
+          </p>
         </section>
       </div>
     </div>

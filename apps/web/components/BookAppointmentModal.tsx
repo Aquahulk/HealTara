@@ -35,6 +35,7 @@ export default function BookAppointmentModal({
     const [date, setDate] = useState("");
     const [time, setTime] = useState("");
     const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+    const [workingHoursForDay, setWorkingHoursForDay] = useState<{ start: string; end: string } | null>(null);
     const [loadingAvail, setLoadingAvail] = useState<boolean>(false);
     type HourAvailabilityData = { periodMinutes: number; hours: { hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }[] };
     const [hourAvailability, setHourAvailability] = useState<HourAvailabilityData | null>(null);
@@ -193,8 +194,31 @@ export default function BookAppointmentModal({
                 cacheRef.current.slots.set(key, Array.isArray(combinedData.slots) ? combinedData.slots : []);
                 cacheRef.current.availability.set(key, combinedData.availability as HourAvailabilityData);
                 
-                // Set the data directly from the combined response
-                setAvailableTimes(combinedData.availableTimes || []);
+                // Fetch doctor working hours and filter available times to fit day window
+                const dayIdx = new Date(dateOnly).getDay();
+                let whForDay: { start: string; end: string } | null = null;
+                try {
+                    const whList = await apiClient.getSlotAdminWorkingHours({ doctorId: effectiveDoctorId });
+                    const found = Array.isArray(whList) ? whList.find((wh: any) => wh.dayOfWeek === dayIdx) : null;
+                    if (found && found.startTime && found.endTime) {
+                        whForDay = { start: String(found.startTime).slice(0,5), end: String(found.endTime).slice(0,5) };
+                    }
+                } catch {}
+                setWorkingHoursForDay(whForDay);
+
+                // Set data and apply timing filter when available
+                const rawTimes = combinedData.availableTimes || [];
+                const filterByWH = (times: string[]) => {
+                    if (!whForDay) return times;
+                    const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
+                    const whStart = toMin(whForDay.start);
+                    const whEnd = toMin(whForDay.end);
+                    return times.filter((t) => {
+                        const m = toMin(t);
+                        return m >= whStart && m < whEnd; // start inclusive, end exclusive
+                    });
+                };
+                setAvailableTimes(filterByWH(rawTimes));
                 setHourAvailability(combinedData.availability as HourAvailabilityData);
             } catch (e) {
                 console.error('Failed to load slots/availability', e);
@@ -228,7 +252,7 @@ export default function BookAppointmentModal({
                             <select
                                 value={time}
                                 onChange={(e) => setTime(e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 required
                             >
                                 <option value="" disabled>

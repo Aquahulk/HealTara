@@ -13,12 +13,9 @@
 // ============================================================================
 import { Request, Response, NextFunction } from 'express';   // Express types for middleware
 import jwt from 'jsonwebtoken';                             // JWT library for token verification
-import { PrismaClient } from '@prisma/client';              // Database client to verify user exists
+import { prisma } from '../db';              // Shared Prisma client with SSL enforced
 
-// ============================================================================
-// 🗄️ DATABASE CONNECTION - Create Prisma client for user verification
-// ============================================================================
-const prisma = new PrismaClient();
+// Prisma client comes from the shared db singleton
 
 // ============================================================================
 // 🔐 AUTHENTICATION MIDDLEWARE FUNCTION - Main security function

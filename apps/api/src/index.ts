@@ -12,7 +12,7 @@ import 'dotenv/config';
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
 import express, { Request, Response, NextFunction } from 'express';  // Web framework for building APIs
-import { PrismaClient } from '@prisma/client';                        // Database ORM for easy database operations
+import { prisma } from './db';                        // Singleton Prisma client with SSL enforcement
 import bcrypt from 'bcryptjs';                                      // Password hashing for security
 import jwt from 'jsonwebtoken';                                     // JWT tokens for user authentication
 import cors from 'cors';                                            // Allows frontend to communicate with API
@@ -38,29 +38,7 @@ declare global {
 // ============================================================================
 // 🚀 SERVER INITIALIZATION - Setting up the Express server
 // ============================================================================
-// Create database connection with SSL enforced for hosted Postgres providers (e.g., Neon)
-const rawDbUrl = process.env.DATABASE_URL;
-const ensureSsl = (url?: string): string | undefined => {
-  if (!url) return undefined;
-  try {
-    const u = new URL(url);
-    if (!u.searchParams.has('sslmode')) {
-      u.searchParams.set('sslmode', 'require');
-    }
-    return u.toString();
-  } catch {
-    // If URL parsing fails, fall back to the original string
-    return url;
-  }
-};
-
-// For environments where PrismaClient constructor expects zero args (e.g. Render build types),
-// set the DATABASE_URL with SSL enforced before instantiating the client.
-const secureUrl = ensureSsl(rawDbUrl);
-if (secureUrl && secureUrl !== rawDbUrl) {
-  process.env.DATABASE_URL = secureUrl;
-}
-const prisma = new PrismaClient();                        // Create database connection
+// Prisma client is provided by ./db and already enforces SSL for Neon
 const app = express();                                     // Create Express application
 const port = process.env.PORT || 3001;                    // Use environment port or default to 3001
 
@@ -1152,7 +1130,7 @@ app.get('/api/availability', async (req: Request, res: Response) => {
     const [profile, dayAppointments, publishedSlots] = await Promise.all([
       prisma.doctorProfile.findUnique({ 
         where: { userId: normalizedDoctorId },
-        select: { slotPeriodMinutes: true }
+        select: { id: true, slotPeriodMinutes: true }
       }),
       prisma.appointment.findMany({
         where: {
@@ -1175,13 +1153,70 @@ app.get('/api/availability', async (req: Request, res: Response) => {
     const periodMinutes = profile?.slotPeriodMinutes ?? 15;
     const segmentsPerHour = Math.max(1, Math.floor(60 / periodMinutes));
 
+    // Respect doctor working hours for the requested day
+    const dayOfWeek = requestedDate.getDay();
+    let workingHourStart: string | null = null;
+    let workingHourEnd: string | null = null;
+    if (profile?.id) {
+      const wh = await prisma.doctorWorkingHours.findFirst({
+        where: { doctorProfileId: profile.id, dayOfWeek },
+        select: { startTime: true, endTime: true }
+      });
+      if (wh) {
+        workingHourStart = wh.startTime;
+        workingHourEnd = wh.endTime;
+      }
+    }
+
     // Optimize hour calculation
-    const hoursFromSlots = publishedSlots.length > 0 
-      ? Array.from(new Set(publishedSlots.map((s: any) => s.time.slice(0, 2)))).sort()
+    // Filter published slots by working hours if defined
+    const isWithinWorkingHours = (timeHM: string) => {
+      if (!workingHourStart || !workingHourEnd) return true;
+      const [h, m] = timeHM.split(':').map(Number);
+      const [sh, sm] = workingHourStart.split(':').map(Number);
+      const [eh, em] = workingHourEnd.split(':').map(Number);
+      const minutes = h * 60 + m;
+      const startMinutes = sh * 60 + sm;
+      const endMinutes = eh * 60 + em;
+      return minutes >= startMinutes && minutes + periodMinutes <= endMinutes;
+    };
+
+    const filteredSlots = publishedSlots.filter((s: any) => isWithinWorkingHours(String(s.time).slice(0,5)));
+
+    const hoursFromSlots = filteredSlots.length > 0 
+      ? Array.from(new Set(filteredSlots.map((s: any) => s.time.slice(0, 2)))).sort()
       : [];
     
     const defaultHours = ['09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21'];
-    const hoursToCheck = hoursFromSlots.length > 0 ? hoursFromSlots : defaultHours;
+    let hoursToCheck = hoursFromSlots.length > 0 ? hoursFromSlots : defaultHours;
+    if (!hoursFromSlots.length && workingHourStart && workingHourEnd) {
+      const sh = Number(workingHourStart.slice(0,2));
+      const eh = Number(workingHourEnd.slice(0,2));
+      const range: string[] = [];
+      for (let h = sh; h < eh; h++) {
+        range.push(String(h).padStart(2, '0'));
+      }
+      hoursToCheck = range;
+    }
+
+    // Fetch time-off windows that overlap this date
+    const startOfDay = requestedDate;
+    const endOfDay = new Date(`${String(date)}T23:59:59${IST_OFFSET}`);
+    const timeOffs = profile?.id
+      ? await prisma.doctorTimeOff.findMany({
+          where: {
+            doctorProfileId: profile.id,
+            start: { lte: endOfDay },
+            end: { gte: startOfDay },
+          },
+          select: { start: true, end: true },
+        })
+      : [];
+
+    const isBlockedByTimeOff = (timeHM: string) => {
+      const dt = toISTDateTime(String(date), timeHM);
+      return timeOffs.some((off: any) => dt >= off.start && dt <= off.end);
+    };
 
     // Pre-calculate appointment times for faster lookup
     const appointmentTimes = new Set(dayAppointments.map((a: any) => a.time));
@@ -1189,9 +1224,10 @@ app.get('/api/availability', async (req: Request, res: Response) => {
     const results = hoursToCheck.map((hourStr) => {
       const segmentMinutes = Array.from({ length: segmentsPerHour }, (_, i) => String(i * periodMinutes).padStart(2, '0'));
       const segmentTimes = segmentMinutes.map(m => `${hourStr}:${m}`);
-      const bookedCount = segmentTimes.filter(time => appointmentTimes.has(time)).length;
-      const capacity = segmentsPerHour;
-      const isFull = bookedCount >= capacity;
+      const availableSegmentTimes = segmentTimes.filter(t => !isBlockedByTimeOff(t));
+      const bookedCount = availableSegmentTimes.filter(time => appointmentTimes.has(time)).length;
+      const capacity = availableSegmentTimes.length;
+      const isFull = capacity === 0 || bookedCount >= capacity;
       
       // Labels (IST hour window)
       const labelFrom = `${hourStr}:00`;
@@ -1226,7 +1262,7 @@ app.get('/api/slots-availability', async (req: Request, res: Response) => {
     const [profile, dayAppointments, publishedSlots] = await Promise.all([
       prisma.doctorProfile.findUnique({ 
         where: { userId: normalizedDoctorId },
-        select: { slotPeriodMinutes: true }
+        select: { id: true, slotPeriodMinutes: true }
       }),
       prisma.appointment.findMany({
         where: {
@@ -1253,20 +1289,79 @@ app.get('/api/slots-availability', async (req: Request, res: Response) => {
     const periodMinutes = profile?.slotPeriodMinutes ?? 15;
     const segmentsPerHour = Math.max(1, Math.floor(60 / periodMinutes));
 
+    // Respect doctor working hours for the requested day
+    const dayOfWeek = requestedDate.getDay();
+    let workingHourStart: string | null = null;
+    let workingHourEnd: string | null = null;
+    if (profile?.id) {
+      const wh = await prisma.doctorWorkingHours.findFirst({
+        where: { doctorProfileId: profile.id, dayOfWeek },
+        select: { startTime: true, endTime: true }
+      });
+      if (wh) {
+        workingHourStart = wh.startTime;
+        workingHourEnd = wh.endTime;
+      }
+    }
+
     // Process slots data
-    const availableTimes = publishedSlots
+    const isWithinWorkingHours = (timeHM: string) => {
+      if (!workingHourStart || !workingHourEnd) return true;
+      const [h, m] = timeHM.split(':').map(Number);
+      const [sh, sm] = workingHourStart.split(':').map(Number);
+      const [eh, em] = workingHourEnd.split(':').map(Number);
+      const minutes = h * 60 + m;
+      const startMinutes = sh * 60 + sm;
+      const endMinutes = eh * 60 + em;
+      return minutes >= startMinutes && minutes + periodMinutes <= endMinutes;
+    };
+
+    // Fetch time-off windows that overlap this date
+    const startOfDay = requestedDate;
+    const endOfDay = new Date(`${String(date)}T23:59:59${IST_OFFSET}`);
+    const timeOffs = profile?.id
+      ? await prisma.doctorTimeOff.findMany({
+          where: {
+            doctorProfileId: profile.id,
+            start: { lte: endOfDay },
+            end: { gte: startOfDay },
+          },
+          select: { start: true, end: true },
+        })
+      : [];
+
+    const isBlockedByTimeOff = (timeHM: string) => {
+      const dt = toISTDateTime(String(date), timeHM);
+      return timeOffs.some((off: any) => dt >= off.start && dt <= off.end);
+    };
+
+    const filteredSlots = publishedSlots.filter((s: any) => {
+      const timeHM = String(s.time).slice(0,5);
+      return isWithinWorkingHours(timeHM) && !isBlockedByTimeOff(timeHM);
+    });
+
+    const availableTimes = filteredSlots
       .filter((s: any) => s.status === 'AVAILABLE')
       .map((s: any) => String(s.time).slice(0, 5))
       .filter((time: string, index: number, arr: string[]) => arr.indexOf(time) === index) // Remove duplicates
       .sort();
 
     // Process availability data
-    const hoursFromSlots = publishedSlots.length > 0 
-      ? Array.from(new Set(publishedSlots.map((s: any) => s.time.slice(0, 2)))).sort()
+    const hoursFromSlots = filteredSlots.length > 0 
+      ? Array.from(new Set(filteredSlots.map((s: any) => s.time.slice(0, 2)))).sort()
       : [];
     
     const defaultHours = ['09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21'];
-    const hoursToCheck = hoursFromSlots.length > 0 ? hoursFromSlots : defaultHours;
+    let hoursToCheck = hoursFromSlots.length > 0 ? hoursFromSlots : defaultHours;
+    if (!hoursFromSlots.length && workingHourStart && workingHourEnd) {
+      const sh = Number(workingHourStart.slice(0,2));
+      const eh = Number(workingHourEnd.slice(0,2));
+      const range: string[] = [];
+      for (let h = sh; h < eh; h++) {
+        range.push(String(h).padStart(2, '0'));
+      }
+      hoursToCheck = range;
+    }
 
     // Pre-calculate appointment times for faster lookup
     const appointmentTimes = new Set(dayAppointments.map((a: any) => a.time));
@@ -1274,9 +1369,10 @@ app.get('/api/slots-availability', async (req: Request, res: Response) => {
     const availabilityHours = hoursToCheck.map((hourStr) => {
       const segmentMinutes = Array.from({ length: segmentsPerHour }, (_, i) => String(i * periodMinutes).padStart(2, '0'));
       const segmentTimes = segmentMinutes.map(m => `${hourStr}:${m}`);
-      const bookedCount = segmentTimes.filter(time => appointmentTimes.has(time)).length;
-      const capacity = segmentsPerHour;
-      const isFull = bookedCount >= capacity;
+      const availableSegmentTimes = segmentTimes.filter(t => !isBlockedByTimeOff(t));
+      const bookedCount = availableSegmentTimes.filter(time => appointmentTimes.has(time)).length;
+      const capacity = availableSegmentTimes.length;
+      const isFull = capacity === 0 || bookedCount >= capacity;
       
       // Labels (IST hour window)
       const labelFrom = `${hourStr}:00`;
@@ -1818,7 +1914,7 @@ app.patch('/api/slot-admin/appointments/:appointmentId/status', authMiddleware, 
   }
   const appointmentId = Number(req.params.appointmentId);
   const { status } = req.body as { status?: string };
-  const allowed = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'];
+  const allowed = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'EMERGENCY'];
   if (!Number.isInteger(appointmentId) || appointmentId <= 0) return res.status(400).json({ message: 'Invalid appointmentId.' });
   if (!status || !allowed.includes(status)) return res.status(400).json({ message: 'Invalid status value.' });
   try {
@@ -2829,7 +2925,7 @@ app.patch('/api/appointments/:appointmentId/status', authMiddleware, async (req:
   if (user.role !== 'DOCTOR') {
     return res.status(403).json({ message: 'Forbidden: Only doctors can update appointment status.' });
   }
-  const validStatuses = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'];
+  const validStatuses = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'EMERGENCY'];
   if (!status || !validStatuses.includes(status)) {
     return res.status(400).json({ message: 'Invalid status provided.' });
   }
@@ -2853,6 +2949,96 @@ app.patch('/api/appointments/:appointmentId/status', authMiddleware, async (req:
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while updating the appointment.' });
+  }
+});
+
+// --- Emergency Appointment Endpoint (Protected, Patient Role) ---
+// Creates an appointment marked as EMERGENCY, bypassing slot and time-off constraints.
+// Stores today's date (IST) and current time HH:mm, allowing admins to re-assign later.
+app.post('/api/appointments/emergency', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'PATIENT') {
+    return res.status(403).json({ message: 'Forbidden: Only patients can book emergency appointments.' });
+  }
+  try {
+    const { doctorId, reason } = req.body || {};
+    const normalizedDoctorId = Number(doctorId);
+    if (!Number.isInteger(normalizedDoctorId) || normalizedDoctorId <= 0) {
+      return res.status(400).json({ message: 'Invalid doctorId provided.' });
+    }
+
+    // Determine current IST date and time
+    const nowUtc = new Date();
+    // IST offset handling: reuse IST_OFFSET if available; otherwise compute from Asia/Kolkata
+    const nowIST = new Date(nowUtc.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const yyyy = nowIST.getFullYear();
+    const mm = String(nowIST.getMonth() + 1).padStart(2, '0');
+    const dd = String(nowIST.getDate()).padStart(2, '0');
+    const hh = String(nowIST.getHours()).padStart(2, '0');
+    const min = String(nowIST.getMinutes()).padStart(2, '0');
+    const todayISTDate = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+    const currentTimeHM = `${hh}:${min}`;
+
+    const created = await prisma.appointment.create({
+      data: {
+        date: todayISTDate,
+        time: currentTimeHM,
+        notes: reason ? `EMERGENCY: ${reason}` : 'EMERGENCY',
+        status: 'EMERGENCY',
+        doctor: { connect: { id: normalizedDoctorId } },
+        patient: { connect: { id: Number(user.userId) } },
+      },
+    });
+    return res.status(201).json({ message: 'Emergency appointment created', appointment: created });
+  } catch (error) {
+    console.error('[emergency-appointment] error', error);
+    res.status(500).json({ message: 'An error occurred while creating emergency appointment.' });
+  }
+});
+
+// --- Slot Admin: Update appointment date/time/status (allotment) ---
+app.patch('/api/slot-admin/appointments/:appointmentId', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'SLOT_ADMIN') {
+    return res.status(403).json({ message: 'Forbidden: Only Slot Admins can update appointments.' });
+  }
+  const appointmentId = Number(req.params.appointmentId);
+  if (!Number.isInteger(appointmentId) || appointmentId <= 0) {
+    return res.status(400).json({ message: 'Invalid appointmentId.' });
+  }
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedDoctorProfileId: true, managedHospitalId: true } });
+    if (!admin) return res.status(401).json({ message: 'User not found.' });
+
+    let doctorIds: number[] = [];
+    if (admin.managedDoctorProfileId) {
+      const profile = await prisma.doctorProfile.findUnique({ where: { id: admin.managedDoctorProfileId } });
+      if (profile) doctorIds = [profile.userId];
+    } else if (admin.managedHospitalId) {
+      const memberships = await prisma.hospitalDoctor.findMany({ where: { hospitalId: admin.managedHospitalId } });
+      doctorIds = memberships.map((m: any) => m.doctorId);
+    }
+
+    const existing = await prisma.appointment.findUnique({ where: { id: appointmentId } });
+    if (!existing || (doctorIds.length && !doctorIds.includes(existing.doctorId))) {
+      return res.status(404).json({ message: 'Appointment not found within your management scope.' });
+    }
+
+    const { status, date, time, notes } = req.body || {};
+    const data: any = {};
+    if (typeof status === 'string' && status.trim().length) data.status = status;
+    if (typeof date === 'string' && date.trim().length) data.date = new Date(date);
+    if (typeof time === 'string' && time.trim().length) data.time = time;
+    if (typeof notes === 'string') data.notes = notes;
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update.' });
+    }
+
+    const updated = await prisma.appointment.update({ where: { id: appointmentId }, data });
+    return res.status(200).json({ message: 'Appointment updated', appointment: updated });
+  } catch (error) {
+    console.error('[slot-admin-appointment-update] error', error);
+    res.status(500).json({ message: 'An error occurred while updating appointment.' });
   }
 });
 

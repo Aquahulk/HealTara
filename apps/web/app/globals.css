@@ -88,3 +88,16 @@ a:focus {
 .gradient-blue {
   background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
 }
+
+/* Ensure form inputs are readable regardless of page theme */
+input,
+textarea,
+select {
+  color: #111827 !important; /* gray-900 */
+  background-color: #ffffff; /* enforce light background for legibility */
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important; /* placeholder-gray-400 */
+}

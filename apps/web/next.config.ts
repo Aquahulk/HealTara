@@ -13,13 +13,21 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: isDev,
   },
   async rewrites() {
-    // In development, proxy API routes to the backend on port 3001
-    // This lets the frontend call "/api/..." without hardcoding a host
+    // Proxy API routes using env var in production, localhost in dev
+    const apiBase = process.env.NEXT_PUBLIC_API_URL;
     if (isDev) {
       return [
         {
           source: "/api/:path*",
           destination: "http://localhost:3001/api/:path*",
+        },
+      ];
+    }
+    if (apiBase) {
+      return [
+        {
+          source: "/api/:path*",
+          destination: `${apiBase}/api/:path*`,
         },
       ];
     }
