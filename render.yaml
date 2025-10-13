@@ -27,6 +27,8 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGINS
-        value: https://docproc-web.onrender.com,https://your-vercel-domain.vercel.app
+        value: https://heal-tara-web.vercel.app
+      - key: CORS_PRIMARY_DOMAIN
+        value: heal-tara-web.vercel.app
       - key: NODE_ENV
         value: production
