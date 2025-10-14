@@ -70,6 +70,7 @@ export default function SlotAdminPanelPage() {
     5: { start: "10:00", end: "14:00" },
     6: { start: "", end: "" },
   });
+  const [slotPeriodMinutes, setSlotPeriodMinutes] = useState<number>(15);
 
   useEffect(() => {
     const t = localStorage.getItem("slotAdminToken");
@@ -99,6 +100,7 @@ export default function SlotAdminPanelPage() {
         if (typeof doc.doctorProfileId === 'number') setDoctorProfileId(doc.doctorProfileId);
         const derivedName = doc.email ? doc.email.split('@')[0] : `Doctor ${doc.id}`;
         setDoctorName(derivedName);
+        await loadSlotPeriod(tkn, doc.id);
       }
       if (hosp) {
         setHospitalName(hosp.name || '');
@@ -218,6 +220,21 @@ export default function SlotAdminPanelPage() {
         }
       });
       setHoursInputs(nextInputs);
+    } catch {
+      // ignore
+    }
+  };
+
+  const loadSlotPeriod = async (tkn: string, docId?: number) => {
+    try {
+      const qs = docId ? `?doctorId=${docId}` : '';
+      const res = await fetch(`/api/slot-admin/slot-period${qs}`, {
+        headers: { Authorization: `Bearer ${tkn}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const minutes = Number(data?.slotPeriodMinutes) || 15;
+      setSlotPeriodMinutes(minutes);
     } catch {
       // ignore
     }
@@ -396,6 +413,38 @@ export default function SlotAdminPanelPage() {
     }
   };
 
+  const saveSlotPeriod = async (minutes: number) => {
+    if (!token) return;
+    // For hospital-managed admins, require selecting a doctor
+    if (!doctorId && hospitalName) {
+      setMessage('Please select a doctor to set slot period.');
+      return;
+    }
+    try {
+      setMessage(null);
+      const body: any = { slotPeriodMinutes: minutes };
+      if (doctorId) body.doctorId = doctorId;
+      const res = await fetch(`/api/slot-admin/slot-period`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to update slot period' }));
+        throw new Error(err.message || 'Failed to update slot period');
+      }
+      const json = await res.json();
+      const updated = Number(json?.slotPeriodMinutes) || minutes;
+      setSlotPeriodMinutes(updated);
+      setMessage('Slot period updated');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to update slot period');
+    }
+  };
+
   const createTimeOff = async () => {
     if (!token) return;
     if (!timeOffStart || !timeOffEnd) {
@@ -548,6 +597,18 @@ export default function SlotAdminPanelPage() {
             <div>
               <div><span className="font-semibold">Hospital:</span> {hospitalName || 'Unknown'}</div>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">Slot Period</span>
+              <select
+                value={String(slotPeriodMinutes)}
+                onChange={(e) => saveSlotPeriod(Number(e.target.value))}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                {[10,15,20,30,60].map((m) => (
+                  <option key={m} value={m}>{m} min</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </header>
@@ -564,6 +625,7 @@ export default function SlotAdminPanelPage() {
               <h2 className="text-lg font-semibold">Doctor Appointments</h2>
               <button onClick={() => token && loadAppointments(token)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">Refresh</button>
             </div>
+            <p className="mt-1 text-xs text-gray-500">Capacity per hour: {Math.max(1, Math.floor(60 / Math.max(1, slotPeriodMinutes)))} slots • Period {slotPeriodMinutes} min</p>
             {/* Filters */}
             <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
@@ -788,6 +850,8 @@ export default function SlotAdminPanelPage() {
                             setDoctorId(found.id);
                             const derivedName = found.email ? found.email.split('@')[0] : `Doctor ${found.id}`;
                             setDoctorName(derivedName);
+                            if (token) await loadSlotPeriod(token, found.id);
+                            if (token) await loadWorkingHours(token, found.id);
                           }
                         } else {
                           setDoctorProfileId(null);

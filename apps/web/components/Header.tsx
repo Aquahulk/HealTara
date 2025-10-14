@@ -26,6 +26,7 @@ export default function Header() {
   const { user, logout } = useAuth();                      // Get user info and logout function from auth context
   const [isMenuOpen, setIsMenuOpen] = useState(false);     // Control mobile menu visibility
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false); // Control user dropdown menu visibility
+  // Modal removed in favor of separate login pages
 
   // ============================================================================
   // 🚪 LOGOUT HANDLER - Function to handle user logout
@@ -56,11 +57,8 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* ============================================================================
-              🧭 DESKTOP NAVIGATION - Main navigation links (hidden on mobile)
-              ============================================================================ */}
-          <nav className="hidden lg:flex space-x-8">
-          </nav>
+          {/* Desktop navigation removed per request (Home, Find Doctors, Hospitals, Clinics, Reviews) */}
+          <nav className="hidden lg:flex space-x-8" />
 
           {/* ============================================================================
               👤 USER SECTION - Authentication and user menu
@@ -70,6 +68,12 @@ export default function Header() {
             {/* ============================================================================
                 📅 BOOK APPOINTMENT BUTTON - Prominent CTA button (always visible)
                 ============================================================================ */}
+            <Link
+              href="/doctors"
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-2 rounded-full hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold text-sm"
+            >
+              📅 Book Appointment
+            </Link>
             
             {/* ============================================================================
                 🔐 AUTHENTICATION STATUS - Show different content based on login state
@@ -135,12 +139,18 @@ export default function Header() {
               // ============================================================================
               // ❌ NOT LOGGED IN - Show login and register links
               // ============================================================================
-              <div className="flex space-x-4">
+              <div className="flex space-x-2">
                 <Link
                   href="/login"
                   className="text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                 >
-                  🔑 Login
+                  🧑‍⚕️ Patient Login
+                </Link>
+                <Link
+                  href="/login/doctors"
+                  className="text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  🏥 Doctor/Hospital Login
                 </Link>
               </div>
             )}
@@ -169,41 +179,7 @@ export default function Header() {
         {isMenuOpen && (
           <div className="lg:hidden border-t border-white/20">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              <Link
-                href="/"
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                🏠 Home
-              </Link>
-              <Link
-                href="/doctors"
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                👨‍⚕️ Find Doctors
-              </Link>
-              <Link
-                href="/hospitals"
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                🏥 Hospitals
-              </Link>
-              <Link
-                href="/clinics"
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                🏥 Clinics
-              </Link>
-              <Link
-                href="/reviews"
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                ⭐ Reviews
-              </Link>
+              {/* Mobile navigation items removed per request */}
               
               {/* ============================================================================
                   🔒 MOBILE ADMIN LINK - Admin panel access on mobile (only for admins)
@@ -258,21 +234,14 @@ export default function Header() {
                     className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
-                    🔑 Login
+                    🧑‍⚕️ Patient Login
                   </Link>
                   <Link
                     href="/login/doctors"
                     className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                     onClick={() => setIsMenuOpen(false)}
                   >
-                    👨‍⚕️ Doctor Login
-                  </Link>
-                  <Link
-                    href="/auth?mode=register"
-                    className="bg-white text-[#003a9f] hover:bg-white/90 block px-3 py-2 rounded-md text-base font-medium transition-colors"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    📝 Register
+                    🏥 Doctor/Hospital Login
                   </Link>
                 </>
               )}

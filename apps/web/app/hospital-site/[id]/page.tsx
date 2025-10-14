@@ -86,16 +86,40 @@ interface HospitalProfileResponse {
 
 async function getHospitalProfileById(id: string): Promise<HospitalProfileResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
-    const res = await fetch(`${apiHost}/api/hospitals/${id}/profile`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) {
+    // Validate ID before making request
+    if (!id || id === 'null' || id === 'undefined' || id.trim() === '') {
+      console.warn('Invalid hospital ID provided:', id);
       return null;
     }
-    return res.json();
+
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const url = `${apiHost}/api/hospitals/${id}/profile`;
+    
+    console.log(`Attempting to fetch hospital profile from: ${url}`);
+    
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!res.ok) {
+      if (res.status === 404) {
+        console.warn(`Hospital with ID ${id} not found (404)`);
+      } else if (res.status === 500) {
+        console.error(`Server error when fetching hospital ${id} (500)`);
+      } else {
+        console.warn(`Hospital profile request failed for ID: ${id}, status: ${res.status}`);
+      }
+      return null;
+    }
+    
+    const data = await res.json();
+    console.log(`Successfully fetched hospital profile for ID: ${id}`);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch hospital profile by id:', error);
+    console.error(`Network error when fetching hospital profile for ID: ${id}`, error);
     return null;
   }
 }
@@ -130,16 +154,40 @@ interface HospitalDetailsResponse {
 
 async function getHospitalDetailsById(id: string): Promise<HospitalDetailsResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
-    const res = await fetch(`${apiHost}/api/hospitals/${id}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) {
+    // Validate ID before making request
+    if (!id || id === 'null' || id === 'undefined' || id.trim() === '') {
+      console.warn('Invalid hospital ID provided:', id);
       return null;
     }
-    return res.json();
+
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const url = `${apiHost}/api/hospitals/${id}`;
+    
+    console.log(`Attempting to fetch hospital details from: ${url}`);
+    
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!res.ok) {
+      if (res.status === 404) {
+        console.warn(`Hospital with ID ${id} not found (404)`);
+      } else if (res.status === 500) {
+        console.error(`Server error when fetching hospital ${id} (500)`);
+      } else {
+        console.warn(`Hospital details request failed for ID: ${id}, status: ${res.status}`);
+      }
+      return null;
+    }
+    
+    const data = await res.json();
+    console.log(`Successfully fetched hospital details for ID: ${id}`);
+    return data;
   } catch (error) {
-    console.error('Failed to fetch hospital details by id:', error);
+    console.error(`Network error when fetching hospital details for ID: ${id}`, error);
     return null;
   }
 }
@@ -150,18 +198,15 @@ async function getHospitalDetailsById(id: string): Promise<HospitalDetailsRespon
 export default async function HospitalSitePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const resolvedId = id;
-  const [profileResponse, details] = await Promise.all([
-    getHospitalProfileById(resolvedId),
-    getHospitalDetailsById(resolvedId),
-  ]);
-
-  if (!profileResponse || !details) {
+  
+  // Early validation of ID
+  if (!resolvedId || resolvedId === 'null' || resolvedId === 'undefined' || resolvedId.trim() === '') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">🏥</div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Hospital Not Found</h1>
-          <p className="text-gray-600 mb-6">The requested hospital could not be found.</p>
+          <div className="text-6xl mb-4">❌</div>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Invalid Hospital ID</h1>
+          <p className="text-gray-600 mb-6">The hospital ID provided is invalid or missing.</p>
           <a
             href="/"
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200"
@@ -173,20 +218,61 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
     );
   }
 
-  const profile = profileResponse.profile || undefined;
+  // Only make API calls if ID is valid
+  const [profileResponse, details] = await Promise.allSettled([
+    getHospitalProfileById(resolvedId),
+    getHospitalDetailsById(resolvedId),
+  ]).then(results => [
+    results[0].status === 'fulfilled' ? results[0].value : null,
+    results[1].status === 'fulfilled' ? results[1].value : null
+  ]);
+
+  // Handle cases where hospital data is missing
+  if (!profileResponse && !details) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🏥</div>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Hospital Not Found</h1>
+          <p className="text-gray-600 mb-6">
+            The requested hospital (ID: {resolvedId}) could not be found. 
+            This hospital may not exist or may have been removed.
+          </p>
+          <div className="space-y-4">
+            <a
+              href="/"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 inline-block"
+            >
+              Return to Homepage
+            </a>
+            <div className="text-sm text-gray-500">
+              <p>If you believe this is an error, please contact support.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If we have some data but not all, we can still show a partial page
+  if (!profileResponse || !details) {
+    console.warn(`Partial hospital data available for ID: ${resolvedId}. Profile: ${!!profileResponse}, Details: ${!!details}`);
+  }
+
+  const profile = (profileResponse as HospitalProfileResponse)?.profile || undefined;
   const general = profile?.general || {};
-  const name = general.brandName || general.legalName || details.name || profileResponse.name || 'Hospital';
+  const name = general.brandName || general.legalName || (details as HospitalDetailsResponse)?.name || (profileResponse as HospitalProfileResponse)?.name || 'Hospital';
   const tagline = general.tagline || 'Quality Care, Compassionate Service';
   const address = general.address || '';
   const logoUrl = general.logoUrl;
   const contacts = general.contacts || {};
   const social = general.social || {};
-  const departments = (profile?.departments && profile?.departments.length > 0) ? profile.departments : (details.departments || []);
+  const departments = (profile?.departments && profile?.departments.length > 0) ? profile.departments : ((details as HospitalDetailsResponse)?.departments || []);
   const about = profile?.about || {};
   // Use doctors explicitly linked to this hospital; do not fall back to global list
-  const doctorsToShow = details.doctors || [];
+  const doctorsToShow = (details as HospitalDetailsResponse)?.doctors || [];
   const profileDoctors = Array.isArray(profile?.doctors) ? profile!.doctors! : [];
-  const featuredServices = Array.from(new Set((departments || []).flatMap(d => d.services || []))).slice(0, 12);
+  const featuredServices = Array.from(new Set((departments || []).flatMap((d: any) => d.services || []))).slice(0, 12);
 
   return (
     <div className="min-h-screen bg-white">
@@ -371,7 +457,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">Specialized medical departments providing comprehensive healthcare services.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {departments.map((dept, index) => (
+              {departments.map((dept: any, index: number) => (
                 <div key={index} className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
                   <div className="text-center mb-6">
                     <div className="text-6xl mb-4">{index % 6 === 0 ? '🫀' : index % 6 === 1 ? '🧠' : index % 6 === 2 ? '🦴' : index % 6 === 3 ? '👁️' : index % 6 === 4 ? '🦷' : '👶'}</div>
@@ -382,7 +468,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                     <div className="mb-6">
                       <h4 className="text-lg font-semibold text-gray-900 mb-3">Key Services:</h4>
                       <div className="flex flex-wrap gap-2">
-                        {dept.services.slice(0,4).map((service, i) => (
+                        {dept.services.slice(0,4).map((service: any, i: number) => (
                           <span key={i} className="inline-block bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">{service}</span>
                         ))}
                         {dept.services.length > 4 && (<span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">+{dept.services.length - 4} more</span>)}
@@ -393,7 +479,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                     <div className="mb-6">
                       <h4 className="text-lg font-semibold text-gray-900 mb-3">Conditions Treated:</h4>
                       <div className="flex flex-wrap gap-2">
-                        {dept.conditions.slice(0,3).map((condition, i) => (
+                        {dept.conditions.slice(0,3).map((condition: any, i: number) => (
                           <span key={i} className="inline-block bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full">{condition}</span>
                         ))}
                         {dept.conditions.length > 3 && (<span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">+{dept.conditions.length - 3} more</span>)}
@@ -417,7 +503,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               <p className="text-xl text-gray-600">Comprehensive medical care across all specialties</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {featuredServices.map((service, index) => (
+              {featuredServices.map((service: any, index: number) => (
                 <div key={index} className="bg-white p-6 rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 text-center">
                   <div className="text-3xl mb-3">{index % 8 === 0 ? '💊' : index % 8 === 1 ? '🔬' : index % 8 === 2 ? '📋' : index % 8 === 3 ? '🩺' : index % 8 === 4 ? '💉' : index % 8 === 5 ? '🏥' : index % 8 === 6 ? '🦠' : '❤️'}</div>
                   <h3 className="font-semibold text-gray-900 text-sm">{service}</h3>
@@ -435,7 +521,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">Meet our experienced and dedicated healthcare professionals.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {doctorsToShow.map((link, index) => {
+              {doctorsToShow.map((link: any, index: number) => {
                 const doctor = link.doctor;
                 const profile = doctor.doctorProfile;
                 if (!profile) return null;
@@ -470,7 +556,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                       <div className="mb-6">
                         <h4 className="text-sm font-semibold text-gray-900 mb-2">Specializations:</h4>
                         <div className="flex flex-wrap gap-1">
-                          {profile.services.slice(0,3).map((service, i) => (<span key={i} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{service}</span>))}
+                          {profile.services.slice(0,3).map((service: any, i: number) => (<span key={i} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{service}</span>))}
                           {profile.services.length > 3 && (<span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">+{profile.services.length - 3}</span>)}
                         </div>
                       </div>
@@ -493,7 +579,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               <p className="text-lg text-gray-600">These entries are informational. Link real doctor accounts to enable booking.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {profileDoctors.map((d, idx) => (
+              {profileDoctors.map((d: any, idx: number) => (
                 <div key={idx} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
                   <div className="text-center mb-4">
                     <div className="text-5xl mb-4">👨‍⚕️</div>
@@ -505,7 +591,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                     <div className="mb-4">
                       <span className="text-sm font-semibold text-gray-700">Departments:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {d.departments.slice(0,2).map((dept, deptIndex) => (
+                        {d.departments.slice(0,2).map((dept: any, deptIndex: number) => (
                           <span key={deptIndex} className="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">{dept}</span>
                         ))}
                         {d.departments.length > 2 && (

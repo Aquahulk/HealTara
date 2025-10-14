@@ -125,7 +125,7 @@ interface HospitalDetailsResponse {
 // ============================================================================
 async function getHospitalProfileBySlug(slug: string): Promise<HospitalProfileResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     // First try to get hospital by slug, if that doesn't work, try by ID
     const res = await fetch(`${apiHost}/api/hospitals/slug/${slug}/profile`, {
       cache: 'no-store',
@@ -149,7 +149,7 @@ async function getHospitalProfileBySlug(slug: string): Promise<HospitalProfileRe
 
 async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || '';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     // First try to get hospital by slug, if that doesn't work, try by ID
     const res = await fetch(`${apiHost}/api/hospitals/slug/${slug}`, {
       cache: 'no-store',

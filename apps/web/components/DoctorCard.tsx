@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ export interface DoctorCardProps {
 
 export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: DoctorCardProps) {
     const router = useRouter();
+    const cardRef = useRef<HTMLDivElement | null>(null);
     const profile = doctor.doctorProfile;
     const clinicName = profile?.clinicName || "Clinic";
     const specialization = profile?.specialization || "Specialist";
@@ -25,8 +26,28 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
     const slug = profile?.slug;
     const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
+    // Track a view when the card enters viewport
+    useEffect(() => {
+        const el = cardRef.current;
+        if (!el) return;
+        let fired = false;
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!fired && entry.isIntersecting) {
+                    fired = true;
+                    import("@/lib/api").then(({ apiClient }) => {
+                        apiClient.trackDoctorView(doctor.id).catch(() => {});
+                    });
+                    observer.unobserve(el);
+                }
+            });
+        }, { threshold: 0.5 });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [doctor.id]);
+
 	return (
-		<div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col">
+		<div ref={cardRef} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col">
 			<div className="p-4 flex-1">
 				<h3 className="text-xl font-semibold text-gray-900">{clinicName}</h3>
 				<p className="text-sm text-gray-600 mt-1">{specialization}</p>
@@ -51,7 +72,9 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
                                 // Use internal route on localhost/dev to avoid lvh.me blocks
                                 // Let the default Link navigation proceed
                             }
-                            // analytics disabled: remove doctor-click tracking for now
+                            import("@/lib/api").then(({ apiClient }) => {
+                                apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+                            });
                         }}
                     >
                         View Details
@@ -96,7 +119,9 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
                             } else if (onBookClick) {
                                 onBookClick(doctor.id);
                             }
-                            // analytics disabled: remove booking CTA tracking for now
+                            import("@/lib/api").then(({ apiClient }) => {
+                                apiClient.trackDoctorClick(doctor.id, 'book').catch(() => {});
+                            });
                         }}
                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"
                     >

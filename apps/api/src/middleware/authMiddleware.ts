@@ -13,6 +13,7 @@
 // ============================================================================
 import { Request, Response, NextFunction } from 'express';   // Express types for middleware
 import jwt from 'jsonwebtoken';                             // JWT library for token verification
+import { Prisma } from '@prisma/client';                    // Prisma error types for granular handling
 import { prisma } from '../db';              // Shared Prisma client with SSL enforced
 
 // Prisma client comes from the shared db singleton
@@ -99,6 +100,17 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     
     if (error instanceof jwt.TokenExpiredError) {
       return res.status(401).json({ message: 'Token has expired' });
+    }
+
+    // Database connectivity issues (e.g., Neon unreachable) should return 503 to avoid confusing auth failures
+    const errAny = error as any;
+    const isDbUnavailable =
+      (typeof errAny?.code === 'string' && errAny.code === 'P1001') ||
+      error instanceof (Prisma as any).PrismaClientInitializationError ||
+      error instanceof (Prisma as any).PrismaClientRustPanicError;
+    if (isDbUnavailable) {
+      console.error('Database connectivity error during authentication:', error);
+      return res.status(503).json({ message: 'Database unavailable. Please check DATABASE_URL and connectivity.' });
     }
     
     // ============================================================================

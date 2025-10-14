@@ -157,7 +157,7 @@ export default function BookAppointmentModal({
 		}
 	};
 
-    // Fetch available slot times whenever doctorId or date changes (with caching + parallel fetch)
+    // Optimized time slot loading with aggressive caching and parallel requests
     useEffect(() => {
         const run = async () => {
             setAvailableTimes([]);
@@ -167,7 +167,32 @@ export default function BookAppointmentModal({
             const [dateOnly] = date.includes('T') ? date.split('T') : [date];
             const key = `${effectiveDoctorId}:${dateOnly}`;
 
-            // Serve cached data instantly if available
+            // Check localStorage cache first (persistent across sessions)
+            const localStorageKey = `slots_${key}`;
+            const cachedData = localStorage.getItem(localStorageKey);
+            const cacheTimestamp = localStorage.getItem(`${localStorageKey}_timestamp`);
+            const isCacheValid = cacheTimestamp && (Date.now() - parseInt(cacheTimestamp)) < 10 * 60 * 1000; // 10 minutes cache
+
+            if (isCacheValid && cachedData) {
+                try {
+                    const parsedData = JSON.parse(cachedData);
+                    if (parsedData.slots) {
+                        const times = parsedData.slots
+                            .filter((s: any) => s.status === 'AVAILABLE')
+                            .map((s: any) => String(s.time).slice(0,5));
+                        setAvailableTimes(Array.from(new Set(times)).sort() as string[]);
+                    }
+                    if (parsedData.availability) {
+                        setHourAvailability(parsedData.availability);
+                    }
+                    setLoadingAvail(false);
+                    return; // Use cached data, skip API call
+                } catch (e) {
+                    console.warn('Invalid cached slot data, fetching fresh');
+                }
+            }
+
+            // Serve in-memory cached data instantly if available
             const cachedSlots = cacheRef.current.slots.get(key);
             const cachedAvail = cacheRef.current.availability.get(key);
             if (cachedSlots || cachedAvail) {
@@ -182,17 +207,45 @@ export default function BookAppointmentModal({
 
             setLoadingAvail(true);
             const mySeq = ++fetchSeqRef.current;
+            
+            // Retry mechanism for failed requests
+            const fetchWithRetry = async (retries = 2) => {
+                for (let attempt = 0; attempt <= retries; attempt++) {
+                    try {
+                        const combinedData = await Promise.race([
+                            apiClient.getSlotsAndAvailability({ 
+                                doctorId: effectiveDoctorId, 
+                                date: dateOnly 
+                            }),
+                            new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Request timeout')), 10000) // 10 seconds timeout
+                            )
+                        ]);
+                        return combinedData;
+                    } catch (error) {
+                        if (attempt === retries) throw error;
+                        console.warn(`Attempt ${attempt + 1} failed, retrying...`, error);
+                        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
+                    }
+                }
+            };
+            
             try {
-                // Use the new optimized combined endpoint
-                const combinedData = await apiClient.getSlotsAndAvailability({ 
-                    doctorId: effectiveDoctorId, 
-                    date: dateOnly 
-                });
+                const combinedData = await fetchWithRetry() as any;
+                
                 if (mySeq !== fetchSeqRef.current) return; // ignore stale responses
                 
-                // Cache the data
+                // Cache the data in memory
                 cacheRef.current.slots.set(key, Array.isArray(combinedData.slots) ? combinedData.slots : []);
                 cacheRef.current.availability.set(key, combinedData.availability as HourAvailabilityData);
+                
+                // Cache in localStorage for persistence
+                const cacheData = {
+                    slots: Array.isArray(combinedData.slots) ? combinedData.slots : [],
+                    availability: combinedData.availability
+                };
+                localStorage.setItem(localStorageKey, JSON.stringify(cacheData));
+                localStorage.setItem(`${localStorageKey}_timestamp`, Date.now().toString());
                 
                 // Fetch doctor working hours and filter available times to fit day window
                 const dayIdx = new Date(dateOnly).getDay();
@@ -220,10 +273,29 @@ export default function BookAppointmentModal({
                 };
                 setAvailableTimes(filterByWH(rawTimes));
                 setHourAvailability(combinedData.availability as HourAvailabilityData);
-            } catch (e) {
+            } catch (e: any) {
                 console.error('Failed to load slots/availability', e);
+                if (mySeq === fetchSeqRef.current) {
+                    // Show user-friendly error message and try to use cached data
+                    if (e?.message === 'Request timeout') {
+                        console.warn('Request timed out, showing cached data if available');
+                        // Try to show any cached data we have
+                        const cachedSlots = cacheRef.current.slots.get(key);
+                        if (cachedSlots && cachedSlots.length > 0) {
+                            const times = cachedSlots
+                                .filter((s: any) => s.status === 'AVAILABLE')
+                                .map((s: any) => String(s.time).slice(0,5));
+                            setAvailableTimes(Array.from(new Set(times)).sort());
+                        }
+                    } else {
+                        setAvailableTimes([]);
+                        setHourAvailability(null);
+                    }
+                }
             } finally {
-                setLoadingAvail(false);
+                if (mySeq === fetchSeqRef.current) {
+                    setLoadingAvail(false);
+                }
             }
         };
         run();
@@ -273,9 +345,14 @@ export default function BookAppointmentModal({
                         <div className="text-xs text-gray-500 mt-1">
                             {loadingAvail
                                 ? (
-                                    <div className="flex items-center space-x-2">
-                                        <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
-                                        <span>Loading available slots...</span>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center space-x-2">
+                                            <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                                            <span>Loading available slots...</span>
+                                        </div>
+                                        <div className="text-xs text-gray-400">
+                                            If this takes too long, we'll show cached data if available
+                                        </div>
                                     </div>
                                 )
                                 : availableTimes.length
@@ -337,6 +414,9 @@ function HourAvailabilityGrid({ availability, date, selectedTime, onSelect }: { 
                 <div className="flex items-center space-x-2 text-gray-500">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                     <span className="text-sm">Loading availability...</span>
+                </div>
+                <div className="text-xs text-gray-400 mt-2">
+                    This may take a few moments. Please wait...
                 </div>
             </div>
         );

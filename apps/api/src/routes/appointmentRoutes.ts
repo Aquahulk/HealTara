@@ -1,7 +1,5 @@
 import express, { Request, Response, Router } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../db';
 const router: Router = express.Router();
 
 // Define a type for the request body to ensure type safety

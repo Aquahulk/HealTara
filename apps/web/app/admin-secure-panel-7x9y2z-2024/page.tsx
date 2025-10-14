@@ -24,6 +24,7 @@
 import { useState, useEffect } from 'react';               // React hooks for state management and side effects
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
 import { apiClient } from '@/lib/api';                     // API client for making HTTP requests to backend
+import { loadWithCache, PerformanceMonitor, CacheManager } from '@/lib/performance'; // Performance optimization utilities
 
 // ============================================================================
 // 🔐 SECURITY UTILITIES - Advanced security validation functions
@@ -182,6 +183,8 @@ export default function SecureAdminPanel() {
   const [homepageContent, setHomepageContent] = useState<HomepageContent | null>(null); // Homepage content
   const [showHomepageModal, setShowHomepageModal] = useState(false); // Homepage content modal
   const [editingSection, setEditingSection] = useState<string | null>(null); // Currently editing section
+  const [adminDoctors, setAdminDoctors] = useState<any[]>([]); // Admin view of doctors with status
+  const [adminHospitals, setAdminHospitals] = useState<any[]>([]); // Admin view of hospitals with status
 
   // ============================================================================
   // 🔄 SIDE EFFECTS - Code that runs when component mounts or updates
@@ -228,35 +231,54 @@ export default function SecureAdminPanel() {
   // 📊 DATA LOADING FUNCTIONS - Functions to fetch data from backend
   // ============================================================================
   
-  // Load all data for the admin dashboard
+  // Ultra-optimized admin data loading with performance monitoring
   const loadData = async () => {
+    PerformanceMonitor.startTiming('admin-data-load');
     try {
       setLoading(true);
       
-      // ============================================================================
-      // 📈 DASHBOARD STATISTICS - Get system overview data
-      // ============================================================================
-      const dashboardData = await apiClient.getAdminDashboard();
-      setStats(dashboardData.stats);
-      
-      // ============================================================================
-      // 👥 USER MANAGEMENT - Get all users for admin management
-      // ============================================================================
-      const usersData = await apiClient.getAdminUsers();
-      // Hide ADMIN accounts from the Users tab
-      setUsers(usersData.filter(u => u.role !== 'ADMIN'));
-      
-      // ============================================================================
-      // 📅 APPOINTMENT MANAGEMENT - Get all appointments
-      // ============================================================================
-      const appointmentsData = await apiClient.getAdminAppointments();
-      setAppointments(appointmentsData);
-      
-      // ============================================================================
-      // 📝 AUDIT LOGS - Get system activity logs
-      // ============================================================================
-      const auditData = await apiClient.getAdminAuditLogs();
-      setAuditLogs(auditData);
+      // Load critical data with intelligent caching
+      const [dashboardData, usersData] = await Promise.allSettled([
+        loadWithCache('admin_dashboard', () => apiClient.getAdminDashboard()),
+        loadWithCache('admin_users', () => apiClient.getAdminUsers())
+      ]);
+
+      // Update critical data immediately
+      if (dashboardData.status === 'fulfilled') {
+        setStats(dashboardData.value.stats);
+      }
+      if (usersData.status === 'fulfilled') {
+        const filteredUsers = (usersData.value || []).filter((u) => u.role !== 'ADMIN');
+        setUsers(filteredUsers);
+      }
+
+      // Load secondary data in background (non-blocking)
+      Promise.allSettled([
+        loadWithCache('admin_appointments', () => apiClient.getAdminAppointments()).then(data => {
+          setAppointments(data || []);
+        }),
+        loadWithCache('admin_doctors', () => apiClient.adminListDoctors({ page: 1, limit: 10 })).then(data => {
+          setAdminDoctors((data as any).items || []);
+        }).catch((e) => {
+          console.warn('Failed to load admin doctors list', e);
+          setAdminDoctors([]);
+        }),
+        loadWithCache('admin_hospitals', () => apiClient.adminListHospitals({ page: 1, limit: 10 })).then(data => {
+          setAdminHospitals((data as any).items || []);
+        }).catch((e) => {
+          console.warn('Failed to load admin hospitals list', e);
+          setAdminHospitals([]);
+        }),
+        loadWithCache('admin_audit_logs', () => apiClient.getAdminAuditLogs()).then(data => {
+          setAuditLogs(data || []);
+        }).catch((e) => {
+          console.warn('Failed to load audit logs', e);
+          setAuditLogs([]);
+        })
+      ]);
+
+      const duration = PerformanceMonitor.endTiming('admin-data-load');
+      PerformanceMonitor.logTiming('admin-data-load', duration);
       
     } catch (error) {
       console.error('Error loading admin data:', error);
@@ -326,6 +348,54 @@ export default function SecureAdminPanel() {
     } catch (error) {
       console.error('Error updating appointment status:', error);
       alert('Failed to update appointment status');
+    }
+  };
+
+  // ============================================================================
+  // ✅ ADMIN APPROVAL FUNCTIONS - Manage doctor/hospital service status
+  // ============================================================================
+  const setDoctorServiceStatus = async (doctorId: number, action: 'START' | 'PAUSE' | 'REVOKE') => {
+    try {
+      await apiClient.adminSetDoctorStatus(doctorId, action);
+      // Optimistically update UI for snappy feedback
+      setAdminDoctors((prev) =>
+        (prev || []).map((d: any) =>
+          d.id === doctorId
+            ? { ...d, status: action === 'START' ? 'STARTED' : action === 'PAUSE' ? 'PAUSED' : 'REVOKED' }
+            : d
+        )
+      );
+      // Refetch only the doctors list quickly (paginated)
+      const refreshed = await apiClient.adminListDoctors({ page: 1, limit: 25 }).catch(() => ({ items: [] as any[], total: 0, page: 1, limit: 25 }));
+      setAdminDoctors((refreshed as any).items || []);
+      alert('Doctor status updated successfully');
+    } catch (error) {
+      console.error('Error updating doctor status:', error);
+      alert('Failed to update doctor status');
+    }
+  };
+
+  const setHospitalServiceStatus = async (
+    hospitalId: number,
+    action: 'START' | 'PAUSE' | 'REVOKE'
+  ) => {
+    try {
+      await apiClient.adminSetHospitalStatus(hospitalId, action);
+      // Optimistically update UI for snappy feedback
+      setAdminHospitals((prev) =>
+        (prev || []).map((h: any) =>
+          h.id === hospitalId
+            ? { ...h, serviceStatus: action === 'START' ? 'STARTED' : action === 'PAUSE' ? 'PAUSED' : 'REVOKED' }
+            : h
+        )
+      );
+      // Refetch only the hospitals list quickly (paginated)
+      const refreshed = await apiClient.adminListHospitals({ page: 1, limit: 25 }).catch(() => ({ items: [] as any[], total: 0, page: 1, limit: 25 }));
+      setAdminHospitals((refreshed as any).items || []);
+      alert('Hospital status updated successfully');
+    } catch (error) {
+      console.error('Error updating hospital status:', error);
+      alert('Failed to update hospital status');
     }
   };
 
@@ -429,6 +499,8 @@ export default function SecureAdminPanel() {
             {[
               { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
               { id: 'users', name: '👥 Users', icon: '👥' },
+              { id: 'doctors', name: '👨‍⚕️ Doctors', icon: '👨‍⚕️' },
+              { id: 'hospitals', name: '🏥 Hospitals', icon: '🏥' },
               { id: 'appointments', name: '📅 Appointments', icon: '📅' },
               { id: 'homepage', name: '🏠 Homepage', icon: '🏠' },
               { id: 'audit', name: '📝 Audit Logs', icon: '📝' }
@@ -589,6 +661,117 @@ export default function SecureAdminPanel() {
                             className="text-sm text-red-600 hover:text-red-900"
                           >
                             Delete
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================================
+            👨‍⚕️ DOCTORS TAB - Doctor approval and status controls
+            ============================================================================ */}
+        {activeTab === 'doctors' && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Doctor Approval & Status</h2>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading doctors...</p>
+              </div>
+            ) : (
+              <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                <ul className="divide-y divide-gray-200">
+                  {adminDoctors.map((doctor: any) => (
+                    <li key={doctor.id} className="px-6 py-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{doctor.email}</div>
+                          <div className="text-sm text-gray-500">
+                            Status: {doctor.status}
+                          </div>
+                          {doctor.hospitals && doctor.hospitals.length > 0 && (
+                            <div className="mt-2 text-sm text-gray-500">
+                              Linked hospitals: {doctor.hospitals.map((h: any) => `${h.name} (${h.serviceStatus || 'UNKNOWN'})`).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => setDoctorServiceStatus(doctor.id, 'START')}
+                            className="text-sm text-green-600 hover:text-green-900"
+                          >
+                            Start
+                          </button>
+                          <button
+                            onClick={() => setDoctorServiceStatus(doctor.id, 'PAUSE')}
+                            className="text-sm text-yellow-600 hover:text-yellow-900"
+                          >
+                            Pause
+                          </button>
+                          <button
+                            onClick={() => setDoctorServiceStatus(doctor.id, 'REVOKE')}
+                            className="text-sm text-red-600 hover:text-red-900"
+                          >
+                            Revoke
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================================
+            🏥 HOSPITALS TAB - Hospital approval and status controls
+            ============================================================================ */}
+        {activeTab === 'hospitals' && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Hospital Approval & Status</h2>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading hospitals...</p>
+              </div>
+            ) : (
+              <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                <ul className="divide-y divide-gray-200">
+                  {adminHospitals.map((hospital: any) => (
+                    <li key={hospital.id} className="px-6 py-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{hospital.name}</div>
+                          <div className="text-sm text-gray-500">{hospital.city}, {hospital.state}</div>
+                          <div className="text-sm text-gray-500">Service: {hospital.serviceStatus || 'UNKNOWN'}</div>
+                          {hospital.admin && (
+                            <div className="text-sm text-gray-500">Admin: {hospital.admin.email}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => setHospitalServiceStatus(hospital.id, 'START')}
+                            className="text-sm text-green-600 hover:text-green-900"
+                          >
+                            Start
+                          </button>
+                          <button
+                            onClick={() => setHospitalServiceStatus(hospital.id, 'PAUSE')}
+                            className="text-sm text-yellow-600 hover:text-yellow-900"
+                          >
+                            Pause
+                          </button>
+                          <button
+                            onClick={() => setHospitalServiceStatus(hospital.id, 'REVOKE')}
+                            className="text-sm text-red-600 hover:text-red-900"
+                          >
+                            Revoke
                           </button>
                         </div>
                       </div>

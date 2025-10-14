@@ -219,12 +219,40 @@ class ApiClient {
       // ============================================================================
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        const message = errorData.message || `HTTP error! status: ${response.status}`;
-        // Auto-handle invalid/expired tokens: clear and hint to re-login
-        if (typeof window !== 'undefined' && response.status === 401 && /invalid token|jwt|unauthorized/i.test(message)) {
-          try { localStorage.removeItem('authToken'); } catch {}
+        const rawMessage = errorData.message || `HTTP error! status: ${response.status}`;
+
+        // ==========================================================================
+        // 🧰 FRIENDLY ERROR MAPPING - Convert server errors to user-friendly text
+        // ==========================================================================
+        let userMessage = rawMessage;
+
+        if (response.status === 401) {
+          // Auto-handle invalid/expired tokens: clear and hint to re-login
+          if (/invalid token|jwt|unauthorized|authentication failed|expired/i.test(rawMessage)) {
+            if (typeof window !== 'undefined') {
+              try { localStorage.removeItem('authToken'); } catch {}
+            }
+            userMessage = 'Your session has expired. Please log in again.';
+          } else {
+            userMessage = 'Unauthorized. Please log in.';
+          }
+        } else if (response.status === 403) {
+          userMessage = 'You do not have permission to perform this action.';
+        } else if (response.status === 503) {
+          if (/database|db|connect|prisma|unavailable/i.test(rawMessage)) {
+            userMessage = 'Service is temporarily unavailable. Please try again in a few minutes.';
+          } else {
+            userMessage = 'Service is temporarily unavailable. Please try again later.';
+          }
+        } else if (response.status === 500) {
+          if (/auth|authentication/i.test(rawMessage)) {
+            userMessage = 'Unable to authenticate right now. Try logging out and back in.';
+          } else {
+            userMessage = 'An unexpected server error occurred. Please try again.';
+          }
         }
-        throw new Error(message);
+
+        throw new Error(userMessage);
       }
 
       // ============================================================================
@@ -257,6 +285,46 @@ class ApiClient {
     return this.request<RegisterResponse>('/api/register', {
       method: 'POST',                                       // HTTP POST method
       body: JSON.stringify({ email, password, role }),      // Send user data as JSON
+    });
+  }
+
+  // ============================================================================
+  // 🛡️ ADMIN ENDPOINTS - Approval workflow controls and listings
+  // ============================================================================
+
+  // List doctors with status details (admin only, paginated)
+  async adminListDoctors(params?: { page?: number; limit?: number }): Promise<{ items: any[]; total: number; page: number; limit: number }> {
+    const query = new URLSearchParams();
+    if (params?.page && params.page > 0) query.set('page', String(params.page));
+    if (params?.limit && params.limit > 0) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    const endpoint = qs ? `/api/admin/doctors?${qs}` : '/api/admin/doctors';
+    return this.request(endpoint, { method: 'GET' });
+  }
+
+  // List hospitals with status details (admin only, paginated)
+  async adminListHospitals(params?: { page?: number; limit?: number }): Promise<{ items: any[]; total: number; page: number; limit: number }> {
+    const query = new URLSearchParams();
+    if (params?.page && params.page > 0) query.set('page', String(params.page));
+    if (params?.limit && params.limit > 0) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    const endpoint = qs ? `/api/admin/hospitals?${qs}` : '/api/admin/hospitals';
+    return this.request(endpoint, { method: 'GET' });
+  }
+
+  // Update doctor service status (START, PAUSE, REVOKE)
+  async adminSetDoctorStatus(doctorId: number, action: 'START' | 'PAUSE' | 'REVOKE'): Promise<{ message: string; status: string; }> {
+    return this.request<{ message: string; status: string; }>(`/api/admin/doctors/${doctorId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+  }
+
+  // Update hospital service status (START, PAUSE, REVOKE)
+  async adminSetHospitalStatus(hospitalId: number, action: 'START' | 'PAUSE' | 'REVOKE'): Promise<{ message: string; status: string; }> {
+    return this.request<{ message: string; status: string; }>(`/api/admin/hospitals/${hospitalId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
     });
   }
 
@@ -585,6 +653,19 @@ class ApiClient {
       return await this.request<{ ok: boolean }>(`/api/analytics/doctor-click`, {
         method: 'POST',
         body: JSON.stringify({ doctorId, type }),
+      });
+    } catch (e) {
+      // ignore errors in client analytics
+      return { ok: false } as any;
+    }
+  }
+
+  async trackDoctorView(doctorId: number): Promise<{ ok: boolean }>
+  {
+    try {
+      return await this.request<{ ok: boolean }>(`/api/analytics/doctor-view`, {
+        method: 'POST',
+        body: JSON.stringify({ doctorId }),
       });
     } catch (e) {
       // ignore errors in client analytics

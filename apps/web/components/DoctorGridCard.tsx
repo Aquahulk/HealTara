@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,27 @@ interface DoctorGridCardProps {
 
 export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGridCardProps) {
   const router = useRouter();
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Track a view when the card becomes visible
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    let fired = false;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!fired && entry.isIntersecting) {
+          fired = true;
+          import("@/lib/api").then(({ apiClient }) => {
+            apiClient.trackDoctorView(doctor.id).catch(() => {});
+          });
+          observer.unobserve(el);
+        }
+      });
+    }, { threshold: 0.5 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [doctor.id]);
   const profile = doctor.doctorProfile;
   const emailName = (doctor?.email || "").split("@")[0];
   const clinicName = profile?.clinicName || "Clinic";
@@ -26,7 +47,7 @@ export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGrid
   const displayName = slug ? toTitle(slug) : emailName;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+    <div ref={cardRef} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="p-4">
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-3xl">👨‍⚕️</div>
@@ -67,7 +88,9 @@ export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGrid
                 e.preventDefault();
                 window.location.href = doctorMicrositeUrl(slug);
               }
-              // analytics disabled: remove doctor-click tracking for now
+              import("@/lib/api").then(({ apiClient }) => {
+                apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+              });
             }}
           >
             View Details
@@ -108,7 +131,9 @@ export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGrid
           <button
             onClick={() => {
               onBookAppointment();
-              // analytics disabled: remove booking CTA tracking for now
+              import("@/lib/api").then(({ apiClient }) => {
+                apiClient.trackDoctorClick(doctor.id, 'book').catch(() => {});
+              });
             }}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"
           >

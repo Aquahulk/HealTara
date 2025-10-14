@@ -40,7 +40,7 @@ declare global {
 // ============================================================================
 // Prisma client is provided by ./db and already enforces SSL for Neon
 const app = express();                                     // Create Express application
-const port = process.env.PORT || 3001;                    // Use environment port or default to 3001
+const port = process.env.PORT || 3001;                    // Default to 3001 to align with Next.js dev proxy
 
 // ============================================================================
 // ⚙️ MIDDLEWARE SETUP - Functions that run before your routes
@@ -330,6 +330,8 @@ app.post('/api/doctor/profile', authMiddleware, async (req: Request, res: Respon
     const newProfile = await prisma.doctorProfile.create({
       data: {
         specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug: finalSlug,
+        // Newly created profiles are disabled until admin approval
+        micrositeEnabled: false,
         user: { connect: { id: user.userId } },              // Link profile to the authenticated user
       },
     });
@@ -445,6 +447,30 @@ const hospitalAdminMiddleware = (req: Request, res: Response, next: NextFunction
   next();
 };
 
+// ============================================================================
+// 🔐 ADMIN MIDDLEWARE - Restrict access to primary admin users
+// ============================================================================
+// Interpreting SLOT_ADMIN as the main admin role for system-wide controls.
+const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const user = req.user;
+  if (!user || user.role !== 'SLOT_ADMIN') {
+    return res.status(403).json({ message: 'Forbidden: Only main admin can access this resource.' });
+  }
+  next();
+};
+
+// Additional admin middleware for panel administrators (role: ADMIN)
+// This protects UI-driven admin panel endpoints.
+const panelAdminMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Unauthorized: User not authenticated.' });
+  }
+  if (req.user.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Forbidden: Admin access required.' });
+  }
+  next();
+};
+
 // Create a hospital (admin becomes the hospital admin)
 app.post('/api/hospitals', authMiddleware, hospitalAdminMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;
@@ -461,6 +487,8 @@ app.post('/api/hospitals', authMiddleware, hospitalAdminMiddleware, async (req: 
         state: state || null,
         phone: phone || null,
         adminId: user.userId,
+        // Default hospital service status as PENDING until main admin approval
+        profile: { serviceStatus: 'PENDING' },
       },
     });
     res.status(201).json(hospital);
@@ -520,6 +548,222 @@ app.post('/api/hospitals/:hospitalId/doctors', authMiddleware, hospitalAdminMidd
     }
     console.error(error);
     res.status(500).json({ message: 'An error occurred while linking the doctor to the hospital.' });
+  }
+});
+
+// ============================================================================
+// 🛡️ ADMIN CONTROLS - Approve/Pause/Revoke Doctors and Hospitals
+// ============================================================================
+// Doctor service status management
+app.post('/api/admin/doctors/:doctorId/status', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
+  const { doctorId } = req.params;
+  const { action } = req.body as { action: 'START' | 'PAUSE' | 'REVOKE' };
+  const valid = ['START', 'PAUSE', 'REVOKE'];
+  if (!action || !valid.includes(action)) {
+    return res.status(400).json({ message: 'Invalid action. Use START, PAUSE or REVOKE.' });
+  }
+  try {
+    const idNum = Number(doctorId);
+    const doctorUser = await prisma.user.findUnique({ where: { id: idNum } });
+    if (!doctorUser || doctorUser.role !== 'DOCTOR') {
+      return res.status(404).json({ message: 'Doctor not found.' });
+    }
+
+    let canLogin = doctorUser.canLogin;
+    let micrositeEnabled = true;
+    if (action === 'START') {
+      canLogin = true; micrositeEnabled = true;
+    } else if (action === 'PAUSE') {
+      canLogin = true; micrositeEnabled = false;
+    } else if (action === 'REVOKE') {
+      canLogin = false; micrositeEnabled = false;
+    }
+
+    // Run updates in a single transaction for speed and consistency
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: idNum }, data: { canLogin } }),
+      prisma.doctorProfile.update({ where: { userId: idNum }, data: { micrositeEnabled } }),
+    ]);
+
+    // Fire-and-forget audit log to avoid delaying the response
+    void prisma.adminAuditLog.create({
+      data: {
+        admin: { connect: { id: req.user!.userId } },
+        action: 'DOCTOR_STATUS_CHANGE',
+        entityType: 'DOCTOR',
+        entityId: idNum,
+        details: JSON.stringify({ action }),
+      }
+    }).catch((e) => console.error('[audit-log doctor status] failed', e));
+
+    res.status(200).json({ message: 'Doctor status updated', status: action });
+  } catch (error) {
+    console.error('[admin-doctor-status] error', error);
+    res.status(500).json({ message: 'Failed to update doctor status.' });
+  }
+});
+
+// Hospital service status management
+app.post('/api/admin/hospitals/:hospitalId/status', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
+  const { hospitalId } = req.params;
+  const { action } = req.body as { action: 'START' | 'PAUSE' | 'REVOKE' };
+  const valid = ['START', 'PAUSE', 'REVOKE'];
+  if (!action || !valid.includes(action)) {
+    return res.status(400).json({ message: 'Invalid action. Use START, PAUSE or REVOKE.' });
+  }
+  try {
+    const idNum = Number(hospitalId);
+    const hospital = await prisma.hospital.findUnique({ where: { id: idNum } });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found.' });
+    }
+
+    const nextStatus = action === 'START' ? 'STARTED' : action === 'PAUSE' ? 'PAUSED' : 'REVOKED';
+    const currentProfile = (hospital.profile as any) || {};
+    const updatedProfile = { ...currentProfile, serviceStatus: nextStatus };
+
+    const txs: any[] = [
+      prisma.hospital.update({ where: { id: idNum }, data: { profile: updatedProfile } })
+    ];
+    // If revoked, disable the hospital admin’s ability to login in parallel
+    if (nextStatus === 'REVOKED' && hospital.adminId) {
+      txs.push(prisma.user.update({ where: { id: hospital.adminId }, data: { canLogin: false } }));
+    }
+    await prisma.$transaction(txs);
+
+    // Fire-and-forget audit log to avoid delaying the response
+    void prisma.adminAuditLog.create({
+      data: {
+        admin: { connect: { id: req.user!.userId } },
+        action: 'HOSPITAL_STATUS_CHANGE',
+        entityType: 'HOSPITAL',
+        entityId: idNum,
+        details: JSON.stringify({ action }),
+      }
+    }).catch((e) => console.error('[audit-log hospital status] failed', e));
+
+    res.status(200).json({ message: 'Hospital status updated', status: nextStatus });
+  } catch (error) {
+    console.error('[admin-hospital-status] error', error);
+    res.status(500).json({ message: 'Failed to update hospital status.' });
+  }
+});
+
+// List all doctors for admin with approval/status details
+app.get('/api/admin/doctors', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const page = Math.max(parseInt(String((req.query as any).page)) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(String((req.query as any).limit)) || 25, 1), 100);
+    const skip = (page - 1) * limit;
+
+    const [doctors, total] = await Promise.all([
+      prisma.user.findMany({
+        where: { role: 'DOCTOR' },
+        select: {
+          id: true,
+          email: true,
+          canLogin: true,
+          createdAt: true,
+          doctorProfile: {
+            select: {
+              id: true,
+              micrositeEnabled: true,
+              slug: true,
+              specialization: true,
+              consultationFee: true,
+              city: true,
+              state: true,
+            }
+          },
+          hospitalMemberships: {
+            select: {
+              hospital: {
+                select: { id: true, name: true, profile: true }
+              }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip,
+      }),
+      prisma.user.count({ where: { role: 'DOCTOR' } }),
+    ]);
+
+    const result = doctors.map((d: any) => {
+      const profile = d.doctorProfile;
+      const hospitals = (d.hospitalMemberships || []).map((hm: any) => ({
+        id: hm.hospital.id,
+        name: hm.hospital.name,
+        serviceStatus: (hm.hospital.profile as any)?.serviceStatus || 'PENDING'
+      }));
+      let status: 'STARTED' | 'PAUSED' | 'REVOKED' | 'PENDING' = 'PENDING';
+      if (d.canLogin && profile?.micrositeEnabled) status = 'STARTED';
+      else if (d.canLogin && !profile?.micrositeEnabled) status = 'PAUSED';
+      else if (!d.canLogin) status = 'REVOKED';
+      return {
+        id: d.id,
+        email: d.email,
+        canLogin: d.canLogin,
+        createdAt: d.createdAt,
+        profile,
+        hospitals,
+        status,
+      };
+    });
+    res.status(200).json({ items: result, total, page, limit });
+  } catch (error) {
+    console.error('[admin-list-doctors] error', error);
+    res.status(500).json({ message: 'Failed to fetch doctors.' });
+  }
+});
+
+// List all hospitals for admin with approval/status details
+app.get('/api/admin/hospitals', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const page = Math.max(parseInt(String((req.query as any).page)) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(String((req.query as any).limit)) || 25, 1), 100);
+    const skip = (page - 1) * limit;
+
+    const [hospitals, total] = await Promise.all([
+      prisma.hospital.findMany({
+        select: {
+          id: true,
+          name: true,
+          city: true,
+          state: true,
+          phone: true,
+          address: true,
+          profile: true,
+          adminId: true,
+          admin: { select: { id: true, email: true, canLogin: true } },
+          _count: { select: { departments: true, doctors: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+        skip,
+      }),
+      prisma.hospital.count(),
+    ]);
+    const result = hospitals.map((h: any) => {
+      const p = (h.profile as any) || {};
+      const serviceStatus = p.serviceStatus || 'PENDING';
+      return {
+        id: h.id,
+        name: h.name,
+        city: h.city,
+        state: h.state,
+        phone: h.phone,
+        address: h.address,
+        serviceStatus,
+        admin: h.admin ? { id: h.admin.id, email: h.admin.email, canLogin: h.admin.canLogin } : null,
+        counts: h._count,
+      };
+    });
+    res.status(200).json({ items: result, total, page, limit });
+  } catch (error) {
+    console.error('[admin-list-hospitals] error', error);
+    res.status(500).json({ message: 'Failed to fetch hospitals.' });
   }
 });
 
@@ -1041,18 +1285,61 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
     // Filter out doctors without profiles (safety check)
     const doctorsWithProfiles = doctors.filter((doctor: any) => doctor.doctorProfile && doctor.doctorProfile.micrositeEnabled);
 
-    // Apply additional sorting for trending if needed (simplified)
+    // Apply additional sorting for trending using recent engagement (last 7 days)
     if (sort === 'trending') {
-      doctorsWithProfiles.sort((a: any, b: any) => {
-        const aProfile = a.doctorProfile;
-        const bProfile = b.doctorProfile;
-        
-        // Simplified trending score
-        const aScore = (aProfile.experience || 0) + (aProfile.consultationFee || 0) / 100 + Math.random();
-        const bScore = (bProfile.experience || 0) + (bProfile.consultationFee || 0) / 100 + Math.random();
-        
-        return bScore - aScore;
-      });
+      try {
+        const doctorIds = doctorsWithProfiles.map((d: any) => d.id);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const start = new Date(today);
+        start.setDate(today.getDate() - 7);
+
+        const engagements = await prisma.doctorEngagement.findMany({
+          where: {
+            doctorId: { in: doctorIds },
+            date: { gte: start, lte: today },
+          },
+          select: { doctorId: true, cardViews: true, siteClicks: true, bookClicks: true },
+        });
+
+        const agg = new Map<number, { views: number; site: number; book: number }>();
+        for (const e of engagements) {
+          const prev = agg.get(e.doctorId) || { views: 0, site: 0, book: 0 };
+          agg.set(e.doctorId, {
+            views: prev.views + (e.cardViews || 0),
+            site: prev.site + (e.siteClicks || 0),
+            book: prev.book + (e.bookClicks || 0),
+          });
+        }
+
+        const score = (id: number) => {
+          const a = agg.get(id);
+          if (!a) return 0;
+          // Weighted score favoring booked intent
+          return a.views * 0.5 + a.site * 1.0 + a.book * 2.0;
+        };
+
+        doctorsWithProfiles.sort((a: any, b: any) => {
+          const sa = score(a.id);
+          const sb = score(b.id);
+          if (sb !== sa) return sb - sa;
+          // Tie-breaker using experience and fee
+          const aProfile = a.doctorProfile;
+          const bProfile = b.doctorProfile;
+          const aAlt = (aProfile.experience || 0) + (aProfile.consultationFee || 0) / 100;
+          const bAlt = (bProfile.experience || 0) + (bProfile.consultationFee || 0) / 100;
+          return bAlt - aAlt;
+        });
+      } catch (err) {
+        console.warn('[doctors:trending] engagement sort failed, using simplified fallback');
+        doctorsWithProfiles.sort((a: any, b: any) => {
+          const aProfile = a.doctorProfile;
+          const bProfile = b.doctorProfile;
+          const aScore = (aProfile.experience || 0) + (aProfile.consultationFee || 0) / 100 + Math.random();
+          const bScore = (bProfile.experience || 0) + (bProfile.consultationFee || 0) / 100 + Math.random();
+          return bScore - aScore;
+        });
+      }
     }
 
     res.status(200).json(doctorsWithProfiles);
@@ -1417,6 +1704,28 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
     // --- Validate date is valid ---
     if (isNaN(requestedDate.getTime())) {
       return res.status(400).json({ message: 'Invalid date provided.' });
+    }
+
+    // --- Check doctor status (must be active and approved) ---
+    const doctorUser = await prisma.user.findUnique({ where: { id: normalizedDoctorId } });
+    const doctorProfileActive = await prisma.doctorProfile.findUnique({ where: { userId: normalizedDoctorId } });
+    if (!doctorUser || doctorUser.role !== 'DOCTOR') {
+      return res.status(404).json({ message: 'Doctor not found.' });
+    }
+    if (!doctorUser.canLogin || !doctorProfileActive?.micrositeEnabled) {
+      return res.status(403).json({ message: 'Doctor is not active or approved for bookings.' });
+    }
+
+    // --- Check hospital service status (if the doctor is linked to hospitals) ---
+    const memberships = await prisma.hospitalDoctor.findMany({
+      where: { doctorId: normalizedDoctorId },
+      select: { hospital: { select: { id: true, name: true, profile: true } } }
+    });
+    if (memberships.length > 0) {
+      const activeHospitals = memberships.filter((m: any) => ((m.hospital.profile as any)?.serviceStatus) === 'STARTED');
+      if (activeHospitals.length === 0) {
+        return res.status(403).json({ message: 'Doctor’s hospitals are paused or revoked. Booking temporarily disabled.' });
+      }
     }
 
     // --- Enforce one booking per doctor per day for the patient ---
@@ -2292,6 +2601,76 @@ app.get('/api/slot-admin/working-hours', authMiddleware, async (req: Request, re
   }
 });
 
+// ==============================================
+// Slot Admin: Slot Period (minutes) management
+// ==============================================
+// Read slot period for managed doctor (or specified doctor in hospital scope)
+app.get('/api/slot-admin/slot-period', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'SLOT_ADMIN') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedDoctorProfileId: true, managedHospitalId: true } });
+    if (!admin) return res.status(401).json({ message: 'User not found.' });
+
+    let targetDoctorId: number | null = null;
+    if (admin.managedDoctorProfileId) {
+      const profile = await prisma.doctorProfile.findUnique({ where: { id: admin.managedDoctorProfileId } });
+      targetDoctorId = profile?.userId ?? null;
+    } else if (admin.managedHospitalId) {
+      const rawDoctorId = (req.query as any)?.doctorId;
+      const doctorId = rawDoctorId !== undefined ? Number(rawDoctorId) : NaN;
+      if (!Number.isInteger(doctorId) || doctorId <= 0) return res.status(400).json({ message: 'doctorId is required for hospital-managed slot admins.' });
+      const membership = await prisma.hospitalDoctor.findFirst({ where: { hospitalId: admin.managedHospitalId, doctorId } });
+      if (!membership) return res.status(404).json({ message: 'Doctor is not linked to your hospital.' });
+      targetDoctorId = doctorId;
+    }
+
+    if (!targetDoctorId) return res.status(404).json({ message: 'Doctor not found in scope.' });
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: targetDoctorId } });
+    const minutes = profile?.slotPeriodMinutes ?? 15;
+    return res.status(200).json({ slotPeriodMinutes: minutes });
+  } catch (error) {
+    console.error('[slot-admin:slot-period:get] error', error);
+    res.status(500).json({ message: 'Failed to read slot period.' });
+  }
+});
+
+// Update slot period for managed doctor (or specified doctor in hospital scope)
+app.put('/api/slot-admin/slot-period', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'SLOT_ADMIN') return res.status(403).json({ message: 'Forbidden' });
+  const { slotPeriodMinutes, doctorId: rawDoctorId } = req.body as { slotPeriodMinutes?: number; doctorId?: number };
+  const allowed = [10, 15, 20, 30, 60];
+  const minutes = Number(slotPeriodMinutes);
+  if (!allowed.includes(minutes)) {
+    return res.status(400).json({ message: 'Invalid slot period. Allowed: 10, 15, 20, 30, 60.' });
+  }
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedDoctorProfileId: true, managedHospitalId: true } });
+    if (!admin) return res.status(401).json({ message: 'User not found.' });
+
+    let targetDoctorId: number | null = null;
+    if (admin.managedDoctorProfileId) {
+      const profile = await prisma.doctorProfile.findUnique({ where: { id: admin.managedDoctorProfileId } });
+      targetDoctorId = profile?.userId ?? null;
+    } else if (admin.managedHospitalId) {
+      const doctorId = rawDoctorId !== undefined ? Number(rawDoctorId) : NaN;
+      if (!Number.isInteger(doctorId) || doctorId <= 0) return res.status(400).json({ message: 'doctorId is required for hospital-managed slot admins.' });
+      const membership = await prisma.hospitalDoctor.findFirst({ where: { hospitalId: admin.managedHospitalId, doctorId } });
+      if (!membership) return res.status(404).json({ message: 'Doctor is not linked to your hospital.' });
+      targetDoctorId = doctorId;
+    }
+
+    if (!targetDoctorId) return res.status(404).json({ message: 'Doctor not found in scope.' });
+    const updated = await prisma.doctorProfile.update({ where: { userId: targetDoctorId }, data: { slotPeriodMinutes: minutes } });
+    console.info('[slot-admin:slot-period] set', { targetDoctorId, minutes });
+    return res.status(200).json({ slotPeriodMinutes: updated.slotPeriodMinutes });
+  } catch (error) {
+    console.error('[slot-admin:slot-period:put] error', error);
+    res.status(500).json({ message: 'Failed to update slot period.' });
+  }
+});
+
 app.put('/api/slot-admin/working-hours', authMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;
   if (user.role !== 'SLOT_ADMIN') return res.status(403).json({ message: 'Forbidden' });
@@ -2489,20 +2868,11 @@ app.put('/api/doctor/profile', authMiddleware, async (req: Request, res: Respons
 // --- ADMIN ENDPOINTS ---
 // =================================================================
 
-// --- Admin Middleware ---
-const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized: User not authenticated.' });
-  }
-  
-  if (req.user.role !== 'ADMIN') {
-    return res.status(403).json({ message: 'Forbidden: Admin access required.' });
-  }
-  next();
-};
+// --- Admin Panel Middleware ---
+// Defined earlier near other middlewares (uses role 'ADMIN').
 
 // --- Get Dashboard Stats (Admin Only) ---
-app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.get('/api/admin/dashboard', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
   try {
     const [totalUsers, totalDoctors, totalPatients, totalAppointments, pendingAppointments] = await Promise.all([
       prisma.user.count(),
@@ -2528,7 +2898,7 @@ app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, async (req: Req
 });
 
 // --- Get All Users (Admin Only) ---
-app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.get('/api/admin/users', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -2561,7 +2931,7 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req: Request
 });
 
 // --- Delete User (Admin Only) ---
-app.delete('/api/admin/users/:userId', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.delete('/api/admin/users/:userId', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
   const { userId } = req.params;
   const admin = req.user!;
 
@@ -2610,7 +2980,7 @@ app.delete('/api/admin/users/:userId', authMiddleware, adminMiddleware, async (r
 // Note: User activation/deactivation functionality removed as isActive field doesn't exist in schema
 
 // --- Update user role (admin only)
-app.patch('/api/admin/users/:userId/role', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.patch('/api/admin/users/:userId/role', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
   const { userId } = req.params;
   const { role } = req.body;
   
@@ -2628,7 +2998,7 @@ app.patch('/api/admin/users/:userId/role', authMiddleware, adminMiddleware, asyn
     // Log the action
     await prisma.adminAuditLog.create({
       data: {
-        adminId: req.user!.userId,
+        admin: { connect: { id: req.user!.userId } },
         action: 'UPDATE',
         entityType: 'USER',
         entityId: parseInt(userId),
@@ -2644,7 +3014,7 @@ app.patch('/api/admin/users/:userId/role', authMiddleware, adminMiddleware, asyn
 });
 
 // --- Get All Appointments (Admin Only) ---
-app.get('/api/admin/appointments', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.get('/api/admin/appointments', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
   try {
     const appointments = await prisma.appointment.findMany({
       include: {
@@ -2665,7 +3035,7 @@ app.get('/api/admin/appointments', authMiddleware, adminMiddleware, async (req: 
 });
 
 // --- Update Appointment Status (Admin Only) ---
-app.patch('/api/admin/appointments/:appointmentId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.patch('/api/admin/appointments/:appointmentId/status', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
   const { appointmentId } = req.params;
   const { status } = req.body;
   const admin = req.user!;
@@ -2687,7 +3057,7 @@ app.patch('/api/admin/appointments/:appointmentId/status', authMiddleware, admin
     // Log admin action
     await prisma.adminAuditLog.create({
       data: {
-        adminId: admin.userId,
+        admin: { connect: { id: admin.userId } },
         action: 'UPDATE',
         entityType: 'APPOINTMENT',
         entityId: parseInt(appointmentId),
@@ -2703,7 +3073,7 @@ app.patch('/api/admin/appointments/:appointmentId/status', authMiddleware, admin
 });
 
 // --- Get Admin Audit Logs (Admin Only) ---
-app.get('/api/admin/audit-logs', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+app.get('/api/admin/audit-logs', authMiddleware, panelAdminMiddleware, async (req: Request, res: Response) => {
   try {
     const logs = await prisma.adminAuditLog.findMany({
       include: {
@@ -2902,7 +3272,7 @@ app.put('/api/admin/homepage/content', authMiddleware, adminMiddleware, async (r
     // Log admin action
     await prisma.adminAuditLog.create({
       data: {
-        adminId: admin.userId,
+        admin: { connect: { id: admin.userId } },
         action: 'UPDATE',
         entityType: 'HOMEPAGE_CONTENT',
         entityId: 1, // Assuming single homepage content record
@@ -3048,3 +3418,73 @@ app.listen(port, () => {
 });
 
 // Analytics route disabled for now
+
+// ============================================================================
+// 📈 ANALYTICS - Lightweight engagement tracking
+// ============================================================================
+// Record doctor microsite/book button clicks
+app.post('/api/analytics/doctor-click', async (req: Request, res: Response) => {
+  try {
+    const { doctorId, type } = (req.body || {}) as { doctorId?: number; type?: string };
+    const did = Number(doctorId);
+    if (!Number.isInteger(did) || did <= 0) {
+      return res.status(400).json({ ok: false, message: 'Invalid doctorId' });
+    }
+    const clickType = String(type || '').toLowerCase();
+    if (clickType !== 'site' && clickType !== 'book') {
+      return res.status(400).json({ ok: false, message: 'Invalid click type' });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await prisma.doctorEngagement.upsert({
+      where: { doctorId_date: { doctorId: did, date: today } },
+      update: {
+        ...(clickType === 'site' ? { siteClicks: { increment: 1 } } : {}),
+        ...(clickType === 'book' ? { bookClicks: { increment: 1 } } : {}),
+      },
+      create: {
+        doctorId: did,
+        date: today,
+        cardViews: 0,
+        siteClicks: clickType === 'site' ? 1 : 0,
+        bookClicks: clickType === 'book' ? 1 : 0,
+      },
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[analytics-doctor-click] error', error);
+    return res.status(200).json({ ok: false }); // be resilient, never block UI on analytics
+  }
+});
+
+// Record doctor card views (first-time visibility)
+app.post('/api/analytics/doctor-view', async (req: Request, res: Response) => {
+  try {
+    const { doctorId } = (req.body || {}) as { doctorId?: number };
+    const did = Number(doctorId);
+    if (!Number.isInteger(did) || did <= 0) {
+      return res.status(400).json({ ok: false, message: 'Invalid doctorId' });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await prisma.doctorEngagement.upsert({
+      where: { doctorId_date: { doctorId: did, date: today } },
+      update: { cardViews: { increment: 1 } },
+      create: { doctorId: did, date: today, cardViews: 1, siteClicks: 0, bookClicks: 0 },
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[analytics-doctor-view] error', error);
+    return res.status(200).json({ ok: false });
+  }
+});
+
+// Enhance trending sorting to include engagement metrics (last 7 days)
+// This middleware augments the existing /api/doctors handler when sort=trending
+// Note: Kept lightweight; falls back to simplified sorting on errors.

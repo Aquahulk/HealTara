@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -32,8 +32,30 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
 
   const location = city && state ? `${city}, ${state}` : city || state || "";
 
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Track a view when the card becomes visible
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    let fired = false;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!fired && entry.isIntersecting) {
+          fired = true;
+          import("@/lib/api").then(({ apiClient }) => {
+            apiClient.trackDoctorView(doctor.id).catch(() => {});
+          });
+          observer.unobserve(el);
+        }
+      });
+    }, { threshold: 0.5 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [doctor.id]);
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+    <div ref={cardRef} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
       <div className="flex gap-4 items-stretch">
         {/* Image / avatar */}
         <div className="w-44 h-28 sm:w-52 sm:h-32 rounded-xl bg-gray-100 flex items-center justify-center text-4xl shrink-0">
@@ -88,6 +110,8 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                     apiClient
                       .getHospitalByDoctorId(doctor.id)
                       .then((resp) => {
+                        // Track microsite click
+                        apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
                         if (resp && resp.hospitalId) {
                           // Prefer hospital microsite if doctor is hospital-linked
                           const name = resp?.hospital?.name || '';
@@ -108,7 +132,6 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                           if (shouldUseSubdomainNav()) {
                             window.location.href = doctorMicrositeUrl(slug);
                           } // otherwise let Link navigate to /site/[slug]
-                          // analytics disabled: remove doctor-click tracking for now
                         }
                       })
                       .catch(() => {
@@ -118,7 +141,8 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                         } else {
                           router.push(`/site/${slug}`);
                         }
-                        // analytics disabled: remove doctor-click tracking for now
+                        // Track microsite click (fallback)
+                        apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
                       });
                   });
                 }}
@@ -154,7 +178,7 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                 onClick={() => {
                   onBookAppointment();
                   import("@/lib/api").then(({ apiClient }) => {
-                      // analytics disabled: remove booking CTA tracking for now
+                      apiClient.trackDoctorClick(doctor.id, 'book').catch(() => {});
                   });
                 }}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"

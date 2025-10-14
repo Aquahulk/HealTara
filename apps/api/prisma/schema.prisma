@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,178 +6,151 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-// In apps/api/prisma/schema.prisma
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  role      String   // 'PATIENT' | 'DOCTOR' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN'
-  canLogin  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  doctorProfile DoctorProfile? @relation("UserDoctorProfile")
-  patientAppointments Appointment[] @relation("PatientAppointments")
-  doctorAppointments  Appointment[] @relation("DoctorAppointments")
-  adminHospitals      Hospital[] @relation("UserAdminHospitals")
-  hospitalMemberships HospitalDoctor[] @relation("UserHospitalDoctor")
-  doctorSlots         Slot[] @relation("UserDoctorSlots")
-  adminAuditLogs      AdminAuditLog[]
-  doctorEngagements   DoctorEngagement[] @relation("UserDoctorEngagements")
-
-  // Associations for Slot Admin
+  id                     Int                @id @default(autoincrement())
+  email                  String             @unique
+  password               String
+  role                   String
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
   managedDoctorProfileId Int?
-  managedDoctorProfile   DoctorProfile? @relation("UserManagedDoctorProfile", fields: [managedDoctorProfileId], references: [id], onDelete: SetNull)
   managedHospitalId      Int?
-  managedHospital        Hospital?      @relation("UserManagedHospital", fields: [managedHospitalId], references: [id], onDelete: SetNull)
+  canLogin               Boolean            @default(true)
+  adminAuditLogs         AdminAuditLog[]
+  doctorAppointments     Appointment[]      @relation("DoctorAppointments")
+  patientAppointments    Appointment[]      @relation("PatientAppointments")
+  doctorEngagements      DoctorEngagement[] @relation("UserDoctorEngagements")
+  doctorProfile          DoctorProfile?     @relation("UserDoctorProfile")
+  adminHospitals         Hospital[]         @relation("UserAdminHospitals")
+  hospitalMemberships    HospitalDoctor[]   @relation("UserHospitalDoctor")
+  doctorSlots            Slot[]             @relation("UserDoctorSlots")
+  managedDoctorProfile   DoctorProfile?     @relation("UserManagedDoctorProfile", fields: [managedDoctorProfileId], references: [id])
+  managedHospital        Hospital?          @relation("UserManagedHospital", fields: [managedHospitalId], references: [id])
 }
 
 model DoctorProfile {
-  id               Int      @id @default(autoincrement())
-  userId           Int      @unique
-  slug             String?  @unique
-  micrositeEnabled Boolean  @default(true)
-  specialization   String
-  qualifications   String?
-  experience       Int?
-  clinicName       String?
-  clinicAddress    String
-  city             String?
-  state            String?
-  phone            String
-  consultationFee  Int
-  slotPeriodMinutes Int @default(15)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  user User @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
-  // Opposite side for Slot Admin managing this doctor profile
-  slotAdmins User[] @relation("UserManagedDoctorProfile")
-
-  // Time-off windows for this doctor
-  timeOffs DoctorTimeOff[]
-
-  // Regular weekly working hours for this doctor
-  workingHours DoctorWorkingHours[]
+  id                Int                  @id @default(autoincrement())
+  userId            Int                  @unique
+  specialization    String
+  qualifications    String?
+  experience        Int?
+  clinicName        String?
+  clinicAddress     String
+  city              String?
+  state             String?
+  phone             String
+  consultationFee   Int
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  slug              String?              @unique
+  slotPeriodMinutes Int                  @default(15)
+  micrositeEnabled  Boolean              @default(true)
+  user              User                 @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
+  timeOffs          DoctorTimeOff[]
+  workingHours      DoctorWorkingHours[]
+  slotAdmins        User[]               @relation("UserManagedDoctorProfile")
 }
 
-// Represents blackout periods where booking is not allowed for a doctor
 model DoctorTimeOff {
-  id        Int      @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
   doctorProfileId Int
-  start     DateTime
-  end       DateTime
-  reason    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+  start           DateTime
+  end             DateTime
+  reason          String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
 }
 
-// Weekly working hours per doctor (day-wise start/end times)
 model DoctorWorkingHours {
-  id               Int      @id @default(autoincrement())
-  doctorProfileId  Int
-  dayOfWeek        Int      // 0=Sunday, 6=Saturday
-  startTime        String   // HH:mm (24-hour)
-  endTime          String   // HH:mm (24-hour)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  doctorProfile DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+  id              Int           @id @default(autoincrement())
+  doctorProfileId Int
+  dayOfWeek       Int
+  startTime       String
+  endTime         String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
 
   @@unique([doctorProfileId, dayOfWeek])
 }
 
 model Appointment {
-  id          Int      @id @default(autoincrement())
-  patientId   Int
-  doctorId    Int
-  date        DateTime
-  time        String
-  status      String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  doctorId  Int
+  patientId Int
+  notes     String?
+  time      String
+  doctor    User     @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient   User     @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
 
-  patient User @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
-  doctor  User @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
-
-  // Performance indexes for faster queries
   @@index([doctorId, date, status])
   @@index([patientId, date])
   @@index([date, time])
 }
 
-// New models to support hospitals with multiple doctors and departments
 model Hospital {
-  id        Int      @id @default(autoincrement())
-  name      String
-  address   String?
-  city      String?
-  state     String?
-  phone     String?
-  profile   Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Optional admin user who manages this hospital (role should be HOSPITAL_ADMIN)
-  adminId Int?
-  admin   User?    @relation("UserAdminHospitals", fields: [adminId], references: [id], onDelete: SetNull)
-
-  // Relations
-  departments   Department[]
-  doctors       HospitalDoctor[]
-  // Opposite side for Slot Admins managing this hospital
-  slotAdmins    User[] @relation("UserManagedHospital")
+  id          Int              @id @default(autoincrement())
+  name        String
+  address     String?
+  city        String?
+  state       String?
+  phone       String?
+  profile     Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  adminId     Int?
+  departments Department[]
+  admin       User?            @relation("UserAdminHospitals", fields: [adminId], references: [id])
+  doctors     HospitalDoctor[]
+  slotAdmins  User[]           @relation("UserManagedHospital")
 }
 
 model Department {
-  id          Int      @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   hospitalId  Int
   name        String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-  doctors  HospitalDoctor[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  hospital    Hospital         @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  doctors     HospitalDoctor[]
 }
 
 model HospitalDoctor {
-  id           Int        @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   hospitalId   Int
   doctorId     Int
   departmentId Int?
-  createdAt    DateTime   @default(now())
-
-  hospital   Hospital   @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-  doctor     User       @relation("UserHospitalDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
-  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+  department   Department? @relation(fields: [departmentId], references: [id])
+  doctor       User        @relation("UserHospitalDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital     Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
 
   @@unique([hospitalId, doctorId])
 }
 
-// Time-slot availability for doctors
 model Slot {
   id        Int      @id @default(autoincrement())
   doctorId  Int
   date      DateTime
   time      String
-  status    String   @default("AVAILABLE") // AVAILABLE, BOOKED, CANCELLED
+  status    String   @default("AVAILABLE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  doctor User @relation("UserDoctorSlots", fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor    User     @relation("UserDoctorSlots", fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, date, time])
-  // Performance indexes for faster queries
   @@index([doctorId, date, status])
   @@index([date, status])
   @@index([status, time])
 }
 
-// Audit logs for admin actions
 model AdminAuditLog {
   id         Int      @id @default(autoincrement())
   adminId    Int
@@ -192,11 +159,9 @@ model AdminAuditLog {
   entityId   Int?
   details    String?
   createdAt  DateTime @default(now())
-
-  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  admin      User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 }
 
-// Lightweight engagement metrics per doctor (daily aggregates)
 model DoctorEngagement {
   id         Int      @id @default(autoincrement())
   doctorId   Int
@@ -204,8 +169,7 @@ model DoctorEngagement {
   cardViews  Int      @default(0)
   siteClicks Int      @default(0)
   bookClicks Int      @default(0)
-
-  doctor User @relation("UserDoctorEngagements", fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor     User     @relation("UserDoctorEngagements", fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, date])
 }
