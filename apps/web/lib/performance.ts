@@ -4,6 +4,7 @@
 // This file contains utilities to optimize loading performance across the app
 // Includes caching, prefetching, and request optimization strategies
 // ============================================================================
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 
 // Cache configuration
 const CACHE_CONFIG = {
@@ -178,10 +179,10 @@ export function lazyLoadImage(img: HTMLImageElement, src: string): Promise<void>
 }
 
 // Component lazy loading utility
-export function lazyLoadComponent<T>(
-  importFn: () => Promise<{ default: React.ComponentType<T> }>
-): React.ComponentType<T> {
-  return React.lazy(importFn);
+export function lazyLoadComponent<TProps = unknown>(
+  importFn: () => Promise<{ default: ComponentType<TProps> }>
+): LazyExoticComponent<ComponentType<TProps>> {
+  return lazy(importFn);
 }
 
 // Memory usage optimization
