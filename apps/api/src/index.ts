@@ -580,10 +580,10 @@ app.post('/api/admin/doctors/:doctorId/status', authMiddleware, panelAdminMiddle
     }
 
     // Run updates in a single transaction for speed and consistency
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: idNum }, data: { canLogin } }),
-      prisma.doctorProfile.update({ where: { userId: idNum }, data: { micrositeEnabled } }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: idNum }, data: { canLogin } });
+      await tx.doctorProfile.update({ where: { userId: idNum }, data: { micrositeEnabled } });
+    });
 
     // Fire-and-forget audit log to avoid delaying the response
     void prisma.adminAuditLog.create({
@@ -594,7 +594,7 @@ app.post('/api/admin/doctors/:doctorId/status', authMiddleware, panelAdminMiddle
         entityId: idNum,
         details: JSON.stringify({ action }),
       }
-    }).catch((e) => console.error('[audit-log doctor status] failed', e));
+    }).catch((e: unknown) => console.error('[audit-log doctor status] failed', e));
 
     res.status(200).json({ message: 'Doctor status updated', status: action });
   } catch (error) {
@@ -622,14 +622,13 @@ app.post('/api/admin/hospitals/:hospitalId/status', authMiddleware, panelAdminMi
     const currentProfile = (hospital.profile as any) || {};
     const updatedProfile = { ...currentProfile, serviceStatus: nextStatus };
 
-    const txs: any[] = [
-      prisma.hospital.update({ where: { id: idNum }, data: { profile: updatedProfile } })
-    ];
-    // If revoked, disable the hospital admin’s ability to login in parallel
-    if (nextStatus === 'REVOKED' && hospital.adminId) {
-      txs.push(prisma.user.update({ where: { id: hospital.adminId }, data: { canLogin: false } }));
-    }
-    await prisma.$transaction(txs);
+    await prisma.$transaction(async (tx) => {
+      await tx.hospital.update({ where: { id: idNum }, data: { profile: updatedProfile } });
+      // If revoked, disable the hospital admin’s ability to login in parallel
+      if (nextStatus === 'REVOKED' && hospital.adminId) {
+        await tx.user.update({ where: { id: hospital.adminId }, data: { canLogin: false } });
+      }
+    });
 
     // Fire-and-forget audit log to avoid delaying the response
     void prisma.adminAuditLog.create({
@@ -640,7 +639,7 @@ app.post('/api/admin/hospitals/:hospitalId/status', authMiddleware, panelAdminMi
         entityId: idNum,
         details: JSON.stringify({ action }),
       }
-    }).catch((e) => console.error('[audit-log hospital status] failed', e));
+    }).catch((e: unknown) => console.error('[audit-log hospital status] failed', e));
 
     res.status(200).json({ message: 'Hospital status updated', status: nextStatus });
   } catch (error) {
