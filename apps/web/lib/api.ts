@@ -194,8 +194,9 @@ class ApiClient {
       // ============================================================================
       // 📨 HEADER PREPARATION - Set up request headers
       // ============================================================================
+      const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
       const headers: any = {
-        'Content-Type': 'application/json',                  // Tell server we're sending JSON
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }), // Only set JSON header when not using FormData
         ...options.headers,                                  // Include any custom headers
       };
 
@@ -399,6 +400,16 @@ class ApiClient {
     return this.request('/api/doctor/profile', {
       method: 'PUT',                                        // HTTP PUT method for updates
       body: JSON.stringify(profileData),                    // Send profile data as JSON
+    });
+  }
+
+  // Upload current doctor's profile photo (multipart/form-data)
+  async uploadDoctorPhoto(file: Blob): Promise<{ url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.request<{ url: string }>(`/api/doctor/photo`, {
+      method: 'POST',
+      body: form,
     });
   }
 
@@ -693,6 +704,44 @@ class ApiClient {
     return this.request<any>(`/api/hospitals/${hospitalId}/profile`, {
       method: 'PUT',
       body: JSON.stringify(profile),
+    });
+  }
+
+  // Hospital Admin: Upload hospital logo (multipart/form-data)
+  async uploadHospitalLogo(hospitalId: number, file: Blob): Promise<{ url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.request<{ url: string }>(`/api/hospitals/${hospitalId}/logo`, {
+      method: 'POST',
+      body: form,
+    });
+  }
+  
+  // Admin: Update hospital profile JSON
+  async adminUpdateHospitalProfile(hospitalId: number, profile: any): Promise<any> {
+    return this.request<any>(`/api/admin/hospitals/${hospitalId}/profile`, {
+      method: 'PUT',
+      body: JSON.stringify(profile),
+    });
+  }
+
+  // Admin: Upload hospital logo (multipart/form-data)
+  async adminUploadHospitalLogo(hospitalId: number, file: Blob): Promise<{ url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.request<{ url: string }>(`/api/admin/hospitals/${hospitalId}/logo`, {
+      method: 'POST',
+      body: form,
+    });
+  }
+
+  // Admin: Upload doctor photo (multipart/form-data)
+  async adminUploadDoctorPhoto(doctorId: number, file: Blob): Promise<{ url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.request<{ url: string }>(`/api/admin/doctors/${doctorId}/photo`, {
+      method: 'POST',
+      body: form,
     });
   }
 
