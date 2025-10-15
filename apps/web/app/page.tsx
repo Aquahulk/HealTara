@@ -60,6 +60,7 @@ export default function HomePage() {
   const [selectedAvailability, setSelectedAvailability] = useState('');
   const [isOnline, setIsOnline] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [activeGrid, setActiveGrid] = useState<'doctors' | 'hospitals'>('doctors');
 
   // Ultra-optimized data loading with performance monitoring
   useEffect(() => {
@@ -252,11 +253,11 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50 to-blue-50">
       <Header />
       
-      <main className="pt-16">
+      <main className="pt-10">
         {/* ============================================================================
             🌟 HERO SECTION - Main landing area with search
             ============================================================================ */}
-        <section className="relative py-20 px-4 overflow-hidden">
+        <section className="relative py-10 px-4 overflow-hidden">
           {/* Background Pattern */}
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 via-blue-50 to-purple-100" />
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23059669%22%20fill-opacity%3D%220.05%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-50" />
@@ -265,7 +266,7 @@ export default function HomePage() {
           <motion.div
             animate={{ y: [0, -20, 0], rotate: [0, 5, 0] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-20 left-20 text-6xl opacity-20"
+            className="absolute top-20 left-20 text-4xl opacity-20"
           >
             <Stethoscope className="text-emerald-500" />
           </motion.div>
@@ -273,7 +274,7 @@ export default function HomePage() {
           <motion.div
             animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="absolute top-32 right-32 text-5xl opacity-15"
+            className="absolute top-32 right-32 text-3xl opacity-15"
           >
             <Pill className="text-blue-500" />
           </motion.div>
@@ -284,14 +285,14 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <h1 className="text-5xl md:text-7xl font-black text-gray-900 mb-6 leading-tight">
+              <h1 className="text-3xl md:text-5xl font-black text-gray-900 mb-4 leading-tight">
                 Find Trusted Doctors
                 <span className="block bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
                   Near You
                 </span>
               </h1>
               
-              <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-base md:text-lg text-gray-600 mb-6 max-w-3xl mx-auto leading-relaxed">
                 Book in seconds. Get the best healthcare with our verified network of doctors and hospitals.
               </p>
             </motion.div>
@@ -301,9 +302,9 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="max-w-4xl mx-auto mb-8"
+              className="max-w-4xl mx-auto mb-6"
             >
-              <div className="bg-white/80 backdrop-blur-sm border border-emerald-200 rounded-3xl p-8 shadow-2xl">
+              <div className="bg-white/80 backdrop-blur-sm border border-emerald-200 rounded-3xl p-6 shadow-2xl">
                 <div className="space-y-6">
                   {/* Main Search */}
                   <div className="relative">
@@ -313,7 +314,7 @@ export default function HomePage() {
                       placeholder="Search by Doctor / Specialty / Location"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-16 pr-6 py-5 bg-white border-2 border-gray-200 rounded-2xl text-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="w-full pl-16 pr-6 py-3 bg-white border-2 border-gray-200 rounded-2xl text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     />
                   </div>
 
@@ -322,7 +323,7 @@ export default function HomePage() {
                     <select
                       value={selectedSpecialization}
                       onChange={(e) => setSelectedSpecialization(e.target.value)}
-                      className="px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">Specialization</option>
                       <option value="cardiology">Cardiology</option>
@@ -334,7 +335,7 @@ export default function HomePage() {
                     <select
                       value={selectedCity}
                       onChange={(e) => setSelectedCity(e.target.value)}
-                      className="px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">City/Town</option>
                       <option value="mumbai">Mumbai</option>
@@ -346,7 +347,7 @@ export default function HomePage() {
                     <select
                       value={selectedAvailability}
                       onChange={(e) => setSelectedAvailability(e.target.value)}
-                      className="px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">Availability</option>
                       <option value="today">Today</option>
@@ -365,7 +366,7 @@ export default function HomePage() {
                     </label>
                   </div>
 
-                  <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold py-4 px-8 rounded-2xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-lg">
+                  <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold py-3 px-6 rounded-2xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-base">
                     Find a Doctor Now
                   </button>
                 </div>
@@ -393,10 +394,10 @@ export default function HomePage() {
         {/* ============================================================================
             🎯 QUICK CATEGORIES SECTION - Easy navigation tiles
             ============================================================================ */}
-        <section className="py-16 px-4 bg-white">
+        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-teal-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 Quick Access
               </h2>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -415,9 +416,9 @@ export default function HomePage() {
                   className="group cursor-pointer"
                 >
                   <a href={category.link} className="block">
-                    <div className="bg-white rounded-3xl p-8 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-emerald-200">
-                      <div className={`w-20 h-20 bg-gradient-to-r ${category.color} rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                        <category.icon className="w-10 h-10 text-white" />
+                    <div className="bg-white rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-emerald-200">
+                      <div className={`w-14 h-14 bg-gradient-to-r ${category.color} rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                        <category.icon className="w-8 h-8 text-white" />
                       </div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">{category.title}</h3>
                       <p className="text-gray-600">{category.description}</p>
@@ -430,12 +431,43 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
+            🔀 TOGGLE SECTION - Switch between Doctors and Hospitals grids
+            ============================================================================ */}
+        <section className="py-6 px-4 bg-gradient-to-br from-teal-50 to-sky-50">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setActiveGrid('doctors')}
+                className={`px-6 py-3 rounded-2xl font-bold shadow-sm transition-all duration-300 border ${
+                  activeGrid === 'doctors'
+                    ? 'btn-brand text-white'
+                    : 'bg-white text-gray-800 hover:text-brand-primary hover:border-brand-300'
+                }`}
+              >
+                Featured Doctors
+              </button>
+              <button
+                onClick={() => setActiveGrid('hospitals')}
+                className={`px-6 py-3 rounded-2xl font-bold shadow-sm transition-all duration-300 border ${
+                  activeGrid === 'hospitals'
+                    ? 'btn-brand text-white'
+                    : 'bg-white text-gray-800 hover:text-brand-primary hover:border-brand-300'
+                }`}
+              >
+                Partner Hospitals
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================================================
             👨‍⚕️ FEATURED DOCTORS SECTION - Top-rated doctors
             ============================================================================ */}
-        <section className="py-16 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
+        {activeGrid === 'doctors' && (
+        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 Featured Doctors
               </h2>
               <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto mb-4"></div>
@@ -454,18 +486,27 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.01 }}
                 >
-                  <div className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-8 border border-gray-100 w-full">
+                  <div className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-gray-100 w-full">
                     <div className="flex items-center justify-between">
                       {/* Doctor Info */}
                       <div className="flex items-center flex-1">
-                        <div className="w-20 h-20 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mr-6">
-                          👨‍⚕️
+                        <div className="w-14 h-14 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl mr-6 overflow-hidden">
+                          {doctor.doctorProfile?.profileImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={doctor.doctorProfile.profileImage}
+                              alt={doctor.email.split('@')[0]}
+                              className="w-14 h-14 object-cover"
+                            />
+                          ) : (
+                            <span role="img" aria-label="doctor">👨‍⚕️</span>
+                          )}
                         </div>
                         <div className="flex-1">
-                          <h3 className="text-3xl font-bold text-gray-900 mb-2">
+                          <h3 className="text-2xl font-bold text-gray-900 mb-2">
                             Dr. {doctor.email.split('@')[0]}
                           </h3>
-                          <p className="text-emerald-600 font-semibold text-xl mb-4">
+                          <p className="text-emerald-600 font-semibold text-lg mb-3">
                             {doctor.doctorProfile?.specialization || 'General Practitioner'}
                           </p>
                           
@@ -473,21 +514,21 @@ export default function HomePage() {
                             {doctor.doctorProfile?.city && (
                               <div className="flex items-center text-gray-600">
                                 <MapPin className="w-6 h-6 text-emerald-500 mr-3" />
-                                <span className="text-lg">{doctor.doctorProfile.city}, {doctor.doctorProfile.state}</span>
+                                <span className="text-base">{doctor.doctorProfile.city}, {doctor.doctorProfile.state}</span>
                               </div>
                             )}
                             
                             {doctor.doctorProfile?.experience && (
                               <div className="flex items-center text-gray-600">
                                 <Clock className="w-6 h-6 text-blue-500 mr-3" />
-                                <span className="text-lg">{doctor.doctorProfile.experience}+ Years Experience</span>
+                                <span className="text-base">{doctor.doctorProfile.experience}+ Years Experience</span>
                               </div>
                             )}
                             
                             {doctor.doctorProfile?.consultationFee && (
                               <div className="flex items-center text-gray-600">
                                 <DollarSign className="w-6 h-6 text-green-500 mr-3" />
-                                <span className="text-lg">₹{doctor.doctorProfile.consultationFee}</span>
+                                <span className="text-base">₹{doctor.doctorProfile.consultationFee}</span>
                               </div>
                             )}
                           </div>
@@ -498,7 +539,7 @@ export default function HomePage() {
                       <div className="ml-8">
                         <button 
                           onClick={() => handleBookAppointment(doctor)}
-                          className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold py-4 px-8 rounded-2xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-emerald-200 min-w-[200px] text-lg"
+                          className="btn-brand font-bold py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
                         >
                           Book Appointment
                         </button>
@@ -510,14 +551,16 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+        )}
 
         {/* ============================================================================
             🏥 HOSPITALS SECTION - Partner hospitals
             ============================================================================ */}
-        <section className="py-16 px-4 bg-gradient-to-br from-blue-50 to-purple-50">
+        {activeGrid === 'hospitals' && (
+        <section className="py-10 px-4 bg-gradient-to-br from-blue-50 to-emerald-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 Partner Hospitals
               </h2>
               <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mb-4"></div>
@@ -540,33 +583,42 @@ export default function HomePage() {
                     transition={{ delay: index * 0.1 }}
                     whileHover={{ scale: 1.01 }}
                   >
-                    <div className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-8 border border-gray-100 w-full">
+                    <div className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-gray-100 w-full">
                       <div className="flex items-center justify-between">
                         {/* Hospital Info */}
                         <div className="flex items-center flex-1">
-                          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mr-6">
-                            🏥
+                          <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center text-white font-bold text-xl mr-6 overflow-hidden">
+                            {(() => {
+                              const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
+                              if (logoUrl) {
+                                return (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={logoUrl} alt={name} className="w-14 h-14 object-contain" />
+                                );
+                              }
+                              return <span role="img" aria-label="hospital">🏥</span>;
+                            })()}
                           </div>
                           <div className="flex-1">
-                            <h3 className="text-3xl font-bold text-gray-900 mb-2">{name}</h3>
-                            <p className="text-blue-600 font-semibold text-xl mb-4">Multi-Specialty Hospital</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2">{name}</h3>
+                            <p className="text-blue-600 font-semibold text-lg mb-3">Multi-Specialty Hospital</p>
                             
                             <div className="flex flex-wrap gap-8">
                               {location && (
                                 <div className="flex items-center text-gray-600">
                                   <MapPin className="w-6 h-6 text-blue-500 mr-3" />
-                                  <span className="text-lg">{location}</span>
+                                  <span className="text-base">{location}</span>
                                 </div>
                               )}
                               
                               <div className="flex items-center text-gray-600">
                                 <Building2 className="w-6 h-6 text-emerald-500 mr-3" />
-                                <span className="text-lg">{hospital._count?.departments || 0} Departments</span>
+                                <span className="text-base">{hospital._count?.departments || 0} Departments</span>
                               </div>
                               
                               <div className="flex items-center text-gray-600">
                                 <Users className="w-6 h-6 text-green-500 mr-3" />
-                                <span className="text-lg">{hospital._count?.doctors || 0} Doctors</span>
+                                <span className="text-base">{hospital._count?.doctors || 0} Doctors</span>
                               </div>
                             </div>
                           </div>
@@ -576,7 +628,7 @@ export default function HomePage() {
                         <div className="ml-8">
                           <a
                             href={`/hospital-site/${hospital.id}`}
-                            className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold py-4 px-8 rounded-2xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-blue-200 block text-center min-w-[200px] text-lg"
+                            className="btn-brand font-bold py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg block text-center min-w-[160px] text-base"
                           >
                             Visit Hospital
                           </a>
@@ -589,14 +641,15 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+        )}
 
         {/* ============================================================================
             🛡️ TRUST LAYER SECTION - Social proof and verification
             ============================================================================ */}
-        <section className="py-16 px-4 bg-white">
+        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 Trusted Healthcare Platform
               </h2>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
@@ -605,28 +658,28 @@ export default function HomePage() {
             </div>
 
             {/* Trust Indicators */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Shield className="w-10 h-10 text-white" />
+                <div className="w-14 h-14 gradient-brand-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Verified Doctors Only</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Verified Doctors Only</h3>
                 <p className="text-gray-600">All doctors are verified by license ID</p>
               </div>
               
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Star className="w-10 h-10 text-white" />
+                <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Star className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Real Reviews</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Real Reviews</h3>
                 <p className="text-gray-600">10,000+ verified patient reviews</p>
               </div>
               
               <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Award className="w-10 h-10 text-white" />
+                <div className="w-14 h-14 gradient-brand-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Award className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Quality Assured</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Quality Assured</h3>
                 <p className="text-gray-600">Premium healthcare standards maintained</p>
               </div>
             </div>
@@ -639,12 +692,12 @@ export default function HomePage() {
                   initial={{ opacity: 0, scale: 0.8 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
-                  className="text-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl p-8 border border-gray-200"
+                  className="text-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl p-6 border border-gray-200"
                 >
-                  <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <stat.icon className="w-8 h-8 text-white" />
+                  <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <stat.icon className="w-7 h-7 text-white" />
                   </div>
-                  <div className="text-4xl font-black bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent mb-2">
+                  <div className="text-3xl font-black gradient-brand bg-clip-text text-transparent mb-2">
                     {stat.value.toLocaleString()}+
                   </div>
                   <div className="text-gray-600 font-medium">{stat.label}</div>
@@ -657,13 +710,13 @@ export default function HomePage() {
         {/* ============================================================================
             📋 HOW IT WORKS SECTION - 3-step process
             ============================================================================ */}
-        <section className="py-16 px-4 bg-gradient-to-br from-blue-50 to-purple-50">
+        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-blue-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 How It Works
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mb-4"></div>
+              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Simple 3-step process to get the healthcare you need
               </p>
@@ -678,19 +731,19 @@ export default function HomePage() {
                   transition={{ delay: index * 0.2 }}
                   className="text-center relative"
                 >
-                  <div className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
-                    <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <step.icon className="w-10 h-10 text-white" />
+                  <div className="bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
+                    <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <step.icon className="w-8 h-8 text-white" />
                     </div>
-                    <div className="text-6xl font-black text-blue-500 mb-4">{step.step}</div>
+                    <div className="text-4xl font-black text-brand-primary mb-3">{step.step}</div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-4">{step.title}</h3>
-                    <p className="text-gray-600 text-lg">{step.description}</p>
+                    <p className="text-gray-600 text-base">{step.description}</p>
                   </div>
                   
                   {/* Connector Arrow */}
                   {index < howItWorks.length - 1 && (
                     <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2">
-                      <ChevronRight className="w-8 h-8 text-blue-500" />
+                      <ChevronRight className="w-8 h-8 text-brand-primary" />
                     </div>
                   )}
                 </motion.div>
@@ -702,13 +755,13 @@ export default function HomePage() {
         {/* ============================================================================
             ✅ WHY CHOOSE US SECTION - USP highlights
             ============================================================================ */}
-        <section className="py-16 px-4 bg-white">
+        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-emerald-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 Why Choose Us
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto mb-4"></div>
+              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Experience the future of healthcare with our revolutionary platform
               </p>
@@ -723,12 +776,12 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.05 }}
                 >
-                  <div className="bg-white rounded-3xl p-8 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-emerald-200">
-                    <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <div className="bg-white rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-emerald-200">
+                    <div className="w-14 h-14 gradient-brand-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <feature.icon className="w-8 h-8 text-white" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-4">{feature.title}</h3>
-                    <p className="text-gray-600 leading-relaxed">{feature.description}</p>
+                    <p className="text-gray-600 leading-relaxed text-base">{feature.description}</p>
                   </div>
                 </motion.div>
               ))}
@@ -739,13 +792,13 @@ export default function HomePage() {
         {/* ============================================================================
             💬 REVIEWS & TESTIMONIALS SECTION - Social proof
             ============================================================================ */}
-        <section className="py-16 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
+        <section className="py-10 px-4 bg-gradient-to-br from-blue-50 to-emerald-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 What Our Users Say
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto mb-4"></div>
+              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Real stories from real patients and healthcare providers
               </p>
@@ -758,31 +811,31 @@ export default function HomePage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -50 }}
                 transition={{ duration: 0.5 }}
-                className="bg-white rounded-3xl p-12 shadow-2xl border border-gray-100 text-center"
+                className="bg-white rounded-3xl p-8 shadow-2xl border border-gray-100 text-center"
               >
-                <div className="text-6xl mb-6">{testimonials[currentTestimonial].avatar}</div>
+                <div className="text-4xl mb-4">{testimonials[currentTestimonial].avatar}</div>
                 <div className="flex justify-center mb-4">
                   {[...Array(testimonials[currentTestimonial].rating)].map((_, i) => (
                     <Star key={i} className="w-6 h-6 text-yellow-500 fill-current" />
                   ))}
                 </div>
-                <blockquote className="text-2xl text-gray-700 mb-6 leading-relaxed">
+                <blockquote className="text-xl text-gray-700 mb-4 leading-relaxed">
                   "{testimonials[currentTestimonial].content}"
                 </blockquote>
                 <div>
-                  <div className="text-xl font-bold text-gray-900">{testimonials[currentTestimonial].name}</div>
-                  <div className="text-emerald-600 font-medium">{testimonials[currentTestimonial].role}</div>
+                  <div className="text-lg font-bold text-gray-900">{testimonials[currentTestimonial].name}</div>
+                  <div className="text-brand-600 font-medium">{testimonials[currentTestimonial].role}</div>
                 </div>
               </motion.div>
 
               {/* Testimonial Navigation Dots */}
-              <div className="flex justify-center mt-8 space-x-2">
+              <div className="flex justify-center mt-6 space-x-2">
                 {testimonials.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => setCurrentTestimonial(index)}
                     className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                      index === currentTestimonial ? 'bg-emerald-500' : 'bg-gray-300'
+                      index === currentTestimonial ? 'bg-brand-primary' : 'bg-gray-300'
                     }`}
                   />
                 ))}
@@ -794,46 +847,46 @@ export default function HomePage() {
         {/* ============================================================================
             📍 LOCATION SECTION - Map and location-based search
             ============================================================================ */}
-        <section className="py-16 px-4 bg-white">
+        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-blue-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 Find Doctors in Your Area
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto mb-4"></div>
+              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Interactive map view showing available doctors in your city
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
               <div>
-                <div className="bg-gradient-to-br from-emerald-100 to-blue-100 rounded-3xl p-8 h-96 flex items-center justify-center">
+                <div className="gradient-brand-soft rounded-3xl p-6 h-72 flex items-center justify-center">
                   <div className="text-center">
-                    <MapIcon className="w-24 h-24 text-emerald-500 mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Interactive Map</h3>
+                    <MapIcon className="w-16 h-16 text-brand-primary mx-auto mb-3" />
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Interactive Map</h3>
                     <p className="text-gray-600">Coming Soon - View doctors on map</p>
                   </div>
                 </div>
               </div>
               
               <div className="space-y-6">
-                <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-100">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Auto-detect Location</h3>
-                  <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold py-4 px-6 rounded-2xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">Auto-detect Location</h3>
+                  <button className="w-full btn-brand text-white font-bold py-3 px-5 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg">
                     Find Nearby Doctors
                   </button>
                 </div>
                 
-                <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-100">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Search by City</h3>
+                <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">Search by City</h3>
                   <div className="space-y-4">
                     <input
                       type="text"
                       placeholder="Enter your city name"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300"
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus-brand focus-border-brand border-brand transition-all duration-300"
                     />
-                    <button className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold py-3 px-6 rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                    <button className="w-full btn-brand text-white font-bold py-2 px-5 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg">
                       Search City
                     </button>
                   </div>
@@ -846,13 +899,13 @@ export default function HomePage() {
         {/* ============================================================================
             📚 HEALTH AWARENESS BLOG SECTION - SEO and trust building
             ============================================================================ */}
-        <section className="py-16 px-4 bg-gradient-to-br from-blue-50 to-purple-50">
+        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
                 Health Tips from Our Doctors
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mb-4"></div>
+              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Expert advice and health awareness articles
               </p>
@@ -889,18 +942,18 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.02 }}
                 >
-                  <div className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
-                    <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-full text-sm font-medium inline-block mb-4">
+                  <div className="bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
+                    <div className="gradient-brand-accent text-white px-4 py-2 rounded-full text-sm font-medium inline-block mb-4">
                       {article.category}
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{article.title}</h3>
-                    <p className="text-gray-600 mb-6 leading-relaxed">{article.excerpt}</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{article.title}</h3>
+                    <p className="text-gray-600 mb-4 leading-relaxed text-base">{article.excerpt}</p>
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-sm text-gray-500">By {article.author}</div>
                         <div className="text-sm text-gray-400">{article.readTime}</div>
                       </div>
-                      <button className="bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold py-2 px-4 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                      <button className="btn-brand text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg text-sm">
                         Read More
                       </button>
                     </div>
@@ -914,7 +967,7 @@ export default function HomePage() {
         {/* ============================================================================
             🎯 CALL TO ACTION BANNERS - Conversion focused
             ============================================================================ */}
-        <section className="py-16 px-4 bg-white">
+        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-emerald-50">
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* For Doctors */}
@@ -922,14 +975,14 @@ export default function HomePage() {
                 initial={{ opacity: 0, x: -30 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8 }}
-                className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-3xl p-12 text-white text-center"
+                className="gradient-brand-accent rounded-3xl p-8 text-white text-center"
               >
-                <div className="text-6xl mb-6">👨‍⚕️</div>
-                <h3 className="text-3xl font-black mb-4">Join 200+ Verified Doctors Already Onboard!</h3>
-                <p className="text-xl mb-8 opacity-90">Expand your practice and reach more patients</p>
+                <div className="text-4xl mb-4">👨‍⚕️</div>
+                <h3 className="text-2xl font-black mb-3">Join 200+ Verified Doctors Already Onboard!</h3>
+                <p className="text-lg mb-6 opacity-90">Expand your practice and reach more patients</p>
                 <a
                   href="/register/doctor-hospital?role=doctor"
-                  className="bg-white text-emerald-600 font-bold py-4 px-8 rounded-2xl hover:bg-gray-100 transition-all duration-300 transform hover:scale-105 shadow-lg inline-block"
+                  className="bg-white text-brand-600 font-bold py-3 px-6 rounded-2xl hover:bg-gray-100 transition-all duration-300 transform hover:scale-105 shadow-lg inline-block text-base"
                 >
                   Register as Doctor
                 </a>
@@ -940,14 +993,14 @@ export default function HomePage() {
                 initial={{ opacity: 0, x: 30 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8 }}
-                className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-3xl p-12 text-white text-center"
+                className="gradient-brand rounded-3xl p-8 text-white text-center"
               >
-                <div className="text-6xl mb-6">👩‍💼</div>
-                <h3 className="text-3xl font-black mb-4">Find Your Doctor Today. Book in 2 Minutes.</h3>
-                <p className="text-xl mb-8 opacity-90">Get the healthcare you deserve, when you need it</p>
+                <div className="text-4xl mb-4">👩‍💼</div>
+                <h3 className="text-2xl font-black mb-3">Find Your Doctor Today. Book in 2 Minutes.</h3>
+                <p className="text-lg mb-6 opacity-90">Get the healthcare you deserve, when you need it</p>
                 <a
                   href="/doctors"
-                  className="bg-white text-blue-600 font-bold py-4 px-8 rounded-2xl hover:bg-gray-100 transition-all duration-300 transform hover:scale-105 shadow-lg inline-block"
+                  className="bg-white text-brand-600 font-bold py-3 px-6 rounded-2xl hover:bg-gray-100 transition-all duration-300 transform hover:scale-105 shadow-lg inline-block text-base"
                 >
                   Find a Doctor
                 </a>
@@ -960,14 +1013,14 @@ export default function HomePage() {
       {/* ============================================================================
           🦶 FOOTER SECTION - Comprehensive footer with links
           ============================================================================ */}
-      <footer className="bg-gray-900 text-white py-16 px-4">
+      <footer className="bg-gray-900 text-white py-10 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
             {/* Company Info */}
             <div>
               <div className="flex items-center space-x-2 mb-6">
-                <div className="text-3xl">🏥</div>
-                <span className="text-2xl font-bold">DocProc</span>
+                <div className="text-2xl">🏥</div>
+                <span className="text-xl font-bold">Healtara</span>
               </div>
               <p className="text-gray-400 mb-6 leading-relaxed">
                 Your trusted healthcare platform connecting patients with verified doctors and hospitals.
@@ -976,13 +1029,13 @@ export default function HomePage() {
                 <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
                   <Facebook className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center hover:bg-blue-500 transition-colors">
+                <a href="#" className="w-10 h-10 bg-brand-accent rounded-full flex items-center justify-center hover-bg-brand-hover transition-colors">
                   <Twitter className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-pink-600 rounded-full flex items-center justify-center hover:bg-pink-700 transition-colors">
+                <a href="#" className="w-10 h-10 bg-brand-primary rounded-full flex items-center justify-center hover-bg-brand-hover transition-colors">
                   <Instagram className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center hover:bg-blue-800 transition-colors">
+                <a href="#" className="w-10 h-10 bg-brand-secondary rounded-full flex items-center justify-center hover:opacity-90 transition-colors">
                   <Linkedin className="w-5 h-5" />
                 </a>
               </div>
@@ -1007,7 +1060,7 @@ export default function HomePage() {
                 <li><a href="/register/doctor-hospital?role=doctor" className="text-gray-400 hover:text-white transition-colors">👨‍⚕️ Doctor Sign-up</a></li>
                 <li><a href="/register/doctor-hospital?role=hospital" className="text-gray-400 hover:text-white transition-colors">🏥 Hospital Sign-up</a></li>
                 <li><a href="/login/doctors" className="text-gray-400 hover:text-white transition-colors">🔑 Doctor Login</a></li>
-                <li><a href="/slot-admin/login" className="text-gray-400 hover:text-white transition-colors">🕒 Slot Admin</a></li>
+                <li><a href="/slot-admin/login" className="text-gray-400 hover:text-white transition-colors">🧑‍⚕️ Doctors Management</a></li>
               </ul>
             </div>
 
@@ -1026,7 +1079,7 @@ export default function HomePage() {
 
           <div className="border-t border-gray-800 pt-8 text-center">
             <p className="text-gray-400">
-              Made with ❤️ by DocProc Team | © 2024 All rights reserved
+              Made with ❤️ by Healtara Team | © 2024 All rights reserved
             </p>
           </div>
         </div>

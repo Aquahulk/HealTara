@@ -1425,6 +1425,10 @@ function DoctorSettings() {
   // Bookable ON/OFF switch state
   const [isBookable, setIsBookable] = useState<boolean>(true);
   const [savingBookable, setSavingBookable] = useState<boolean>(false);
+  // Profile photo upload state
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   useEffect(() => {
     const loadSlotPeriod = async () => {
       try {
@@ -1439,6 +1443,7 @@ function DoctorSettings() {
         const prof = await apiClient.getDoctorProfile();
         const flag = (prof as any)?.isBookable;
         if (typeof flag === 'boolean') setIsBookable(flag);
+        if ((prof as any)?.profileImage) setProfileImageUrl((prof as any).profileImage);
       } catch {}
     };
     if (user?.role === 'DOCTOR') { loadSlotPeriod(); loadProfile(); }
@@ -1503,6 +1508,46 @@ function DoctorSettings() {
         <h3 className="text-lg font-semibold text-gray-900">Settings</h3>
       </div>
       <div className="p-6 space-y-8">
+        {/* Clinic Logo / Profile Photo */}
+        {user?.role === 'DOCTOR' && (
+          <section>
+            <h4 className="text-md font-semibold text-gray-900 mb-2">Clinic Logo / Profile Photo</h4>
+            <p className="text-sm text-gray-600 mb-4">Upload your clinic logo or profile photo.</p>
+            {profileImageUrl && (
+              <div className="mb-3">
+                <img src={profileImageUrl} alt="Current profile" className="w-24 h-24 object-cover rounded" />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+                className="border rounded-lg px-3 py-2 w-full"
+              />
+              <button
+                onClick={async () => {
+                  if (!photoFile) { setMessage('Please select a photo'); return; }
+                  try {
+                    setUploadingPhoto(true);
+                    setMessage(null);
+                    const res = await apiClient.uploadDoctorPhoto(photoFile);
+                    setProfileImageUrl(res.url);
+                    setMessage('Logo/photo uploaded successfully');
+                  } catch (e: any) {
+                    setMessage(e?.message || 'Failed to upload');
+                  } finally {
+                    setUploadingPhoto(false);
+                  }
+                }}
+                disabled={!photoFile || uploadingPhoto}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50"
+              >
+                {uploadingPhoto ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+          </section>
+        )}
         {/* Bookable ON/OFF */}
         <section>
           <h4 className="text-md font-semibold text-gray-900 mb-2">Make Bookable</h4>
@@ -1556,11 +1601,11 @@ function DoctorSettings() {
           </div>
         </section>
 
-        {/* Slot Admin Credentials */}
+        {/* Doctors Management Credentials */}
         <section>
-          <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Booking Admin</h4>
+          <h4 className="text-md font-semibold text-gray-900 mb-2">Doctors Management</h4>
           <p className="text-sm text-gray-600 mb-4">
-            Create or update a dedicated Slot Admin login for managing your slots.
+            Create or update a dedicated Doctors Management login for managing your slots.
           </p>
           {message && (
             <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
@@ -1634,6 +1679,9 @@ function HospitalSettings() {
   const [hospitalId, setHospitalId] = useState<number | null>(null);
   const [doctors, setDoctors] = useState<Array<{ id: number; email: string }>>([]);
   const [doctorAdminForm, setDoctorAdminForm] = useState<Record<number, { currentEmail?: string | null; email: string; password: string; loading: boolean; message?: string | null }>>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
+  const [hospitalLogoUrl, setHospitalLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -1664,6 +1712,8 @@ function HospitalSettings() {
         const hid = myHospital?.id;
         if (!hid) return;
         setHospitalId(hid);
+        const logo = (myHospital as any)?.profile?.general?.logoUrl || (myHospital as any)?.general?.logoUrl || (myHospital as any)?.logoUrl || null;
+        if (logo) setHospitalLogoUrl(logo);
         const details = await apiClient.getHospitalDetails(hid);
         const links = ((details?.doctors || []) as Array<any>)
           .map((l) => l?.doctor)
@@ -1748,6 +1798,47 @@ function HospitalSettings() {
         <h3 className="text-lg font-semibold text-gray-900">Settings</h3>
       </div>
       <div className="p-6 space-y-8">
+        {/* Hospital Logo Upload */}
+        {user?.role === 'HOSPITAL_ADMIN' && (
+          <section>
+            <h4 className="text-md font-semibold text-gray-900 mb-2">Hospital Logo</h4>
+            <p className="text-sm text-gray-600 mb-4">Upload your hospital logo for branding across the site.</p>
+            {hospitalLogoUrl && (
+              <div className="mb-3">
+                <img src={hospitalLogoUrl} alt="Current logo" className="w-24 h-24 object-contain rounded bg-gray-50 border" />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                className="border rounded-lg px-3 py-2 w-full"
+              />
+              <button
+                onClick={async () => {
+                  if (!logoFile) { setMessage('Please select a logo'); return; }
+                  if (!hospitalId) { setMessage('Hospital ID not found'); return; }
+                  try {
+                    setUploadingLogo(true);
+                    setMessage(null);
+                    const res = await apiClient.uploadHospitalLogo(hospitalId, logoFile);
+                    setHospitalLogoUrl(res.url);
+                    setMessage('Hospital logo uploaded successfully');
+                  } catch (e: any) {
+                    setMessage(e?.message || 'Failed to upload logo');
+                  } finally {
+                    setUploadingLogo(false);
+                  }
+                }}
+                disabled={!logoFile || uploadingLogo || !hospitalId}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2 px-4 rounded-lg"
+              >
+                {uploadingLogo ? 'Uploading…' : 'Upload Logo'}
+              </button>
+            </div>
+          </section>
+        )}
         {/* Slot Admin Credentials */}
         <section>
           <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Booking Admin</h4>
@@ -1759,18 +1850,18 @@ function HospitalSettings() {
           )}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Current Slot Admin</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Current Doctors Management</label>
               <div className="text-gray-800">
                 {currentSlotAdminEmail ? (
                   <span className="font-mono">{currentSlotAdminEmail}</span>
                 ) : (
-                  <span className="text-gray-500">No Slot Admin configured yet</span>
+                  <span className="text-gray-500">No Doctors Management configured yet</span>
                 )}
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Slot Admin Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Doctors Management Email</label>
                 <input
                   type="email"
                   value={email}
@@ -1796,16 +1887,16 @@ function HospitalSettings() {
                 disabled={loading}
                 className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
               >
-                {loading ? 'Saving...' : 'Save Slot Admin'}
+                {loading ? 'Saving...' : 'Save Doctors Management'}
               </button>
             </div>
           </div>
         </section>
 
-        {/* Doctor-specific Slot Admins */}
+        {/* Doctor-specific Doctors Management */}
         <section className="pt-6 border-t border-gray-200">
-          <h4 className="text-md font-semibold text-gray-900 mb-2">Doctor Slot Admin Credentials</h4>
-          <p className="text-sm text-gray-600 mb-4">View and set Slot Admin login per doctor.</p>
+          <h4 className="text-md font-semibold text-gray-900 mb-2">Doctor Management Credentials</h4>
+          <p className="text-sm text-gray-600 mb-4">View and set Doctors Management login per doctor.</p>
           {doctors.length === 0 ? (
             <p className="text-sm text-gray-500">No linked doctors found.</p>
           ) : (
