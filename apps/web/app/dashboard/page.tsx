@@ -1531,7 +1531,7 @@ function DoctorSettings() {
                   try {
                     setUploadingPhoto(true);
                     setMessage(null);
-                    const res = await apiClient.uploadDoctorPhoto(photoFile);
+                    const res = await apiClient.uploadDoctorPhoto(photoFile!);
                     setProfileImageUrl(res.url);
                     setMessage('Logo/photo uploaded successfully');
                   } catch (e: any) {
@@ -1822,7 +1822,7 @@ function HospitalSettings() {
                   try {
                     setUploadingLogo(true);
                     setMessage(null);
-                    const res = await apiClient.uploadHospitalLogo(hospitalId, logoFile);
+                    const res = await apiClient.uploadHospitalLogo(hospitalId, logoFile!);
                     setHospitalLogoUrl(res.url);
                     setMessage('Hospital logo uploaded successfully');
                   } catch (e: any) {
