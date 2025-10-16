@@ -102,7 +102,7 @@ export default function PatientLoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-md transition-colors"
+            className="w-full btn-brand text-white font-semibold py-2 rounded-md transition-colors"
           >
             {isLoading ? (mode === 'login' ? 'Signing in...' : 'Registering...') : (mode === 'login' ? 'Login' : 'Register')}
           </button>

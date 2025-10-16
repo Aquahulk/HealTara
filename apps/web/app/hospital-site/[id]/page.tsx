@@ -487,7 +487,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                     </div>
                   )}
                   <div className="text-center">
-                    <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold px-6 py-3 rounded-xl">Learn More</button>
+                    <button className="btn-brand text-white font-semibold px-6 py-3 rounded-xl">Learn More</button>
                   </div>
                 </div>
               ))}
@@ -497,7 +497,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
 
         {/* Featured Services Grid */}
         {featuredServices.length > 0 && (
-          <section className="bg-gradient-to-br from-gray-50 to-blue-50 py-16 rounded-3xl">
+          <section className="gradient-brand-soft py-16 rounded-3xl">
             <div className="text-center mb-12">
               <h2 className="text-4xl font-bold text-gray-900 mb-4">Featured Services</h2>
               <p className="text-xl text-gray-600">Comprehensive medical care across all specialties</p>
@@ -712,7 +712,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                 )}
                 {general.googleMapsLink && (
                   <div className="text-center">
-                    <a href={general.googleMapsLink} target="_blank" rel="noopener noreferrer" className="inline-block bg-green-600 text-white px-8 py-4 rounded-2xl font-bold text-lg">📍 Get Directions</a>
+                    <a href={general.googleMapsLink} target="_blank" rel="noopener noreferrer" className="inline-block btn-brand text-white px-8 py-4 rounded-2xl font-bold text-lg">📍 Get Directions</a>
                   </div>
                 )}
               </div>
@@ -839,7 +839,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
           </div>
           <div className="border-t border-gray-800 mt-12 pt-8">
             <div className="flex flex-col md:flex-row justify-between items-center">
-              <p className="text-gray-400 text-sm mb-4 md:mb-0">&copy; 2024 {name}. All rights reserved. | Powered by DocProc</p>
+              <p className="text-gray-400 text-sm mb-4 md:mb-0">&copy; 2024 {name}. All rights reserved. | Powered by Healtara</p>
               <div className="flex space-x-6 text-sm text-gray-400"><a href="/privacy" className="hover:text-white">Privacy Policy</a><a href="/terms" className="hover:text-white">Terms of Service</a><a href="/accessibility" className="hover:text-white">Accessibility</a></div>
             </div>
           </div>

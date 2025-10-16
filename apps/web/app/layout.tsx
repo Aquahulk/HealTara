@@ -7,7 +7,7 @@ import AppShell from "@/components/AppShell"; // App shell handles header visibi
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Docproc",
+  title: "Healtara",
   description: "Your Doctor Appointment Platform",
 };
 

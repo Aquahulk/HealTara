@@ -30,7 +30,9 @@ export default function AuthPageClient() {
         await register(email, password, role);
       }
     } catch (err: any) {
-      setMessage(`Error: ${err.response?.data?.message || 'Could not connect to the server.'}`);
+      const serverMsg = err?.response?.data?.message;
+      const localMsg = err?.message;
+      setMessage(`Error: ${serverMsg || localMsg || 'Could not connect to the server.'}`);
     } finally {
       setIsLoading(false);
     }

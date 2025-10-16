@@ -84,7 +84,7 @@ export default function HomePage() {
   // ============================================================================
   const defaultHomepageData: HomepageData = {
     hero: {
-      title: "DOCPROC",
+      title: "HEALTARA",
       subtitle: "The Future of Healthcare is Here",
       searchPlaceholder: "Search doctors, hospitals, or specialties...",
       ctaText: "Start Your Journey",
@@ -176,7 +176,7 @@ export default function HomePage() {
       {
         name: "Sarah Johnson",
         role: "Patient",
-        content: "DocProc revolutionized how I find and book healthcare. The AI matching is incredibly accurate!",
+        content: "Healtara revolutionized how I find and book healthcare. The AI matching is incredibly accurate!",
         rating: 5,
         avatar: "👩‍🦱"
       },
@@ -197,7 +197,7 @@ export default function HomePage() {
     ],
     cta: {
       title: "Ready to Transform Your Healthcare Experience?",
-      description: "Join thousands of patients and providers who trust DocProc for their healthcare needs.",
+      description: "Join thousands of patients and providers who trust Healtara for their healthcare needs.",
       icon: "🚀"
     }
   };
@@ -473,7 +473,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent mb-6">
-              Why Choose DocProc?
+              Why Choose Healtara?
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
               Experience the future of healthcare with our revolutionary platform features.

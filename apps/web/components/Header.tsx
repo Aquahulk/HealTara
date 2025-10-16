@@ -53,7 +53,7 @@ export default function Header() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
               <div className="text-2xl">🏥</div>
-              <span className="text-xl font-bold text-white">DocProc</span>
+              <span className="text-xl font-bold text-white">Healtara</span>
             </Link>
           </div>
 
@@ -198,7 +198,7 @@ export default function Header() {
                 className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium transition-colors"
                 onClick={() => setIsMenuOpen(false)}
               >
-                🕒 Slot Admin
+                🧑‍⚕️ Doctors Management
               </Link>
               
               {/* ============================================================================

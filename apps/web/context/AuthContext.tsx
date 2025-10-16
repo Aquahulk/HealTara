@@ -137,6 +137,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // 🔐 TOKEN DECODING - Extract user information from JWT
         // ============================================================================
         const decoded = jwtDecode(token) as any;
+
+        // ============================================================================
+        // 🚫 BLOCK SLOT ADMIN FROM NORMAL LOGIN
+        // ============================================================================
+        if (decoded?.role === 'SLOT_ADMIN') {
+          apiClient.clearToken();
+          localStorage.removeItem('authToken');
+          throw new Error('This account is for Doctors Management. Please use /slot-admin/login.');
+        }
         
         // ============================================================================
         // 💾 USER DATA STORAGE - Save user information and token

@@ -46,6 +46,7 @@ model DoctorProfile {
   slug              String?              @unique
   slotPeriodMinutes Int                  @default(15)
   micrositeEnabled  Boolean              @default(true)
+  profileImage      String?
   user              User                 @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
   timeOffs          DoctorTimeOff[]
   workingHours      DoctorWorkingHours[]

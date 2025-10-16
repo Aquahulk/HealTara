@@ -3,6 +3,26 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Brand palette (HealTara logo-inspired teal + dark neutral) */
+  --brand-primary: #0F766E; /* deep teal (logo body) */
+  --brand-secondary: #111827; /* near-black (logo T) */
+  --brand-accent: #14B8A6; /* medium teal */
+  --brand-contrast: #ffffff;
+  --brand-hover: #0D9488; /* teal 600 */
+
+  /* Brand shades (teal scale) */
+  --brand-50: #F0FDFA;
+  --brand-100: #CCFBF1;
+  --brand-200: #99F6E4;
+  --brand-300: #5EEAD4;
+  --brand-400: #2DD4BF;
+  --brand-500: #14B8A6;
+  --brand-600: #0D9488;
+  --brand-700: #0F766E;
+  --brand-800: #115E59;
+  --brand-900: #134E4A;
+
+  /* Legacy tokens kept for backwards compatibility */
   --primary-green: #10b981;
   --primary-blue: #3b82f6;
   --accent-teal: #14b8a6;
@@ -47,6 +67,40 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+/* ==========================
+   Brand utility helpers
+   ========================== */
+/* Focus outline using brand accent */
+.focus-brand:focus {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
+
+/* Border color helpers */
+.border-brand {
+  border-color: var(--brand-accent) !important;
+}
+.focus-border-brand:focus {
+  border-color: var(--brand-hover) !important;
+}
+
+/* Background color helpers */
+.bg-brand-primary { background-color: var(--brand-primary); }
+.bg-brand-secondary { background-color: var(--brand-secondary); }
+.bg-brand-accent { background-color: var(--brand-accent); }
+.bg-brand-hover { background-color: var(--brand-hover); }
+
+/* Text color helpers */
+.text-brand-primary { color: var(--brand-primary); }
+.text-brand-secondary { color: var(--brand-secondary); }
+.text-brand-accent { color: var(--brand-accent); }
+.text-brand-contrast { color: var(--brand-contrast); }
+
+/* Hover helpers */
+.hover-bg-brand-hover:hover { background-color: var(--brand-hover); }
+.hover-text-brand-accent:hover { color: var(--brand-accent); }
+
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
@@ -72,21 +126,64 @@ html {
 button:focus,
 input:focus,
 a:focus {
-  outline: 2px solid var(--primary-green);
+  outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
 
 /* Custom gradient backgrounds */
 .gradient-healthcare {
-  background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
 }
 
 .gradient-emerald {
-  background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
 }
 
 .gradient-blue {
-  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, var(--brand-secondary) 0%, #06b6d4 100%);
+}
+
+/* Soft brand background gradient for pages/sections */
+.gradient-brand-soft {
+  background: linear-gradient(135deg, #ffffff 0%, var(--brand-50) 45%, var(--brand-100) 100%);
+}
+
+/* Brand utility classes */
+.bg-brand-primary { background-color: var(--brand-primary); }
+.bg-brand-secondary { background-color: var(--brand-secondary); }
+.text-brand-primary { color: var(--brand-primary); }
+.text-brand-secondary { color: var(--brand-secondary); }
+.border-brand-primary { border-color: var(--brand-primary); }
+.gradient-brand { background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%); }
+.gradient-brand-accent { background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%); }
+
+/* Brand shade utilities */
+.bg-brand-50 { background-color: var(--brand-50); }
+.bg-brand-100 { background-color: var(--brand-100); }
+.bg-brand-200 { background-color: var(--brand-200); }
+.bg-brand-300 { background-color: var(--brand-300); }
+.bg-brand-400 { background-color: var(--brand-400); }
+.bg-brand-500 { background-color: var(--brand-500); }
+.bg-brand-600 { background-color: var(--brand-600); }
+.bg-brand-700 { background-color: var(--brand-700); }
+.bg-brand-800 { background-color: var(--brand-800); }
+.bg-brand-900 { background-color: var(--brand-900); }
+.text-brand-600 { color: var(--brand-600); }
+.text-brand-700 { color: var(--brand-700); }
+.text-brand-800 { color: var(--brand-800); }
+
+.btn-brand {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+  color: var(--brand-contrast);
+}
+.btn-brand:hover {
+  filter: brightness(0.95);
+}
+
+.btn-brand-outline {
+  background: transparent;
+  color: var(--brand-primary);
+  border: 2px solid var(--brand-primary);
 }
 
 /* Ensure form inputs are readable regardless of page theme */

@@ -81,6 +81,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);        // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
   const [activeTab, setActiveTab] = useState('overview');  // Currently selected tab
+  const [appointmentViewMode, setAppointmentViewMode] = useState<'list' | 'grouped'>('list'); // Doctor appointments view mode
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'|'EMERGENCY'>('ALL'); // Doctor-only filter
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
@@ -88,6 +89,7 @@ export default function DashboardPage() {
   const [doctorAppointmentsMap, setDoctorAppointmentsMap] = useState<Record<number, Appointment[]>>({}); // Appointments per doctor
   const [loadingHospitalBookings, setLoadingHospitalBookings] = useState(false); // Loading flag for hospital bookings
   const [hospitalDoctorSlotsMap, setHospitalDoctorSlotsMap] = useState<Record<number, Slot[]>>({}); // Slots per doctor (hospital admin)
+  const [hospitalDoctorPeriodMap, setHospitalDoctorPeriodMap] = useState<Record<number, number>>({}); // Slot period per doctor (hospital admin)
   const [selectedDoctorForTiming, setSelectedDoctorForTiming] = useState<number | null>(null);
   const [hospitalWorkingHours, setHospitalWorkingHours] = useState<Array<{ dayOfWeek: number; start: string | null; end: string | null }>>([]);
   const [hospitalHoursInputs, setHospitalHoursInputs] = useState<Record<number, { start: string; end: string }>>({
@@ -226,23 +228,28 @@ export default function DashboardPage() {
 
         const perDoctor: Record<number, Appointment[]> = {};
         const perDoctorSlots: Record<number, Slot[]> = {};
+        const perDoctorPeriod: Record<number, number> = {};
         await Promise.all(
           links.map(async (d) => {
             try {
-              const [items, s] = await Promise.all([
+              const [items, s, p] = await Promise.all([
                 apiClient.getHospitalDoctorAppointments(hospitalProfile.id, d.id),
                 apiClient.getSlots({ doctorId: d.id }),
+                apiClient.getHospitalDoctorSlotPeriod(hospitalProfile.id, d.id),
               ]);
               perDoctor[d.id] = Array.isArray(items) ? items : [];
               perDoctorSlots[d.id] = Array.isArray(s) ? s : [];
+              perDoctorPeriod[d.id] = Number((p as any)?.slotPeriodMinutes) || 15;
             } catch {
               if (!perDoctor[d.id]) perDoctor[d.id] = [];
               if (!perDoctorSlots[d.id]) perDoctorSlots[d.id] = [];
+              if (!perDoctorPeriod[d.id]) perDoctorPeriod[d.id] = 15;
             }
           })
         );
         setDoctorAppointmentsMap(perDoctor);
         setHospitalDoctorSlotsMap(perDoctorSlots);
+        setHospitalDoctorPeriodMap(perDoctorPeriod);
       } catch (e) {
         console.warn('Failed to load hospital doctor bookings:', e);
       } finally {
@@ -610,7 +617,7 @@ export default function DashboardPage() {
                 📈 STATISTICS CARDS - Key metrics display (role-based)
                 ============================================================================ */}
             {stats && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className={`grid grid-cols-1 md:grid-cols-2 ${user.role === 'DOCTOR' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6`}>
                 <div className="bg-white overflow-hidden shadow-lg rounded-lg">
                   <div className="p-6">
                     <div className="flex items-center">
@@ -652,32 +659,42 @@ export default function DashboardPage() {
                       <div className="ml-5 w-0 flex-1">
                         <dl>
                           <dt className="text-sm font-medium text-gray-500 truncate">
-                            {user.role === 'DOCTOR' ? 'Total Patients' : 'Doctors Visited'}
+                            {user.role === 'DOCTOR'
+                              ? 'Total Patients'
+                              : user.role === 'HOSPITAL_ADMIN'
+                                ? 'Total Doctors'
+                                : 'Doctors Visited'}
                           </dt>
-                          <dd className="text-2xl font-bold text-gray-900">{stats.totalPatients}</dd>
+                          <dd className="text-2xl font-bold text-gray-900">
+                            {user.role === 'DOCTOR'
+                              ? stats.totalPatients
+                              : user.role === 'HOSPITAL_ADMIN'
+                                ? hospitalDoctors.length
+                                : (new Set(appointments.map((a: any) => a?.doctorId)).size)}
+                          </dd>
                         </dl>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow-lg rounded-lg">
-                  <div className="p-6">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <CurrencyDollarIcon className="h-8 w-8 text-purple-600" />
-                      </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
-                            {user.role === 'DOCTOR' ? 'Monthly Revenue' : 'Total Spent'}
-                          </dt>
-                          <dd className="text-2xl font-bold text-gray-900">₹{stats.monthlyRevenue}</dd>
-                        </dl>
+                {user.role === 'DOCTOR' && (
+                  <div className="bg-white overflow-hidden shadow-lg rounded-lg">
+                    <div className="p-6">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <CurrencyDollarIcon className="h-8 w-8 text-purple-600" />
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">Monthly Revenue</dt>
+                            <dd className="text-2xl font-bold text-gray-900">₹{stats.monthlyRevenue}</dd>
+                          </dl>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -858,6 +875,90 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+
+            {/* Appointment Slot Boxes (Grouped by hour) */}
+            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Slot Boxes (Appointments)</h3>
+                <div className="text-xs text-gray-600">Period: {Number(doctorProfile?.slotPeriodMinutes ?? 15)} min</div>
+              </div>
+              <div className="p-6">
+                {(() => {
+                  const filtered = appointments.slice();
+                  if (filtered.length === 0) {
+                    return <div className="text-gray-600">No bookings to display.</div>;
+                  }
+                  const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                  const fmtHour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false });
+                  const groups = new Map<string, Appointment[]>();
+                  filtered.forEach((a) => {
+                    const d = new Date(a.date);
+                    const key = `${fmtDate.format(d)} ${fmtHour.format(d)}`;
+                    const arr = groups.get(key) || [];
+                    arr.push(a);
+                    groups.set(key, arr);
+                  });
+                  const entries = Array.from(groups.entries()).sort(([ka], [kb]) => (ka < kb ? -1 : ka > kb ? 1 : 0));
+                  const period = Number(doctorProfile?.slotPeriodMinutes ?? 15);
+                  const segCount = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {entries.map(([key, list]) => {
+                        const base = new Date(list[0].date);
+                        const slotStart = new Date(base);
+                        slotStart.setMinutes(0, 0, 0);
+                        const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+                        const segments = Array.from({ length: segCount }).map((_, idx) => {
+                          const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
+                          const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                          const inSeg = list.filter((a) => {
+                            const t = new Date(a.date).getTime();
+                            return t >= segStart.getTime() && t < segEnd.getTime();
+                          });
+                          return { segStart, segEnd, inSeg };
+                        });
+                        return (
+                          <div key={key} className="border border-gray-200 rounded-lg">
+                            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                              <div className="text-sm text-gray-800">
+                                {slotStart.toLocaleString()} → {slotEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                              <div className="text-xs text-gray-600">Bookings: {list.length}</div>
+                            </div>
+                            <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+                              {segments.map((seg, i) => (
+                                <div key={i} className="border rounded p-2">
+                                  <div className="text-xs text-gray-600 mb-1">
+                                    {seg.segStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {seg.segEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                  <div className="text-xs text-gray-700 mb-1">Users: {seg.inSeg.length}</div>
+                                  {seg.inSeg.length > 0 && (
+                                    <ul className="space-y-1">
+                                      {seg.inSeg.map((a) => (
+                                        <li key={a.id} className="flex items-center justify-between">
+                                          <div className="text-xs text-gray-800">
+                                            {a.patient?.email || a.patientId} <span className="ml-1 uppercase bg-blue-50 border border-blue-200 px-1 rounded">{a.status}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <button onClick={() => updateDoctorAppointmentStatus(user.id as number, a.id, 'CONFIRMED')} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Confirm</button>
+                                            <button onClick={() => updateDoctorAppointmentStatus(user.id as number, a.id, 'COMPLETED')} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">Complete</button>
+                                            <button onClick={() => cancelDoctorAppointment(a.id)} className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">Cancel</button>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
           </div>
         )}
 
@@ -870,6 +971,22 @@ export default function DashboardPage() {
               <h3 className="text-lg font-semibold text-gray-900">
                 {user.role === 'DOCTOR' ? 'Appointment Management' : user.role === 'HOSPITAL_ADMIN' ? 'Hospital Bookings by Doctor' : 'My Appointments'}
               </h3>
+              {user.role === 'DOCTOR' && (
+                <div className="mt-3 inline-flex rounded-md border overflow-hidden">
+                  <button
+                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border-r`}
+                    onClick={() => setAppointmentViewMode('list')}
+                  >
+                    List
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'grouped' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                    onClick={() => setAppointmentViewMode('grouped')}
+                  >
+                    Grouped
+                  </button>
+                </div>
+              )}
             </div>
             <div className="p-6">
               {user.role === 'HOSPITAL_ADMIN' ? (
@@ -945,33 +1062,61 @@ export default function DashboardPage() {
                                           })()}
                                         </div>
                                         <div className="px-3 pb-3">
-                                          {slotAppointments.length === 0 ? (
-                                            <div className="text-sm text-gray-500">No bookings in this slot.</div>
-                                          ) : (
-                                            <ul className="space-y-2">
-                                              {slotAppointments.map((a) => (
-                                                <li key={a.id} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
-                                                  <div>
-                                                    <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleTimeString()}</div>
-                                                    <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
-                                                  </div>
-                                                  <div>
-                                                    <select
-                                                      className="border rounded px-2 py-1 text-xs"
-                                                      value={a.status}
-                                                      onChange={(e) => updateDoctorAppointmentStatus(doc.id, a.id, e.target.value)}
-                                                    >
-                                                      <option value="PENDING">Pending</option>
-                                                      <option value="EMERGENCY">Emergency</option>
-                                                      <option value="CONFIRMED">Confirmed</option>
-                                                      <option value="CANCELLED">Cancelled</option>
-                                                      <option value="COMPLETED">Completed</option>
-                                                    </select>
-                                                  </div>
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          )}
+                                          {(() => {
+                                            const period = Number(hospitalDoctorPeriodMap[doc.id] ?? doc?.doctorProfile?.slotPeriodMinutes ?? 15);
+                                            const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                                            const segments = Array.from({ length: count }, (_, idx) => {
+                                              const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
+                                              const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                                              const inSeg = slotAppointments.filter((a) => {
+                                                const t = new Date(a.date).getTime();
+                                                return t >= segStart.getTime() && t < segEnd.getTime();
+                                              });
+                                              return { idx, segStart, segEnd, inSeg };
+                                            });
+                                            return (
+                                              <div>
+                                                <div className="text-xs text-gray-600 mb-2">Sub-slots ({period} min): {count} per hour</div>
+                                                <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                  {segments.map(({ idx, segStart, segEnd, inSeg }) => (
+                                                    <li key={idx} className="border border-gray-200 rounded px-3 py-2">
+                                                      <div className="text-xs font-medium text-gray-800">
+                                                        {segStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {' '}
+                                                        →
+                                                        {' '}
+                                                        {segEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                      </div>
+                                                      {inSeg.length === 0 ? (
+                                                        <div className="text-xs text-gray-500 mt-1">Empty</div>
+                                                      ) : (
+                                                        <ul className="mt-1 space-y-1">
+                                                          {inSeg.map((a) => (
+                                                            <li key={a.id} className="flex items-center justify-between">
+                                                              <div className="text-xs text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleTimeString()}</div>
+                                                              <div>
+                                                                <select
+                                                                  className="border rounded px-2 py-1 text-xs"
+                                                                  value={a.status}
+                                                                  onChange={(e) => updateDoctorAppointmentStatus(doc.id, a.id, e.target.value)}
+                                                                >
+                                                                  <option value="PENDING">Pending</option>
+                                                                  <option value="EMERGENCY">Emergency</option>
+                                                                  <option value="CONFIRMED">Confirmed</option>
+                                                                  <option value="CANCELLED">Cancelled</option>
+                                                                  <option value="COMPLETED">Completed</option>
+                                                                </select>
+                                                              </div>
+                                                            </li>
+                                                          ))}
+                                                        </ul>
+                                                      )}
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                       </li>
                                     );
@@ -1014,6 +1159,73 @@ export default function DashboardPage() {
                                 })()}
                               </ul>
                             )}
+                            {/* Capacity-only Slot Boxes */}
+                            {(() => {
+                              const slots = (hospitalDoctorSlotsMap[doc.id] || []).filter((slot) => {
+                                const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                                const dayIdx = slotStart.getDay();
+                                const wh = hospitalHoursInputs[dayIdx];
+                                const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
+                                if (!hasTiming) return true;
+                                const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
+                                const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+                                const endMin = startMin + 60;
+                                const whStart = toMin(wh.start);
+                                const whEnd = toMin(wh.end);
+                                return startMin >= whStart && endMin <= whEnd;
+                              });
+                              if (slots.length === 0) return null;
+                              const period = Number(hospitalDoctorPeriodMap[doc.id] ?? doc?.doctorProfile?.slotPeriodMinutes ?? 15);
+                              const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                              return (
+                                <div className="mt-4">
+                                  <div className="text-sm font-semibold text-gray-900 mb-2">Slot Boxes (Capacity View)</div>
+                                  <p className="text-xs text-gray-600 mb-3">Each hour shows {count} user slots ({period} min each)</p>
+                                  <ul className="space-y-3">
+                                    {slots.map((slot) => {
+                                      const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                                      const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+                                      const slotAppointments = items.filter((a) => {
+                                        const t = new Date(a.date).getTime();
+                                        return t >= slotStart.getTime() && t <= slotEnd.getTime();
+                                      });
+                                      const segments = Array.from({ length: count }, (_, idx) => {
+                                        const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
+                                        const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                                        const inSeg = slotAppointments.filter((a) => {
+                                          const t = new Date(a.date).getTime();
+                                          return t >= segStart.getTime() && t < segEnd.getTime();
+                                        });
+                                        return { idx, segStart, segEnd, inSeg };
+                                      });
+                                      return (
+                                        <li key={`cap-${slot.id}`} className="border border-gray-200 rounded">
+                                          <div className="px-3 py-2">
+                                            <div className="text-sm font-medium text-gray-900">Slot #{slot.id}</div>
+                                            <div className="text-sm text-gray-700">{slotStart.toLocaleString()} → {slotEnd.toLocaleString()}</div>
+                                            <div className="text-xs text-gray-500">Status: {slot.status || 'UNKNOWN'}</div>
+                                          </div>
+                                          <div className="px-3 pb-3">
+                                            <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                              {segments.map(({ idx, segStart, segEnd, inSeg }) => (
+                                                <li key={idx} className="border border-gray-200 rounded px-3 py-2">
+                                                  <div className="text-xs font-medium text-gray-800">
+                                                    {segStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {' '}→{' '}
+                                                    {segEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                  </div>
+                                                  <div className="text-xs text-gray-600 mt-1">Users: {inSeg.length}</div>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
@@ -1074,127 +1286,179 @@ export default function DashboardPage() {
               ) : appointments.length > 0 ? (
                 user.role === 'DOCTOR' ? (
                   <div className="space-y-8">
-                    {/* Doctor-only controls */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <label className="text-sm text-gray-700">Filter:</label>
-                        <select
-                          value={doctorStatusFilter}
-                          onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
-                          className="border rounded-md px-2 py-1 text-sm"
-                        >
-                          <option value="ALL">All</option>
-                          <option value="CONFIRMED">Confirmed</option>
-                          <option value="PENDING">Pending</option>
-                          <option value="EMERGENCY">Emergency</option>
-                          <option value="CANCELLED">Cancelled</option>
-                        </select>
-                      </div>
-                      <button
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                        onClick={() => {
-                          const groups = groupAppointmentsByDateHour(appointments);
-                          const next: Record<string, boolean> = {};
-                          let anyOpen = false;
-                          Object.entries(groups).forEach(([dateKey, hours]) => {
-                            Object.keys(hours).forEach((h) => {
-                              const k = `${dateKey}-${h}`;
-                              if (!collapsedHourKeys[k]) anyOpen = true;
-                            });
-                          });
-                          Object.entries(groups).forEach(([dateKey, hours]) => {
-                            Object.keys(hours).forEach((h) => {
-                              const k = `${dateKey}-${h}`;
-                              next[k] = anyOpen; // if any were open, close all; otherwise open all
-                            });
-                          });
-                          setCollapsedHourKeys(next);
-                        }}
-                      >
-                        {Object.values(collapsedHourKeys).some((v) => !v) ? 'Collapse All' : 'Expand All'}
-                      </button>
-                    </div>
-
-                    {Object.entries(groupAppointmentsByDateHour(appointments))
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([dateKey, hours]) => (
-                        <div key={dateKey} className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-md font-semibold text-gray-900">
-                              {new Date(dateKey).toLocaleDateString()}
-                            </h4>
+                    {appointmentViewMode === 'grouped' ? (
+                      <>
+                        {/* Doctor-only controls */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <label className="text-sm text-gray-700">Filter:</label>
+                            <select
+                              value={doctorStatusFilter}
+                              onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
+                              className="border rounded-md px-2 py-1 text-sm"
+                            >
+                              <option value="ALL">All</option>
+                              <option value="CONFIRMED">Confirmed</option>
+                              <option value="PENDING">Pending</option>
+                              <option value="EMERGENCY">Emergency</option>
+                              <option value="CANCELLED">Cancelled</option>
+                            </select>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {Object.entries(hours)
-                              .sort(([ha], [hb]) => Number(ha) - Number(hb))
-                              .map(([hourStr, items]) => {
-                                const filtered = doctorStatusFilter === 'ALL' ? items : items.filter(a => a.status === doctorStatusFilter);
-                                if (filtered.length === 0) return null;
-                                const counts = {
-                                  CONFIRMED: items.filter(a => a.status === 'CONFIRMED').length,
-                                  PENDING: items.filter(a => a.status === 'PENDING').length,
-                                  EMERGENCY: items.filter(a => a.status === 'EMERGENCY').length,
-                                  CANCELLED: items.filter(a => a.status === 'CANCELLED').length,
-                                };
-                                const key = `${dateKey}-${hourStr}`;
-                                const isCollapsed = !!collapsedHourKeys[key];
-                                return (
-                                  <div key={hourStr} className="border rounded-lg bg-gray-50">
-                                    <button
-                                      className="w-full px-4 py-2 border-b flex items-center justify-between hover:bg-gray-100"
-                                      onClick={() => setCollapsedHourKeys(prev => ({...prev, [key]: !prev[key]}))}
-                                    >
-                                      <div className="font-medium text-gray-900">
-                                        {formatHourRange(dateKey, Number(hourStr))}
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">{filtered.length} booked</span>
-                                        {counts.CONFIRMED > 0 && (
-                                          <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">{counts.CONFIRMED} confirmed</span>
-                                        )}
-                                        {counts.PENDING > 0 && (
-                                          <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">{counts.PENDING} pending</span>
-                                        )}
-                                        {counts.CANCELLED > 0 && (
-                                          <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">{counts.CANCELLED} cancelled</span>
-                                        )}
-                                        <span className="text-xs text-gray-500">{isCollapsed ? '▲' : '▼'}</span>
-                                      </div>
-                                    </button>
-                                    {!isCollapsed && (
-                                      <div className="p-3 space-y-2">
-                                        {filtered.map((appointment) => (
-                                          <div key={appointment.id} className="flex items-center justify-between bg-white border rounded-md p-2">
-                                            <div className="min-w-0">
-                                              <p className="text-sm font-medium text-gray-900 truncate">
-                                                Patient: {appointment.patient.email}
-                                              </p>
-                                              {appointment.reason && (
-                                                <p className="text-xs text-gray-600 truncate">{appointment.reason}</p>
-                                              )}
-                                            </div>
-                                            <div className="flex items-center space-x-3">
-                                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                                                appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                                                appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                'bg-gray-100 text-gray-800'
-                                              }`}>
-                                                {appointment.status}
-                                              </span>
-                                              <button className="text-blue-600 hover:text-blue-900 text-xs">Update</button>
-                                              <button className="text-red-600 hover:text-red-900 text-xs">Cancel</button>
-                                            </div>
+                          <button
+                            className="text-sm text-blue-600 hover:text-blue-800"
+                            onClick={() => {
+                              const groups = groupAppointmentsByDateHour(appointments);
+                              const next: Record<string, boolean> = {};
+                              let anyOpen = false;
+                              Object.entries(groups).forEach(([dateKey, hours]) => {
+                                Object.keys(hours).forEach((h) => {
+                                  const k = `${dateKey}-${h}`;
+                                  if (!collapsedHourKeys[k]) anyOpen = true;
+                                });
+                              });
+                              Object.entries(groups).forEach(([dateKey, hours]) => {
+                                Object.keys(hours).forEach((h) => {
+                                  const k = `${dateKey}-${h}`;
+                                  next[k] = anyOpen; // if any were open, close all; otherwise open all
+                                });
+                              });
+                              setCollapsedHourKeys(next);
+                            }}
+                          >
+                            {Object.values(collapsedHourKeys).some((v) => !v) ? 'Collapse All' : 'Expand All'}
+                          </button>
+                        </div>
+
+                        {Object.entries(groupAppointmentsByDateHour(appointments))
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([dateKey, hours]) => (
+                            <div key={dateKey} className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-md font-semibold text-gray-900">
+                                  {new Date(dateKey).toLocaleDateString()}
+                                </h4>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(hours)
+                                  .sort(([ha], [hb]) => Number(ha) - Number(hb))
+                                  .map(([hourStr, items]) => {
+                                    const filtered = doctorStatusFilter === 'ALL' ? items : items.filter(a => a.status === doctorStatusFilter);
+                                    if (filtered.length === 0) return null;
+                                    const counts = {
+                                      CONFIRMED: items.filter(a => a.status === 'CONFIRMED').length,
+                                      PENDING: items.filter(a => a.status === 'PENDING').length,
+                                      EMERGENCY: items.filter(a => a.status === 'EMERGENCY').length,
+                                      CANCELLED: items.filter(a => a.status === 'CANCELLED').length,
+                                    };
+                                    const key = `${dateKey}-${hourStr}`;
+                                    const isCollapsed = !!collapsedHourKeys[key];
+                                    return (
+                                      <div key={hourStr} className="border rounded-lg bg-gray-50">
+                                        <button
+                                          className="w-full px-4 py-2 border-b flex items-center justify-between hover:bg-gray-100"
+                                          onClick={() => setCollapsedHourKeys(prev => ({...prev, [key]: !prev[key]}))}
+                                        >
+                                          <div className="font-medium text-gray-900">
+                                            {formatHourRange(dateKey, Number(hourStr))}
                                           </div>
-                                        ))}
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">{filtered.length} booked</span>
+                                            {counts.CONFIRMED > 0 && (
+                                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">{counts.CONFIRMED} confirmed</span>
+                                            )}
+                                            {counts.PENDING > 0 && (
+                                              <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">{counts.PENDING} pending</span>
+                                            )}
+                                            {counts.CANCELLED > 0 && (
+                                              <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">{counts.CANCELLED} cancelled</span>
+                                            )}
+                                            <span className="text-xs text-gray-500">{isCollapsed ? '▲' : '▼'}</span>
+                                          </div>
+                                        </button>
+                                        {!isCollapsed && (
+                                          <div className="p-3 space-y-2">
+                                            {filtered.map((appointment) => (
+                                              <div key={appointment.id} className="flex items-center justify-between bg-white border rounded-md p-2">
+                                                <div className="min-w-0">
+                                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                                    Patient: {appointment.patient.email}
+                                                  </p>
+                                                  {appointment.reason && (
+                                                    <p className="text-xs text-gray-600 truncate">{appointment.reason}</p>
+                                                  )}
+                                                </div>
+                                                <div className="flex items-center space-x-3">
+                                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                                                    appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                                    appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                  }`}>
+                                                    {appointment.status}
+                                                  </span>
+                                                  <button className="text-blue-600 hover:text-blue-900 text-xs">Update</button>
+                                                  <button className="text-red-600 hover:text-red-900 text-xs">Cancel</button>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          ))}
+                      </>
+                    ) : (
+                      <>
+                        {/* Doctor list view */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <label className="text-sm text-gray-700">Filter:</label>
+                            <select
+                              value={doctorStatusFilter}
+                              onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
+                              className="border rounded-md px-2 py-1 text-sm"
+                            >
+                              <option value="ALL">All</option>
+                              <option value="CONFIRMED">Confirmed</option>
+                              <option value="PENDING">Pending</option>
+                              <option value="EMERGENCY">Emergency</option>
+                              <option value="CANCELLED">Cancelled</option>
+                            </select>
                           </div>
                         </div>
-                      ))}
+                        <ul className="space-y-3 mt-4">
+                          {appointments
+                            .filter((a) => doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
+                            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                            .map((appointment) => (
+                              <li key={appointment.id} className="bg-white border rounded-md p-3 flex items-center justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{new Date(appointment.date).toLocaleString()}</p>
+                                  <p className="text-xs text-gray-700 truncate">Patient: {appointment.patient.email}</p>
+                                  {appointment.reason && (
+                                    <p className="text-xs text-gray-600 truncate">{appointment.reason}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                                    appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                    appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {appointment.status}
+                                  </span>
+                                  <button className="text-blue-600 hover:text-blue-900 text-xs">Update</button>
+                                  <button className="text-red-600 hover:text-red-900 text-xs">Cancel</button>
+                                </div>
+                              </li>
+                            ))}
+                        </ul>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -1403,7 +1667,13 @@ export default function DashboardPage() {
             ⚙️ SETTINGS TAB - Account and practice settings (DOCTORS ONLY)
             ============================================================================ */}
         {activeTab === 'settings' && isDoctorLike && (
-          user.role === 'DOCTOR' ? <DoctorSettings /> : <HospitalSettings />
+          user.role === 'DOCTOR' ? <DoctorSettings /> : (
+            <HospitalSettings
+              onPeriodUpdated={(doctorId, minutes) => {
+                setHospitalDoctorPeriodMap((prev) => ({ ...prev, [doctorId]: minutes }));
+              }}
+            />
+          )
         )}
       </div>
     </div>
@@ -1669,7 +1939,7 @@ function DoctorSettings() {
 // ============================================================================
 // ⚙️ HOSPITAL SETTINGS COMPONENT - Manage Hospital Slot Admin credentials
 // ============================================================================
-function HospitalSettings() {
+function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: number, minutes: number) => void }) {
   const { user } = useAuth();
   const [currentSlotAdminEmail, setCurrentSlotAdminEmail] = useState<string | null>(null);
   const [email, setEmail] = useState('');
@@ -1679,6 +1949,7 @@ function HospitalSettings() {
   const [hospitalId, setHospitalId] = useState<number | null>(null);
   const [doctors, setDoctors] = useState<Array<{ id: number; email: string }>>([]);
   const [doctorAdminForm, setDoctorAdminForm] = useState<Record<number, { currentEmail?: string | null; email: string; password: string; loading: boolean; message?: string | null }>>({});
+  const [doctorPeriodForm, setDoctorPeriodForm] = useState<Record<number, { minutes: number; loading: boolean; message: string | null }>>({});
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
   const [hospitalLogoUrl, setHospitalLogoUrl] = useState<string | null>(null);
@@ -1721,9 +1992,11 @@ function HospitalSettings() {
         setDoctors(links);
         // Initialize form state per doctor and load current slot admin emails
         const initial: Record<number, { currentEmail?: string | null; email: string; password: string; loading: boolean; message?: string | null }> = {};
+        const periodInitial: Record<number, { minutes: number; loading: boolean; message: string | null }> = {};
         await Promise.all(
           links.map(async (d: any) => {
             initial[d.id] = { currentEmail: null, email: '', password: '', loading: true, message: null };
+            periodInitial[d.id] = { minutes: 15, loading: true, message: '' };
             try {
               const res = await apiClient.getHospitalSlotAdmin(d.id);
               const cur = res?.slotAdmin?.email || null;
@@ -1731,9 +2004,16 @@ function HospitalSettings() {
             } catch (e: any) {
               initial[d.id] = { currentEmail: null, email: '', password: '', loading: false, message: e?.message || null };
             }
+            try {
+              const sp = await apiClient.getHospitalDoctorSlotPeriod(hid, d.id);
+              periodInitial[d.id] = { minutes: Number(sp?.slotPeriodMinutes) || 15, loading: false, message: '' };
+            } catch {
+              periodInitial[d.id] = { minutes: 15, loading: false, message: '' };
+            }
           })
         );
         setDoctorAdminForm(initial);
+        setDoctorPeriodForm(periodInitial);
       } catch (e) {
         // Silent fail to avoid blocking settings UI
         console.warn('Failed to load hospital doctors or doctor slot admins', e);
@@ -1892,6 +2172,62 @@ function HospitalSettings() {
             </div>
           </div>
         </section>
+
+        {/* Slot Period per Doctor */}
+        {user?.role === 'HOSPITAL_ADMIN' && doctors.length > 0 && (
+          <section className="pt-6 border-t border-gray-200">
+            <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Period</h4>
+            <p className="text-sm text-gray-600 mb-4">
+              Choose how your schedule groups bookings. Patients select an hour; you can view bookings as shorter slots. This preference affects dashboard display only.
+            </p>
+            <div className="space-y-4">
+              {doctors.map((d) => {
+                const form = doctorPeriodForm[d.id] || { minutes: 15, loading: false, message: '' };
+                const capacity = Math.max(1, Math.floor(60 / Math.max(1, form.minutes)));
+                return (
+                  <div key={d.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="text-sm text-gray-600">Doctor</div>
+                        <div className="font-medium text-gray-900">{d.email}</div>
+                      </div>
+                      <div className="text-sm text-gray-600">Capacity per hour: <span className="font-medium text-gray-900">{capacity}</span> • Period {form.minutes} min</div>
+                    </div>
+                    {form.message && (
+                      <div className="mb-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">{form.message}</div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                      <label className="text-sm text-gray-700">Slot period (minutes)</label>
+                      <select
+                        value={String(form.minutes)}
+                        onChange={async (e) => {
+                          const val = Number(e.target.value);
+                          if (!hospitalId) return;
+                          try {
+                            setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), minutes: val, loading: true, message: '' } }));
+                            const res = await apiClient.setHospitalDoctorSlotPeriod(hospitalId, d.id, val);
+                            const mins = Number(res?.slotPeriodMinutes) || val;
+                            setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), minutes: mins, loading: false, message: 'Saved' } }));
+                            onPeriodUpdated && onPeriodUpdated(d.id, mins);
+                          } catch (err: any) {
+                            setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), loading: false, message: err?.message || 'Failed to save' } }));
+                          }
+                        }}
+                        disabled={!hospitalId || form.loading}
+                        className="w-full border rounded-lg px-3 py-2"
+                      >
+                        {[10, 15, 20, 30, 60].map((m) => (
+                          <option key={m} value={m}>{m} minutes</option>
+                        ))}
+                      </select>
+                      <div className="text-sm text-gray-600">Tip: We currently assign patients to the next available 15‑minute slot inside the chosen hour. Custom periods will be honored in a future backend update.</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Doctor-specific Doctors Management */}
         <section className="pt-6 border-t border-gray-200">

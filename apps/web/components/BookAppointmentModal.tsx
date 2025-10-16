@@ -150,11 +150,15 @@ export default function BookAppointmentModal({
                 setSuccess(null);
                 onClose();
             }, 900);
-		} catch (err: any) {
-			setError(err.message || "Failed to book appointment");
-		} finally {
-			setSubmitting(false);
-		}
+        } catch (err: any) {
+            const raw = err?.message || "Failed to book appointment";
+            const friendly = raw === 'You do not have permission to perform this action.'
+                ? 'This doctor’s scheduling is managed by hospital staff. Please contact the hospital or choose a different doctor.'
+                : raw;
+            setError(friendly);
+        } finally {
+            setSubmitting(false);
+        }
 	};
 
     // Optimized time slot loading with aggressive caching and parallel requests

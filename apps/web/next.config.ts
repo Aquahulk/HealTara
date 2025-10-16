@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
           source: "/api/:path*",
           destination: "http://localhost:3001/api/:path*",
         },
+        {
+          // Allow frontend to access uploaded media served by API
+          source: "/uploads/:path*",
+          destination: "http://localhost:3001/uploads/:path*",
+        },
       ];
     }
     if (apiBase) {
@@ -28,6 +33,10 @@ const nextConfig: NextConfig = {
         {
           source: "/api/:path*",
           destination: `${apiBase}/api/:path*`,
+        },
+        {
+          source: "/uploads/:path*",
+          destination: `${apiBase}/uploads/:path*`,
         },
       ];
     }

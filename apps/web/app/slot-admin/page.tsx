@@ -37,6 +37,66 @@ type DoctorTimeOff = {
 };
 
 export default function SlotAdminPanelPage() {
+  // IST formatting and parsing helpers
+  const formatIST = (date: Date, opts?: Intl.DateTimeFormatOptions) => {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      ...(opts || { dateStyle: 'medium', timeStyle: 'short', hour12: false })
+    }).format(date);
+  };
+  const formatISTTime = (date: Date) => {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date);
+  };
+  const getISTHoursMinutes = (date: Date) => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    const h = parts.find(p => p.type === 'hour')?.value || '00';
+    const m = parts.find(p => p.type === 'minute')?.value || '00';
+    return { hour: parseInt(h, 10) || 0, minute: parseInt(m, 10) || 0 };
+  };
+  const getISTDayIndex = (date: Date) => {
+    const wk = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'short' }).format(date);
+    const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return map[wk] ?? date.getDay();
+  };
+  const formatISTDateTimeLocal = (date: Date) => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(date);
+    const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+    const y = get('year');
+    const m = get('month');
+    const d = get('day');
+    const h = get('hour');
+    const mi = get('minute');
+    return `${y}-${m}-${d}T${h}:${mi}`;
+  };
+  const istLocalStringToISO = (s: string) => {
+    // s: YYYY-MM-DDTHH:mm interpreted in IST (UTC+5:30)
+    if (!s || !s.includes('T')) return new Date().toISOString();
+    const [ymd, hm] = s.split('T');
+    const [y, m, d] = ymd.split('-').map((x) => parseInt(x));
+    const [hh, mm] = hm.split(':').map((x) => parseInt(x));
+    const isoDate = new Date(Date.UTC(y, (m - 1), d, (hh - 5), (mm - 30), 0, 0));
+    return isoDate.toISOString();
+  };
+  const istDateTimeFromDateAndTime = (dateStr: string, timeStr: string) => {
+    // dateStr: YYYY-MM-DD, timeStr: HH:mm, treated as IST
+    const [y, m, d] = dateStr.split('-').map((x) => parseInt(x));
+    const [hh, mm] = timeStr.split(':').map((x) => parseInt(x));
+    return new Date(Date.UTC(y, (m - 1), d, (hh - 5), (mm - 30), 0, 0));
+  };
   const [token, setToken] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -150,8 +210,17 @@ export default function SlotAdminPanelPage() {
         headers: { Authorization: `Bearer ${tkn}` },
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Failed to load slots" }));
-        throw new Error(err.message || "Failed to load slots");
+        let msg = "Failed to load slots";
+        try {
+          const err = await res.json();
+          msg = (err && err.message) ? err.message : msg;
+        } catch {
+          try {
+            const txt = await res.text();
+            msg = (txt && txt.trim()) ? txt.trim() : msg;
+          } catch {}
+        }
+        throw new Error(msg);
       }
       const data = await res.json();
       setSlots(data?.slots || data || []);
@@ -422,6 +491,9 @@ export default function SlotAdminPanelPage() {
     }
     try {
       setMessage(null);
+      const previous = slotPeriodMinutes;
+      // Optimistically update UI immediately
+      setSlotPeriodMinutes(minutes);
       const body: any = { slotPeriodMinutes: minutes };
       if (doctorId) body.doctorId = doctorId;
       const res = await fetch(`/api/slot-admin/slot-period`, {
@@ -433,8 +505,19 @@ export default function SlotAdminPanelPage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: 'Failed to update slot period' }));
-        throw new Error(err.message || 'Failed to update slot period');
+        let msg = 'Failed to update slot period';
+        try {
+          const err = await res.json();
+          msg = (err && err.message) ? err.message : msg;
+        } catch {
+          try {
+            const txt = await res.text();
+            msg = (txt && txt.trim()) ? txt.trim() : msg;
+          } catch {}
+        }
+        // Roll back optimistic change
+        setSlotPeriodMinutes(previous);
+        throw new Error(msg);
       }
       const json = await res.json();
       const updated = Number(json?.slotPeriodMinutes) || minutes;
@@ -442,6 +525,8 @@ export default function SlotAdminPanelPage() {
       setMessage('Slot period updated');
     } catch (e: any) {
       setMessage(e?.message || 'Failed to update slot period');
+      // In case the backend update actually succeeded but proxy failed, re-sync value.
+      try { await loadSlotPeriod(token, doctorId ?? undefined); } catch {}
     }
   };
 
@@ -464,7 +549,7 @@ export default function SlotAdminPanelPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ start: new Date(timeOffStart).toISOString(), end: new Date(timeOffEnd).toISOString(), reason: timeOffReason || undefined, doctorProfileId: doctorProfileId ?? undefined }),
+        body: JSON.stringify({ start: istLocalStringToISO(timeOffStart), end: istLocalStringToISO(timeOffEnd), reason: timeOffReason || undefined, doctorProfileId: doctorProfileId ?? undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: "Failed to create time-off" }));
@@ -501,19 +586,9 @@ export default function SlotAdminPanelPage() {
 
   const startEditTimeOff = (t: DoctorTimeOff) => {
     setEditingId(t.id);
-    // Convert ISO to local datetime-local format yyyy-MM-ddTHH:mm
-    const toLocal = (iso: string) => {
-      const d = new Date(iso);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const y = d.getFullYear();
-      const m = pad(d.getMonth() + 1);
-      const da = pad(d.getDate());
-      const h = pad(d.getHours());
-      const mi = pad(d.getMinutes());
-      return `${y}-${m}-${da}T${h}:${mi}`;
-    };
-    setEditStart(toLocal(t.start));
-    setEditEnd(toLocal(t.end));
+    // Convert ISO to datetime-local string in IST
+    setEditStart(formatISTDateTimeLocal(new Date(t.start)));
+    setEditEnd(formatISTDateTimeLocal(new Date(t.end)));
     setEditReason(t.reason || '');
   };
 
@@ -538,7 +613,7 @@ export default function SlotAdminPanelPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ start: new Date(editStart).toISOString(), end: new Date(editEnd).toISOString(), reason: editReason || undefined })
+        body: JSON.stringify({ start: istLocalStringToISO(editStart), end: istLocalStringToISO(editEnd), reason: editReason || undefined })
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Failed to update time-off' }));
@@ -563,7 +638,7 @@ export default function SlotAdminPanelPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
         <div className="bg-white shadow-lg rounded-lg w-full max-w-md p-6 text-center">
           <div className="text-5xl mb-2">🕒</div>
-          <h1 className="text-2xl font-bold text-gray-800">Slot Admin Panel</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Doctors Management Panel</h1>
           <p className="text-gray-600 mb-4">Please log in to manage slots.</p>
           <Link href="/slot-admin/login" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg inline-block">Go to Login</Link>
         </div>
@@ -578,8 +653,8 @@ export default function SlotAdminPanelPage() {
           <div className="flex items-center gap-3">
             <div className="text-2xl">🕒</div>
             <div>
-              <h1 className="text-xl font-semibold">Slot Admin Panel</h1>
-              <p className="text-gray-600 text-sm">Manage slots for assigned doctor</p>
+              <h1 className="text-xl font-semibold">Doctors Management Panel</h1>
+              <p className="text-gray-600 text-sm">Manage scheduling for assigned doctor</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -651,6 +726,101 @@ export default function SlotAdminPanelPage() {
                 <button onClick={() => { setStatusFilter(''); setFromDate(''); setToDate(''); }} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded">Clear</button>
               </div>
             </div>
+            {/* Slot Boxes (Grouped by appointment hour) */}
+            <div className="mt-6">
+              <div className="text-sm font-medium text-gray-700 mb-2">Slot Boxes (Grouped by time)</div>
+              {(() => {
+                const filtered = appointments
+                  .filter((a) => {
+                    const okStatus = statusFilter ? a.status === statusFilter : true;
+                    const dt = new Date(a.date);
+                    const okFrom = fromDate ? dt >= new Date(`${fromDate}T00:00:00`) : true;
+                    const okTo = toDate ? dt <= new Date(`${toDate}T23:59:59`) : true;
+                    return okStatus && okFrom && okTo;
+                  });
+
+                if (filtered.length === 0) {
+                  return <div className="text-gray-600">No appointments to group.</div>;
+                }
+
+                // Group by IST date + hour
+                const groups = new Map<string, Appointment[]>();
+                const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                const fmtHour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false });
+                filtered.forEach((a) => {
+                  const d = new Date(a.date);
+                  const key = `${fmtDate.format(d)} ${fmtHour.format(d)}`; // e.g., 2025-10-13 00
+                  const arr = groups.get(key) || [];
+                  arr.push(a);
+                  groups.set(key, arr);
+                });
+
+                const entries = Array.from(groups.entries()).sort(([ka], [kb]) => (ka < kb ? -1 : ka > kb ? 1 : 0));
+                const period = Math.max(1, slotPeriodMinutes);
+                const segCount = Math.max(1, Math.floor(60 / period));
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {entries.map(([key, list]) => {
+                      // Compute slotStart/end from first appointment in group
+                      const first = list[0];
+                      const base = new Date(first.date);
+                      const slotStart = new Date(base);
+                      slotStart.setMinutes(0, 0, 0);
+                      const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+
+                      // Build segments
+                      const segments = Array.from({ length: segCount }).map((_, idx) => {
+                        const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
+                        const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                        const inSeg = list.filter((a) => {
+                          const t = new Date(a.date).getTime();
+                          return t >= segStart.getTime() && t < segEnd.getTime();
+                        });
+                        return { segStart, segEnd, inSeg };
+                      });
+
+                      return (
+                        <div key={key} className="border border-gray-200 rounded-lg">
+                          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                            <div className="text-sm text-gray-800">
+                              {formatIST(slotStart, { dateStyle: 'medium', timeStyle: 'short', hour12: false })} → {formatIST(slotEnd, { timeStyle: 'short', hour12: false })}
+                            </div>
+                            <div className="text-xs text-gray-600">Bookings: {list.length}</div>
+                          </div>
+                          <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {segments.map((seg, i) => (
+                              <div key={i} className="border rounded p-2">
+                                <div className="text-xs text-gray-600 mb-1">
+                                  {formatIST(seg.segStart, { timeStyle: 'short', hour12: false })} – {formatIST(seg.segEnd, { timeStyle: 'short', hour12: false })}
+                                </div>
+                                <div className="text-xs text-gray-700 mb-1">Users: {seg.inSeg.length}</div>
+                                {seg.inSeg.length > 0 && (
+                                  <ul className="space-y-1">
+                                    {seg.inSeg.map((a) => (
+                                      <li key={a.id} className="flex items-center justify-between">
+                                        <div className="text-xs text-gray-800">
+                                          {a.patient?.email || a.patientId} <span className="ml-1 uppercase bg-blue-50 border border-blue-200 px-1 rounded">{a.status}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Confirm</button>
+                                          <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">Complete</button>
+                                          <button onClick={() => cancelAppointment(a.id)} className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">Cancel</button>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
           <div className="p-6">
             {appointments.length === 0 ? (
@@ -669,7 +839,7 @@ export default function SlotAdminPanelPage() {
                   <li key={a.id} className="py-3 flex items-center justify-between">
                     <div>
                       <div className="font-mono text-sm text-gray-700">ID: {a.id}</div>
-                      <div className="text-gray-800">{new Date(a.date).toLocaleString()} — <span className="uppercase text-xs bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">{a.status}</span></div>
+                      <div className="text-gray-800">{formatIST(new Date(a.date))} — <span className="uppercase text-xs bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">{a.status}</span></div>
                       <div className="text-sm text-gray-600">{a.reason || "No reason provided"}</div>
                       <div className="text-sm text-gray-600">Patient: {a.patient?.email || a.patientId}</div>
                     </div>
@@ -696,11 +866,14 @@ export default function SlotAdminPanelPage() {
               const now = new Date();
               const items = appointments.filter((a) => {
                 if (a.status !== 'PENDING') return false;
-                const d = new Date(a.date);
+                let d: Date;
                 try {
-                  const [hh, mm] = (a.time || '00:00').split(':').map((x: string) => parseInt(x));
-                  d.setHours(hh || 0, mm || 0, 0, 0);
-                } catch {}
+                  const dateStr = a.date.includes('T') ? a.date.split('T')[0] : a.date;
+                  const timeStr = a.time || '00:00';
+                  d = istDateTimeFromDateAndTime(dateStr, timeStr);
+                } catch {
+                  d = new Date(a.date);
+                }
                 return d.getTime() < now.getTime();
               });
               if (items.length === 0) {
@@ -725,7 +898,7 @@ export default function SlotAdminPanelPage() {
                         <td className="px-4 py-2 text-sm text-gray-900">#{a.id}</td>
                         <td className="px-4 py-2 text-sm text-gray-700">{a.doctor?.email || a.doctorId}</td>
                         <td className="px-4 py-2 text-sm text-gray-700">{a.patient?.email || a.patientId}</td>
-                        <td className="px-4 py-2 text-sm text-gray-500">{new Date(a.date).toLocaleDateString()} {a.time}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500">{formatIST(istDateTimeFromDateAndTime(a.date.includes('T') ? a.date.split('T')[0] : a.date, a.time || '00:00'))}</td>
                         <td className="px-4 py-2">
                           <input
                             type="date"
@@ -894,7 +1067,7 @@ export default function SlotAdminPanelPage() {
                     <li key={t.id} className="py-3 flex items-center justify-between">
                       <div>
                         <div className="font-mono text-sm text-gray-700">ID: {t.id}</div>
-                        <div className="text-gray-800">{new Date(t.start).toLocaleString()} → {new Date(t.end).toLocaleString()}</div>
+                        <div className="text-gray-800">{formatIST(new Date(t.start))} → {formatIST(new Date(t.end))}</div>
                         <div className="text-sm text-gray-600">{t.reason || "No reason provided"}</div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -943,14 +1116,14 @@ export default function SlotAdminPanelPage() {
             ) : (
               <ul className="divide-y">
                 {slots.map((slot) => {
-                  const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                  const slotStart = istDateTimeFromDateAndTime(slot.date, String(slot.time).slice(0,5));
                   const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
                   const inSlot = appointments.filter((a) => {
                     const t = new Date(a.date).getTime();
                     return t >= slotStart.getTime() && t <= slotEnd.getTime();
                   });
                   // Availability check based on configured working hours
-                  const dayIdx = slotStart.getDay();
+                  const dayIdx = getISTDayIndex(slotStart);
                   const wh = hoursInputs[dayIdx];
                   const hasTiming = wh && wh.start && wh.end;
                   const within = (() => {
@@ -959,7 +1132,8 @@ export default function SlotAdminPanelPage() {
                       const [hh, mm] = t.split(':').map(Number);
                       return hh * 60 + mm;
                     };
-                    const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+                    const { hour: istH, minute: istM } = getISTHoursMinutes(slotStart);
+                    const startMin = istH * 60 + istM;
                     const endMin = startMin + 60;
                     const whStart = toMin(wh.start);
                     const whEnd = toMin(wh.end);
@@ -970,7 +1144,7 @@ export default function SlotAdminPanelPage() {
                       <div className="flex-1">
                         <div className="font-mono text-sm text-gray-700">Slot #{slot.id}</div>
                         <div className="text-gray-800">
-                          {slotStart.toLocaleString()} → {slotEnd.toLocaleString()}
+                          {formatIST(slotStart)} → {formatIST(slotEnd)}
                         </div>
                         <div className="text-sm text-gray-600 mb-2">
                           {slot.doctorProfileId ? `DoctorProfile: ${slot.doctorProfileId}` : ''}
@@ -980,28 +1154,51 @@ export default function SlotAdminPanelPage() {
                         {hasTiming && !within && (
                           <div className="mb-2 inline-block px-2 py-0.5 text-xs rounded bg-red-100 text-red-700">Not available</div>
                         )}
-                        {inSlot.length > 0 ? (
-                          <div>
-                            <div className="text-sm font-medium text-gray-700 mb-1">Bookings in this slot</div>
-                            <ul className="space-y-2">
-                              {inSlot.map((a) => (
-                                <li key={a.id} className="border border-gray-200 rounded px-3 py-2 flex items-center justify-between">
-                                  <div>
-                                    <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleTimeString()}</div>
-                                    <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Confirm</button>
-                                    <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded">Complete</button>
-                                    <button onClick={() => cancelAppointment(a.id)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded">Cancel</button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : (
-                          <div className="text-sm text-gray-500">No bookings in this slot.</div>
-                        )}
+                        {(() => {
+                          const period = Number(slotPeriodMinutes) || 15;
+                          const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                          const segments = Array.from({ length: count }, (_, idx) => {
+                            const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
+                            const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                            const inSeg = inSlot.filter((a) => {
+                              const t = new Date(a.date).getTime();
+                              return t >= segStart.getTime() && t < segEnd.getTime();
+                            });
+                            return { idx, segStart, segEnd, inSeg };
+                          });
+                          return (
+                            <div>
+                              <div className="text-sm font-medium text-gray-700 mb-1">Sub-slots ({period} min): {count} per hour</div>
+                              <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {segments.map(({ idx, segStart, segEnd, inSeg }) => (
+                                  <li key={idx} className="border border-gray-200 rounded px-3 py-2">
+                                    <div className="text-xs font-medium text-gray-800">
+                                      {formatISTTime(segStart)}
+                                       {' '}→{' '}
+                                      {formatISTTime(segEnd)}
+                                    </div>
+                                    {inSeg.length === 0 ? (
+                                      <div className="text-xs text-gray-500 mt-1">Empty</div>
+                                    ) : (
+                                      <ul className="mt-1 space-y-1">
+                                        {inSeg.map((a) => (
+                                          <li key={a.id} className="flex items-center justify-between">
+                                            <div className="text-xs text-gray-800">Appt #{a.id} — {formatISTTime(new Date(a.date))}</div>
+                                            <div className="flex items-center gap-2">
+                                              <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Confirm</button>
+                                              <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded">Complete</button>
+                                              <button onClick={() => cancelAppointment(a.id)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded">Cancel</button>
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div>
                         <button

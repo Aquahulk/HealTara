@@ -644,7 +644,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                   )}
                   
                   <div className="text-center">
-                    <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl">
+                    <button className="btn-brand text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl">
                       Learn More
                     </button>
                   </div>
@@ -656,7 +656,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         
         {/* Featured Services Grid */}
         {featuredServices.length > 0 && (
-          <section className="bg-gradient-to-br from-gray-50 to-blue-50 py-16 rounded-3xl">
+          <section className="gradient-brand-soft py-16 rounded-3xl">
             <div className="text-center mb-12">
               <h2 className="text-4xl font-bold text-gray-900 mb-4">Featured Services</h2>
               <p className="text-xl text-gray-600">Comprehensive medical care across all specialties</p>
@@ -976,7 +976,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                       href={general.googleMapsLink} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="inline-block bg-green-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-green-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      className="inline-block btn-brand text-white px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-200 shadow-lg hover:shadow-xl"
                     >
                       📍 Get Directions
                     </a>
@@ -1038,7 +1038,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                 {contacts.appointment && (
                   <a 
                     href={`tel:${contacts.appointment}`}
-                    className="bg-white text-blue-700 font-bold py-6 px-12 rounded-2xl text-xl hover:bg-blue-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className="bg-white text-brand-primary font-bold py-6 px-12 rounded-2xl text-xl hover:bg-gray-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                   >
                     📞 Book Appointment
                   </a>
@@ -1049,7 +1049,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                     href={general.googleMapsLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-transparent border-2 border-white text-white font-bold py-6 px-12 rounded-2xl text-xl hover:bg-white hover:text-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className="bg-transparent border-2 border-white text-white font-bold py-6 px-12 rounded-2xl text-xl hover:bg-white hover:text-brand-primary transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                   >
                     📍 Visit Us
                   </a>
@@ -1057,7 +1057,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                 
                 <a 
                   href="/doctors"
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-6 px-12 rounded-2xl text-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="btn-brand text-white font-bold py-6 px-12 rounded-2xl text-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   👩‍⚕️ Find Doctors
                 </a>
@@ -1138,12 +1138,12 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                     </a>
                   )}
                   {social.linkedin && (
-                    <a href={social.linkedin} target="_blank" rel="noopener noreferrer" className="text-2xl hover:text-blue-400 transition-colors">
+                      <a href={social.linkedin} target="_blank" rel="noopener noreferrer" className="text-2xl hover-text-brand-accent transition-colors">
                       💼
                     </a>
                   )}
                   {social.twitter && (
-                    <a href={social.twitter} target="_blank" rel="noopener noreferrer" className="text-2xl hover:text-blue-400 transition-colors">
+                    <a href={social.twitter} target="_blank" rel="noopener noreferrer" className="text-2xl hover-text-brand-accent transition-colors">
                       🐦
                     </a>
                   )}
@@ -1261,7 +1261,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
           <div className="border-t border-gray-800 mt-12 pt-8">
             <div className="flex flex-col md:flex-row justify-between items-center">
               <p className="text-gray-400 text-sm mb-4 md:mb-0">
-                &copy; 2024 {name}. All rights reserved. | Powered by DocProc
+                &copy; 2024 {name}. All rights reserved. | Powered by Healtara
               </p>
               <div className="flex space-x-6 text-sm text-gray-400">
                 <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>

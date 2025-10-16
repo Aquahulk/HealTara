@@ -333,15 +333,15 @@ export default function HospitalAdminProfilePage() {
     }
   };
 
-  // Removed hospital-wide Slot Admin save handler; only doctor-scoped Slot Admins remain
+  // Removed hospital-wide Doctors Management save handler; only doctor-scoped management remain
 
   const saveDoctorSlotAdmin = async (doctorId?: number) => {
     if (!hospitalId) {
-      setMessage("Create your hospital first, then add Slot Admin.");
+      setMessage("Create your hospital first, then add Doctors Management.");
       return;
     }
     if (!doctorId || !Number.isInteger(doctorId)) {
-      setMessage("Link a real doctor first (Make Bookable) to assign a Slot Admin.");
+      setMessage("Link a real doctor first (Make Bookable) to assign Doctors Management.");
       return;
     }
     const current = doctorAdmins[doctorId] || { email: "", password: "", saving: false, loading: false };
@@ -380,6 +380,30 @@ export default function HospitalAdminProfilePage() {
 
   // Frontend guard: surface clearer hint if not HOSPITAL_ADMIN
   const isHospitalAdmin = user.role === "HOSPITAL_ADMIN";
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
+
+  const handleUploadLogo = async () => {
+    if (!hospitalId) {
+      setMessage("Create your hospital first before uploading a logo.");
+      return;
+    }
+    if (!logoFile) {
+      setMessage("Please select a logo file to upload.");
+      return;
+    }
+    try {
+      setUploadingLogo(true);
+      setMessage("");
+      const res = await apiClient.uploadHospitalLogo(hospitalId, logoFile);
+      setProfile((p) => ({ ...p, general: { ...(p.general || {}), logoUrl: res.url } }));
+      setMessage("Logo uploaded successfully.");
+    } catch (e: any) {
+      setMessage(e?.message || "Failed to upload logo.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8 min-h-screen bg-gray-50 text-gray-900">
@@ -420,7 +444,25 @@ export default function HospitalAdminProfilePage() {
             <input className="border rounded p-2" placeholder="Full Legal Name" value={profile.general?.legalName || ""} onChange={(e) => updateGeneralField("legalName", e.target.value)} />
             <input className="border rounded p-2" placeholder="Brand Name" value={profile.general?.brandName || ""} onChange={(e) => updateGeneralField("brandName", e.target.value)} />
             <input className="border rounded p-2" placeholder="Tagline" value={profile.general?.tagline || ""} onChange={(e) => updateGeneralField("tagline", e.target.value)} />
-            <input className="border rounded p-2" placeholder="Logo URL" value={profile.general?.logoUrl || ""} onChange={(e) => updateGeneralField("logoUrl", e.target.value)} />
+            <div className="space-y-2">
+              <input className="border rounded p-2 w-full" placeholder="Logo URL" value={profile.general?.logoUrl || ""} onChange={(e) => updateGeneralField("logoUrl", e.target.value)} />
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                  className="border rounded p-2 w-full"
+                />
+                <button
+                  type="button"
+                  onClick={handleUploadLogo}
+                  disabled={!logoFile || uploadingLogo || !hospitalId}
+                  className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                >
+                  {uploadingLogo ? "Uploading…" : "Upload Logo"}
+                </button>
+              </div>
+            </div>
             <input className="border rounded p-2 md:col-span-2" placeholder="Complete Address" value={profile.general?.address || ""} onChange={(e) => updateGeneralField("address", e.target.value)} />
             <input className="border rounded p-2" placeholder="PIN code" value={profile.general?.pincode || ""} onChange={(e) => updateGeneralField("pincode", e.target.value)} />
             <input className="border rounded p-2" placeholder="Google Maps Link" value={profile.general?.googleMapsLink || ""} onChange={(e) => updateGeneralField("googleMapsLink", e.target.value)} />

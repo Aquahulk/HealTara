@@ -50,8 +50,8 @@ export default function SlotAdminLoginPage() {
       <div className="bg-white shadow-lg rounded-lg w-full max-w-md p-6">
         <div className="text-center mb-6">
           <div className="text-5xl mb-2">🕒</div>
-          <h1 className="text-2xl font-bold text-gray-800">Slot Admin Login</h1>
-          <p className="text-gray-600 text-sm mt-1">Manage doctor/hospital slots with your staff account</p>
+          <h1 className="text-2xl font-bold text-gray-800">Doctors Management Login</h1>
+          <p className="text-gray-600 text-sm mt-1">Manage doctor/hospital scheduling with your staff account</p>
         </div>
         {message && (
           <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>

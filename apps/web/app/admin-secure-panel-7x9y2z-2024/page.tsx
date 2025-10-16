@@ -182,6 +182,11 @@ export default function SecureAdminPanel() {
   const [accessDenied, setAccessDenied] = useState(false);  // Access denied status
   const [homepageContent, setHomepageContent] = useState<HomepageContent | null>(null); // Homepage content
   const [showHomepageModal, setShowHomepageModal] = useState(false); // Homepage content modal
+  // Inline edit states for media fields
+  const [hospitalLogos, setHospitalLogos] = useState<Record<number, string>>({});
+  const [doctorPhotos, setDoctorPhotos] = useState<Record<number, string>>({});
+  const [hospitalLogoFiles, setHospitalLogoFiles] = useState<Record<number, File | null>>({});
+  const [doctorPhotoFiles, setDoctorPhotoFiles] = useState<Record<number, File | null>>({});
   const [editingSection, setEditingSection] = useState<string | null>(null); // Currently editing section
   const [adminDoctors, setAdminDoctors] = useState<any[]>([]); // Admin view of doctors with status
   const [adminHospitals, setAdminHospitals] = useState<any[]>([]); // Admin view of hospitals with status
@@ -258,13 +263,29 @@ export default function SecureAdminPanel() {
           setAppointments(data || []);
         }),
         loadWithCache('admin_doctors', () => apiClient.adminListDoctors({ page: 1, limit: 10 })).then(data => {
-          setAdminDoctors((data as any).items || []);
+          const items = (data as any).items || [];
+          setAdminDoctors(items);
+          // Initialize doctor photo inline-edit mapping
+          const photoMap: Record<number, string> = {};
+          items.forEach((d: any) => {
+            const existing = d.doctorProfile?.profileImage || d.doctorProfile?.photoUrl || '';
+            if (d.id != null) photoMap[d.id] = existing || '';
+          });
+          setDoctorPhotos(photoMap);
         }).catch((e) => {
           console.warn('Failed to load admin doctors list', e);
           setAdminDoctors([]);
         }),
         loadWithCache('admin_hospitals', () => apiClient.adminListHospitals({ page: 1, limit: 10 })).then(data => {
-          setAdminHospitals((data as any).items || []);
+          const items = (data as any).items || [];
+          setAdminHospitals(items);
+          // Initialize hospital logo inline-edit mapping
+          const logoMap: Record<number, string> = {};
+          items.forEach((h: any) => {
+            const logoUrl = h.profile?.logoUrl || h.general?.logoUrl || '';
+            if (h.id != null) logoMap[h.id] = logoUrl || '';
+          });
+          setHospitalLogos(logoMap);
         }).catch((e) => {
           console.warn('Failed to load admin hospitals list', e);
           setAdminHospitals([]);
@@ -396,6 +417,60 @@ export default function SecureAdminPanel() {
     } catch (error) {
       console.error('Error updating hospital status:', error);
       alert('Failed to update hospital status');
+    }
+  };
+
+  // Save hospital logo URL to hospital profile.general
+  const saveHospitalLogoUrl = async (hospitalId: number) => {
+    try {
+      const logoUrl = (hospitalLogos[hospitalId] || '').trim();
+      await apiClient.adminUpdateHospitalProfile(hospitalId, { general: { logoUrl } });
+      // Optimistically update local list
+      setAdminHospitals((prev) => (prev || []).map((h: any) => (
+        h.id === hospitalId
+          ? { ...h, profile: { ...(h.profile || {}), logoUrl }, general: { ...(h.general || {}), logoUrl } }
+          : h
+      )));
+      alert('Hospital logo updated successfully');
+    } catch (error) {
+      console.error('Error updating hospital logo:', error);
+      alert('Failed to update hospital logo');
+    }
+  };
+
+  // Upload hospital logo file (admin-only)
+  const uploadHospitalLogoFile = async (hospitalId: number) => {
+    try {
+      const file = hospitalLogoFiles[hospitalId];
+      if (!file) {
+        alert('Please select a logo image first');
+        return;
+      }
+      const res = await apiClient.adminUploadHospitalLogo(hospitalId, file);
+      const logoUrl = (res as any)?.url || '';
+      setHospitalLogos((prev) => ({ ...prev, [hospitalId]: logoUrl }));
+      alert('Logo uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading hospital logo:', error);
+      alert('Failed to upload hospital logo');
+    }
+  };
+
+  // Upload doctor photo file (admin-only)
+  const uploadDoctorPhotoFile = async (doctorId: number) => {
+    try {
+      const file = doctorPhotoFiles[doctorId];
+      if (!file) {
+        alert('Please select a doctor photo first');
+        return;
+      }
+      const res = await apiClient.adminUploadDoctorPhoto(doctorId, file);
+      const photoUrl = (res as any)?.url || '';
+      setDoctorPhotos((prev) => ({ ...prev, [doctorId]: photoUrl }));
+      alert('Doctor photo uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading doctor photo:', error);
+      alert('Failed to upload doctor photo');
     }
   };
 
@@ -717,7 +792,32 @@ export default function SecureAdminPanel() {
                             onClick={() => setDoctorServiceStatus(doctor.id, 'REVOKE')}
                             className="text-sm text-red-600 hover:text-red-900"
                           >
-                            Revoke
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                      {/* Doctor Photo - upload and URL */}
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label className="text-xs text-gray-500 md:col-span-1">Photo URL</label>
+                        <input
+                          type="text"
+                          value={doctorPhotos[doctor.id] ?? ''}
+                          onChange={(e) => setDoctorPhotos((prev) => ({ ...prev, [doctor.id]: e.target.value }))}
+                          placeholder="https://..."
+                          className="md:col-span-2 w-full border border-gray-300 rounded px-3 py-1 text-sm"
+                        />
+                        <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setDoctorPhotoFiles((prev) => ({ ...prev, [doctor.id]: e.target.files?.[0] || null }))}
+                            className="md:col-span-2 w-full border border-gray-300 rounded px-3 py-1 text-sm"
+                          />
+                          <button
+                            onClick={() => uploadDoctorPhotoFile(doctor.id)}
+                            className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                          >
+                            Upload Photo
                           </button>
                         </div>
                       </div>
@@ -771,7 +871,38 @@ export default function SecureAdminPanel() {
                             onClick={() => setHospitalServiceStatus(hospital.id, 'REVOKE')}
                             className="text-sm text-red-600 hover:text-red-900"
                           >
-                            Revoke
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                      {/* Hospital Logo URL inline edit */}
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label className="text-xs text-gray-500 md:col-span-1">Logo URL</label>
+                        <input
+                          type="text"
+                          value={hospitalLogos[hospital.id] ?? ''}
+                          onChange={(e) => setHospitalLogos((prev) => ({ ...prev, [hospital.id]: e.target.value }))}
+                          placeholder="https://..."
+                          className="md:col-span-2 w-full border border-gray-300 rounded px-3 py-1 text-sm"
+                        />
+                        <div className="md:col-span-3">
+                          <button
+                            onClick={() => saveHospitalLogoUrl(hospital.id)}
+                            className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                          >
+                            Save Logo
+                          </button>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setHospitalLogoFiles((prev) => ({ ...prev, [hospital.id]: e.target.files?.[0] || null }))}
+                            className="text-xs ml-2"
+                          />
+                          <button
+                            onClick={() => uploadHospitalLogoFile(hospital.id)}
+                            className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 ml-2"
+                          >
+                            Upload Logo
                           </button>
                         </div>
                       </div>

@@ -255,28 +255,28 @@ export default function HomePage() {
       
       <main className="pt-10">
         {/* ============================================================================
-            🌟 HERO SECTION - Main landing area with search
+            🌟 HERO SECTION - Main landing area with search (BLUE GRADIENT)
             ============================================================================ */}
-        <section className="relative py-10 px-4 overflow-hidden">
-          {/* Background Pattern */}
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 via-blue-50 to-purple-100" />
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23059669%22%20fill-opacity%3D%220.05%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-50" />
+        <section className="relative py-16 px-4 overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500">
+          {/* Enhanced Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-blue-500/95 to-cyan-500/90" />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.1%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
           
           {/* Floating Medical Icons */}
           <motion.div
             animate={{ y: [0, -20, 0], rotate: [0, 5, 0] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-20 left-20 text-4xl opacity-20"
+            className="absolute top-20 left-20 text-4xl opacity-30"
           >
-            <Stethoscope className="text-emerald-500" />
+            <Stethoscope className="text-white" />
           </motion.div>
           
           <motion.div
             animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="absolute top-32 right-32 text-3xl opacity-15"
+            className="absolute top-32 right-32 text-3xl opacity-25"
           >
-            <Pill className="text-blue-500" />
+            <Pill className="text-white" />
           </motion.div>
 
           <div className="relative z-10 max-w-6xl mx-auto text-center">
@@ -285,14 +285,14 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <h1 className="text-3xl md:text-5xl font-black text-gray-900 mb-4 leading-tight">
+              <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight drop-shadow-lg">
                 Find Trusted Doctors
-                <span className="block bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
+                <span className="block bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
                   Near You
                 </span>
               </h1>
               
-              <p className="text-base md:text-lg text-gray-600 mb-6 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-md">
                 Book in seconds. Get the best healthcare with our verified network of doctors and hospitals.
               </p>
             </motion.div>
@@ -302,9 +302,9 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="max-w-4xl mx-auto mb-6"
+              className="max-w-4xl mx-auto mb-8"
             >
-              <div className="bg-white/80 backdrop-blur-sm border border-emerald-200 rounded-3xl p-6 shadow-2xl">
+              <div className="bg-white/95 backdrop-blur-sm border border-white/20 rounded-3xl p-8 shadow-2xl">
                 <div className="space-y-6">
                   {/* Main Search */}
                   <div className="relative">
@@ -366,7 +366,7 @@ export default function HomePage() {
                     </label>
                   </div>
 
-                  <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold py-3 px-6 rounded-2xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-base">
+                  <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-4 px-8 rounded-2xl hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-lg">
                     Find a Doctor Now
                   </button>
                 </div>
@@ -383,24 +383,27 @@ export default function HomePage() {
               <motion.div
                 animate={{ y: [0, 10, 0] }}
                 transition={{ duration: 2, repeat: Infinity }}
-                className="text-gray-400"
+                className="text-white/80"
               >
-                <ArrowDown className="w-6 h-6" />
+                <ArrowDown className="w-8 h-8" />
               </motion.div>
             </motion.div>
           </div>
         </section>
 
         {/* ============================================================================
-            🎯 QUICK CATEGORIES SECTION - Easy navigation tiles
+            🎯 QUICK ACCESS SECTION - Easy navigation tiles (ENHANCED GREEN GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-teal-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 Quick Access
               </h2>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-pink-200 mx-auto mb-4"></div>
+              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
                 Choose from our comprehensive healthcare categories
               </p>
             </div>
@@ -416,7 +419,7 @@ export default function HomePage() {
                   className="group cursor-pointer"
                 >
                   <a href={category.link} className="block">
-                    <div className="bg-white rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-emerald-200">
+                    <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30 hover:border-white/50">
                       <div className={`w-14 h-14 bg-gradient-to-r ${category.color} rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300`}>
                         <category.icon className="w-8 h-8 text-white" />
                       </div>
@@ -431,9 +434,11 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            🔀 TOGGLE SECTION - Switch between Doctors and Hospitals grids
+            🔀 TOGGLE SECTION - Switch between Doctors and Hospitals grids (ENHANCED BLUE GRADIENT)
             ============================================================================ */}
-        <section className="py-6 px-4 bg-gradient-to-br from-teal-50 to-sky-50">
+        <section className="py-8 px-4" style={{
+          background:  'linear-gradient(90deg, rgba(90, 89, 181, 1) 0%, rgb(99, 99, 224) 27%, rgba(0, 212, 255, 1) 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center gap-4">
               <button
@@ -461,17 +466,19 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            👨‍⚕️ FEATURED DOCTORS SECTION - Top-rated doctors
+            👨‍⚕️ FEATURED DOCTORS SECTION - Top-rated doctors (CUSTOM PURPLE-BLUE GRADIENT)
             ============================================================================ */}
         {activeGrid === 'doctors' && (
-        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(90deg, rgba(90, 89, 181, 1) 0%, rgba(48, 48, 150, 1) 27%, rgba(0, 212, 255, 1) 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 Featured Doctors
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 mx-auto mb-4"></div>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-cyan-200 mx-auto mb-4"></div>
+              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
                 Top-rated doctors near you, verified by our AI system for excellence in care
               </p>
             </div>
@@ -486,7 +493,7 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.01 }}
                 >
-                  <div className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-gray-100 w-full">
+                  <div className="group bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-white/30 w-full">
                     <div className="flex items-center justify-between">
                       {/* Doctor Info */}
                       <div className="flex items-center flex-1">
@@ -554,17 +561,19 @@ export default function HomePage() {
         )}
 
         {/* ============================================================================
-            🏥 HOSPITALS SECTION - Partner hospitals
+            🏥 HOSPITALS SECTION - Partner hospitals (ENHANCED BLUE-PURPLE GRADIENT)
             ============================================================================ */}
         {activeGrid === 'hospitals' && (
-        <section className="py-10 px-4 bg-gradient-to-br from-blue-50 to-emerald-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 Partner Hospitals
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mb-4"></div>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-purple-200 mx-auto mb-4"></div>
+              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
                 Discover our partner hospitals offering world-class healthcare services and specialized treatments
               </p>
             </div>
@@ -583,7 +592,7 @@ export default function HomePage() {
                     transition={{ delay: index * 0.1 }}
                     whileHover={{ scale: 1.01 }}
                   >
-                    <div className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-gray-100 w-full">
+                    <div className="group bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-white/30 w-full">
                       <div className="flex items-center justify-between">
                         {/* Hospital Info */}
                         <div className="flex items-center flex-1">
@@ -644,43 +653,44 @@ export default function HomePage() {
         )}
 
         {/* ============================================================================
-            🛡️ TRUST LAYER SECTION - Social proof and verification
+            🛡️ TRUSTED HEALTHCARE PROVIDERS SECTION - Social proof and verification (GREEN GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
+        <section className="py-16 px-4 bg-gradient-to-br from-green-300 via-emerald-300 to-teal-300">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
-                Trusted Healthcare Platform
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
+                Trusted Healthcare Providers
               </h2>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-green-100 mx-auto mb-4"></div>
+              <p className="text-xl text-green-100 max-w-2xl mx-auto drop-shadow-md">
                 Join thousands of verified healthcare providers and satisfied patients
               </p>
             </div>
 
             {/* Trust Indicators */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              <div className="text-center">
-                <div className="w-14 h-14 gradient-brand-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Shield className="w-8 h-8 text-white" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+              <div className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30">
+                <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Verified Doctors Only</h3>
-                <p className="text-gray-600">All doctors are verified by license ID</p>
+                <h3 className="text-xl font-bold text-white mb-2">Verified Doctors Only</h3>
+                <p className="text-green-100">All doctors are verified by license ID</p>
               </div>
               
-              <div className="text-center">
-                <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Star className="w-8 h-8 text-white" />
+              <div className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30">
+                <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Star className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Real Reviews</h3>
-                <p className="text-gray-600">10,000+ verified patient reviews</p>
+                <h3 className="text-xl font-bold text-white mb-2">Real Reviews</h3>
+                <p className="text-green-100">10,000+ verified patient reviews</p>
               </div>
               
-              <div className="text-center">
-                <div className="w-14 h-14 gradient-brand-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Award className="w-8 h-8 text-white" />
+              <div className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30">
+                <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Award className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Quality Assured</h3>
-                <p className="text-gray-600">Premium healthcare standards maintained</p>
+                <h3 className="text-xl font-bold text-white mb-2">Quality Assured</h3>
+                <p className="text-green-100">Premium healthcare standards maintained</p>
               </div>
             </div>
 
@@ -692,15 +702,15 @@ export default function HomePage() {
                   initial={{ opacity: 0, scale: 0.8 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
-                  className="text-center bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl p-6 border border-gray-200"
+                  className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30"
                 >
-                  <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <div className="w-14 h-14 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-3">
                     <stat.icon className="w-7 h-7 text-white" />
                   </div>
-                  <div className="text-3xl font-black gradient-brand bg-clip-text text-transparent mb-2">
+                  <div className="text-3xl font-black text-white mb-2">
                     {stat.value.toLocaleString()}+
                   </div>
-                  <div className="text-gray-600 font-medium">{stat.label}</div>
+                  <div className="text-green-100 font-medium">{stat.label}</div>
                 </motion.div>
               ))}
             </div>
@@ -708,16 +718,16 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            📋 HOW IT WORKS SECTION - 3-step process
+            📋 HOW IT WORKS SECTION - 3-step process (BLUE GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-blue-50">
+        <section className="py-16 px-4 bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 How It Works
               </h2>
-              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-blue-100 mx-auto mb-4"></div>
+              <p className="text-xl text-blue-100 max-w-2xl mx-auto drop-shadow-md">
                 Simple 3-step process to get the healthcare you need
               </p>
             </div>
@@ -731,19 +741,19 @@ export default function HomePage() {
                   transition={{ delay: index * 0.2 }}
                   className="text-center relative"
                 >
-                  <div className="bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
-                    <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <step.icon className="w-8 h-8 text-white" />
+                  <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30">
+                    <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <step.icon className="w-10 h-10 text-white" />
                     </div>
-                    <div className="text-4xl font-black text-brand-primary mb-3">{step.step}</div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-4">{step.title}</h3>
-                    <p className="text-gray-600 text-base">{step.description}</p>
+                    <div className="text-5xl font-black text-white mb-4">{step.step}</div>
+                    <h3 className="text-2xl font-bold text-white mb-4">{step.title}</h3>
+                    <p className="text-blue-100 text-base">{step.description}</p>
                   </div>
                   
                   {/* Connector Arrow */}
                   {index < howItWorks.length - 1 && (
                     <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2">
-                      <ChevronRight className="w-8 h-8 text-brand-primary" />
+                      <ChevronRight className="w-8 h-8 text-white" />
                     </div>
                   )}
                 </motion.div>
@@ -753,16 +763,18 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            ✅ WHY CHOOSE US SECTION - USP highlights
+            ✅ WHY CHOOSE US SECTION - USP highlights (ENHANCED TEAL GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-emerald-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 Why Choose Us
               </h2>
-              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-teal-200 mx-auto mb-4"></div>
+              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
                 Experience the future of healthcare with our revolutionary platform
               </p>
             </div>
@@ -776,7 +788,7 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.05 }}
                 >
-                  <div className="bg-white rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 hover:border-emerald-200">
+                  <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30 hover:border-white/50">
                     <div className="w-14 h-14 gradient-brand-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
                       <feature.icon className="w-8 h-8 text-white" />
                     </div>
@@ -790,16 +802,18 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            💬 REVIEWS & TESTIMONIALS SECTION - Social proof
+            💬 REVIEWS & TESTIMONIALS SECTION - Social proof (ENHANCED CORAL GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-blue-50 to-emerald-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 What Our Users Say
               </h2>
-              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-orange-200 mx-auto mb-4"></div>
+              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
                 Real stories from real patients and healthcare providers
               </p>
             </div>
@@ -811,7 +825,7 @@ export default function HomePage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -50 }}
                 transition={{ duration: 0.5 }}
-                className="bg-white rounded-3xl p-8 shadow-2xl border border-gray-100 text-center"
+                className="bg-white/95 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-white/30 text-center"
               >
                 <div className="text-4xl mb-4">{testimonials[currentTestimonial].avatar}</div>
                 <div className="flex justify-center mb-4">
@@ -845,48 +859,50 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            📍 LOCATION SECTION - Map and location-based search
+            📍 FIND DOCTORS IN YOUR AREA SECTION - Map and location-based search (CUSTOM GREEN GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-blue-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(to bottom, #99f2c8, #1f4037)'
+        }}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 Find Doctors in Your Area
               </h2>
-              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-green-100 mx-auto mb-4"></div>
+              <p className="text-xl text-green-100 max-w-2xl mx-auto drop-shadow-md">
                 Interactive map view showing available doctors in your city
               </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
               <div>
-                <div className="gradient-brand-soft rounded-3xl p-6 h-72 flex items-center justify-center">
+                <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 h-80 flex items-center justify-center border border-white/30">
                   <div className="text-center">
-                    <MapIcon className="w-16 h-16 text-brand-primary mx-auto mb-3" />
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Interactive Map</h3>
-                    <p className="text-gray-600">Coming Soon - View doctors on map</p>
+                    <MapIcon className="w-20 h-20 text-white mx-auto mb-4" />
+                    <h3 className="text-2xl font-bold text-white mb-3">Interactive Map</h3>
+                    <p className="text-green-100 text-lg">Coming Soon - View doctors on map</p>
                   </div>
                 </div>
               </div>
               
               <div className="space-y-6">
-                <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">Auto-detect Location</h3>
-                  <button className="w-full btn-brand text-white font-bold py-3 px-5 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg">
+                <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-6 shadow-lg border border-white/30">
+                  <h3 className="text-xl font-bold text-white mb-4">Auto-detect Location</h3>
+                  <button className="w-full bg-white/30 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg border border-white/30">
                     Find Nearby Doctors
                   </button>
                 </div>
                 
-                <div className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">Search by City</h3>
+                <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-6 shadow-lg border border-white/30">
+                  <h3 className="text-xl font-bold text-white mb-4">Search by City</h3>
                   <div className="space-y-4">
                     <input
                       type="text"
                       placeholder="Enter your city name"
-                      className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus-brand focus-border-brand border-brand transition-all duration-300"
+                      className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-green-100 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-300"
                     />
-                    <button className="w-full btn-brand text-white font-bold py-2 px-5 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg">
+                    <button className="w-full bg-white/30 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg border border-white/30">
                       Search City
                     </button>
                   </div>
@@ -897,16 +913,18 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            📚 HEALTH AWARENESS BLOG SECTION - SEO and trust building
+            📚 HEALTH AWARENESS BLOG SECTION - SEO and trust building (ENHANCED LAVENDER GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-emerald-50 to-blue-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
                 Health Tips from Our Doctors
               </h2>
-              <div className="w-24 h-1 gradient-brand mx-auto mb-4"></div>
-              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              <div className="w-24 h-1 bg-gradient-to-r from-white to-pink-200 mx-auto mb-4"></div>
+              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
                 Expert advice and health awareness articles
               </p>
             </div>
@@ -942,7 +960,7 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.02 }}
                 >
-                  <div className="bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
+                  <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30">
                     <div className="gradient-brand-accent text-white px-4 py-2 rounded-full text-sm font-medium inline-block mb-4">
                       {article.category}
                     </div>
@@ -965,9 +983,11 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            🎯 CALL TO ACTION BANNERS - Conversion focused
+            🎯 CALL TO ACTION BANNERS - Conversion focused (ENHANCED SUNSET GRADIENT)
             ============================================================================ */}
-        <section className="py-10 px-4 bg-gradient-to-br from-teal-50 to-emerald-50">
+        <section className="py-16 px-4" style={{
+          background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%)'
+        }}>
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* For Doctors */}
