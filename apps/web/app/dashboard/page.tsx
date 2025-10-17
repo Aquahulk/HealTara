@@ -53,6 +53,8 @@ interface DoctorProfile {
   profileImage: string;
   // Whether the doctor's microsite is enabled (approved by admin)
   micrositeEnabled?: boolean;
+  // Period length in minutes for booking slot subdivisions
+  slotPeriodMinutes?: number;
 }
 
 interface DashboardStats {
@@ -296,6 +298,16 @@ export default function DashboardPage() {
         [doctorId]: previous || (prev[doctorId] || []),
       }));
       alert(e?.message || 'Failed to update appointment status');
+    }
+  };
+
+  // Cancel appointment (doctor convenience wrapper)
+  const cancelDoctorAppointment = async (appointmentId: number) => {
+    try {
+      if (!user?.id) return;
+      await updateDoctorAppointmentStatus(user.id as number, appointmentId, 'CANCELLED');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to cancel appointment');
     }
   };
 
@@ -2061,7 +2073,12 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
     try {
       setLoading(true);
       setMessage(null);
-      const res = await apiClient.upsertHospitalSlotAdmin(email, password);
+      if (!doctors.length) {
+        setMessage('No linked doctors found for this hospital');
+        setLoading(false);
+        return;
+      }
+      const res = await apiClient.upsertHospitalSlotAdmin(email, password, doctors[0].id);
       setCurrentSlotAdminEmail(res.slotAdmin.email);
       setPassword('');
       setMessage('Slot Admin credentials updated successfully');

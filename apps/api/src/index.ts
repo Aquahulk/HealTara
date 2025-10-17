@@ -28,7 +28,7 @@ declare global {
       user?: {
         userId: number;                                    // Unique user ID from database
         email: string;                                     // User's email address
-        role: 'PATIENT' | 'DOCTOR' | 'ADMIN';             // User's role in the system
+        role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN';             // User's role in the system
       };
     }
   }
@@ -317,7 +317,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
       where: { role: 'DOCTOR' },
       include: { doctorProfile: true },
     });
-    const doctorsWithProfiles = doctors.filter(doctor => doctor.doctorProfile);
+    const doctorsWithProfiles = doctors.filter((doctor: any) => !!doctor.doctorProfile);
     res.status(200).json(doctorsWithProfiles);
   } catch (error) {
     console.error(error);
