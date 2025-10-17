@@ -703,3 +703,111 @@ app.patch('/api/appointments/:appointmentId/status', authMiddleware, async (req:
 app.listen(port, () => {
   console.log(`[server]: API Server running at http://localhost:${port}`);
 });
+
+// --- Hospital Endpoints (Public) ---
+app.get('/api/hospitals', async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(String(req.query.page ?? '1'), 10);
+    const limit = parseInt(String(req.query.limit ?? '12'), 10);
+    const skip = (page - 1) * limit;
+    const hospitals = await prisma.hospital.findMany({
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        state: true,
+        phone: true,
+      }
+    });
+    res.status(200).json(hospitals);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching hospitals.' });
+  }
+});
+
+// --- Public hospital details ---
+app.get('/api/hospitals/:hospitalId/details', async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+  try {
+    const hospital = await prisma.hospital.findUnique({
+      where: { id: hospitalId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        state: true,
+        phone: true,
+        profile: true,
+      }
+    });
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+    res.status(200).json(hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching hospital details.' });
+  }
+});
+
+// --- Public hospital profile JSON ---
+app.get('/api/hospitals/:hospitalId/profile', async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+  try {
+    const hospital = await prisma.hospital.findUnique({
+      where: { id: hospitalId },
+      select: { profile: true }
+    });
+    if (!hospital || hospital.profile == null) {
+      return res.status(404).json({ message: 'Hospital profile not found' });
+    }
+    res.status(200).json(hospital.profile);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching hospital profile.' });
+  }
+});
+
+// --- Find hospital by doctor ---
+app.get('/api/hospitals/by-doctor/:doctorId', async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  if (!Number.isFinite(doctorId)) {
+    return res.status(400).json({ message: 'Invalid doctorId' });
+  }
+  try {
+    const hd = await prisma.hospitalDoctor.findFirst({
+      where: { doctorId },
+      include: {
+        hospital: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            city: true,
+            state: true,
+            phone: true,
+          }
+        }
+      }
+    });
+    if (!hd || !hd.hospital) {
+      return res.status(404).json({ message: 'Hospital not found for the given doctor.' });
+    }
+    res.status(200).json(hd.hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while fetching hospital by doctor.' });
+  }
+});
