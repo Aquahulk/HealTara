@@ -34,7 +34,6 @@ declare global {
         email: string;                                     // User's email address
         role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN';             // User's role in the system
       };
-      file?: Express.Multer.File;
     }
   }
 }
@@ -237,8 +236,8 @@ app.get('/api/doctors/:doctorId/appointments/events', authMiddleware, (req: Requ
 
 // Multer storage configuration for file uploads
 const storage = multer.diskStorage({
-  destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, uploadsDir),
-  filename: (req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => cb(null, `${Date.now()}-${file.originalname}`)
+  destination: (req: Request, file: any, cb: any) => cb(null, uploadsDir),
+  filename: (req: Request, file: any, cb: any) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const upload = multer({ storage });
 
@@ -1331,10 +1330,11 @@ app.post('/api/admin/hospitals/:hospitalId/logo', authMiddleware, adminMiddlewar
   if (!Number.isFinite(id)) {
     return res.status(400).json({ message: 'Invalid hospitalId' });
   }
-  if (!req.file) {
+  const uploadedFile = (req as any).file;
+  if (!uploadedFile) {
     return res.status(400).json({ message: 'Logo file is required' });
   }
-  const url = `/uploads/${req.file.filename}`;
+  const url = `/uploads/${uploadedFile.filename}`;
   try {
     const hospital = await prisma.hospital.findUnique({ where: { id }, select: { profile: true } });
     const currentProfile = (hospital?.profile as any) ?? {};
@@ -1357,10 +1357,11 @@ app.post('/api/admin/doctors/:doctorId/photo', authMiddleware, adminMiddleware, 
   if (!Number.isFinite(doctorId)) {
     return res.status(400).json({ message: 'Invalid doctorId' });
   }
-  if (!req.file) {
+  const uploadedFile = (req as any).file;
+  if (!uploadedFile) {
     return res.status(400).json({ message: 'Photo file is required' });
   }
-  const url = `/uploads/${req.file.filename}`;
+  const url = `/uploads/${uploadedFile.filename}`;
   try {
     const profile = await prisma.doctorProfile.findUnique({ where: { userId: doctorId }, select: { id: true } });
     if (!profile) {
