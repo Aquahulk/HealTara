@@ -87,7 +87,7 @@ export default function Header() {
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center space-x-2 text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                 >
-                  <span>👤 {user.email}</span>
+                  <span>👤 {(user as any)?.name || user.email?.split('@')[0]}</span>
                   <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                     {user.role}
                   </span>

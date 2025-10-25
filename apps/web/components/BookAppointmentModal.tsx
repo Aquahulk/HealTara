@@ -63,34 +63,34 @@ export default function BookAppointmentModal({
 
     if (!isOpen) return null;
 
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault();
-		setError(null);
-		setSuccess(null);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setSuccess(null);
         if (!effectiveDoctorId) {
             setError("Doctor not specified for booking.");
             return;
         }
-		
-		// Debug information
-		console.log('Booking attempt:', {
-			patientLoggedIn: effectivePatientLoggedIn,
-			patientRole: effectivePatientRole,
-			doctorId: effectiveDoctorId,
-			date,
-			reason
-		});
-
-		if (!effectivePatientLoggedIn) {
-			setError("Please login to book an appointment.");
-			return;
-		}
-
-		if (effectivePatientRole !== "PATIENT") {
-			setError(`Only patients can book appointments. You are logged in as: ${effectivePatientRole || 'Unknown role'}`);
-			return;
-		}
-
+    
+        // Debug information
+        console.log('Booking attempt:', {
+            patientLoggedIn: effectivePatientLoggedIn,
+            patientRole: effectivePatientRole,
+            doctorId: effectiveDoctorId,
+            date,
+            reason
+        });
+    
+        if (!effectivePatientLoggedIn) {
+            setError("Please login to book an appointment.");
+            return;
+        }
+    
+        if (effectivePatientRole !== "PATIENT") {
+            setError(`Only patients can book appointments. You are logged in as: ${effectivePatientRole || 'Unknown role'}`);
+            return;
+        }
+    
         // Prevent booking in the past
         const selectedDate = new Date(date);
         if (isNaN(selectedDate.getTime())) {
@@ -101,55 +101,107 @@ export default function BookAppointmentModal({
             setError("Cannot book a past time slot. Please choose a future time.");
             return;
         }
-
+    
+        setSubmitting(true);
         try {
-            setSubmitting(true);
             // Extract date and time from inputs to match backend expectations
             // date: YYYY-MM-DD, time: HH:mm
             const [dateOnly, timeHM] = date.includes('T') ? date.split('T') : [date, undefined];
-            const payload = { 
-                doctorId: effectiveDoctorId, 
-                date: dateOnly, 
+            const payload = {
+                doctorId: effectiveDoctorId,
+                date: dateOnly,
                 time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
-                reason: reason || undefined 
+                reason: reason || undefined
             };
-
-            if (onSubmit) {
-                await onSubmit(payload);
-                // We may not have the appointment ID here; still broadcast minimal payload
+    
+            const bc = bcRef.current;
+            const bookingPromise = onSubmit ? onSubmit(payload) : apiClient.bookAppointment(payload);
+            const timeoutMs = 2000; // fast confirm within 2s
+    
+            const outcome: any = await Promise.race([
+                bookingPromise.then((res: any) => ({ kind: 'ok', res })).catch((err: any) => ({ kind: 'err', err })),
+                new Promise((resolve) => setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs)),
+            ]);
+    
+            if (outcome.kind === 'ok') {
                 try {
-                    bcRef.current?.postMessage({
+                    bc?.postMessage({
                         type: 'appointment-booked',
+                        id: outcome?.res?.appointmentId,
                         payload: {
                             doctorId: effectiveDoctorId,
+                            doctorName: effectiveDoctorName,
                             date: dateOnly,
                             time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
                             reason: reason || undefined,
                         },
                     });
                 } catch {}
+                setSuccess("Appointment booked successfully");
+                setDate("");
+                setReason("");
+                setTimeout(() => {
+                    setSuccess(null);
+                    onClose();
+                }, 700);
+            } else if (outcome.kind === 'timeout') {
+                // Optimistic quick close; keep booking in background
+                try {
+                    bc?.postMessage({
+                        type: 'appointment-pending',
+                        payload: {
+                            doctorId: effectiveDoctorId,
+                            doctorName: effectiveDoctorName,
+                            date: dateOnly,
+                            time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                            reason: reason || undefined,
+                        },
+                    });
+                } catch {}
+                setSuccess("Request sent — confirming...");
+                setDate("");
+                setReason("");
+                setTimeout(() => {
+                    setSuccess(null);
+                    onClose();
+                }, 600);
+                // Continue background booking: broadcast result when available
+                bookingPromise
+                    .then((res: any) => {
+                        try {
+                            bc?.postMessage({
+                                type: 'appointment-booked',
+                                id: res?.appointmentId,
+                                payload: {
+                                    doctorId: effectiveDoctorId,
+                                    date: dateOnly,
+                                    time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                                    reason: reason || undefined,
+                                },
+                            });
+                        } catch {}
+                    })
+                    .catch((err: any) => {
+                        try {
+                            bc?.postMessage({
+                                type: 'appointment-failed',
+                                error: err?.message || 'Booking failed',
+                                payload: {
+                                    doctorId: effectiveDoctorId,
+                                    date: dateOnly,
+                                    time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                                    reason: reason || undefined,
+                                },
+                            });
+                        } catch {}
+                    });
             } else {
-                const result = await apiClient.bookAppointment(payload);
-                try {
-                    bcRef.current?.postMessage({
-                        type: 'appointment-booked',
-                        id: result?.appointmentId,
-                        payload: {
-                            doctorId: effectiveDoctorId,
-                            date: dateOnly,
-                            time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
-                            reason: reason || undefined,
-                        },
-                    });
-                } catch {}
+                const raw = outcome?.err?.message || "Failed to book appointment";
+                const friendly = raw === 'You do not have permission to perform this action.'
+                    ? 'This doctor’s scheduling is managed by hospital staff. Please contact the hospital or choose a different doctor.'
+                    : raw;
+                setError(friendly);
             }
-            setSuccess("Appointment booked successfully");
-            setDate("");
-            setReason("");
-            setTimeout(() => {
-                setSuccess(null);
-                onClose();
-            }, 900);
         } catch (err: any) {
             const raw = err?.message || "Failed to book appointment";
             const friendly = raw === 'You do not have permission to perform this action.'
@@ -159,7 +211,7 @@ export default function BookAppointmentModal({
         } finally {
             setSubmitting(false);
         }
-	};
+    };
 
     // Optimized time slot loading with aggressive caching and parallel requests
     useEffect(() => {
@@ -211,6 +263,20 @@ export default function BookAppointmentModal({
 
             setLoadingAvail(true);
             const mySeq = ++fetchSeqRef.current;
+
+            // Instant fallback: show a generic hour grid so users can pick quickly
+            if (!hourAvailability) {
+                const mkLabel = (h: number) => ({
+                    hour: String(h).padStart(2, '0'),
+                    capacity: -1,
+                    bookedCount: 0,
+                    isFull: false,
+                    labelFrom: `${String(h).padStart(2, '0')}:00`,
+                    labelTo: `${String(h + 1).padStart(2, '0')}:00`,
+                });
+                const fallbackHours = Array.from({ length: 8 }, (_, i) => mkLabel(10 + i)); // 10:00–18:00
+                setHourAvailability({ periodMinutes: 60, hours: fallbackHours });
+            }
             
             // Retry mechanism for failed requests
             const fetchWithRetry = async (retries = 2) => {
@@ -222,7 +288,7 @@ export default function BookAppointmentModal({
                                 date: dateOnly 
                             }),
                             new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('Request timeout')), 10000) // 10 seconds timeout
+                                setTimeout(() => reject(new Error('Request timeout')), 3000) // 3 seconds timeout
                             )
                         ]);
                         return combinedData;
@@ -276,7 +342,21 @@ export default function BookAppointmentModal({
                     });
                 };
                 setAvailableTimes(filterByWH(rawTimes));
-                setHourAvailability(combinedData.availability as HourAvailabilityData);
+                // Filter hour availability to fit working hours window
+                const filterHoursByWH = (hours: { hour: string; labelFrom: string; labelTo: string; capacity: number; bookedCount: number; isFull: boolean }[]) => {
+                    if (!whForDay) return hours;
+                    const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
+                    const whStart = toMin(whForDay.start);
+                    const whEnd = toMin(whForDay.end);
+                    return hours.filter(h => {
+                        const hourStartMin = Number(h.hour) * 60;
+                        const hourEndMin = hourStartMin + 60;
+                        return hourStartMin >= whStart && hourEndMin <= whEnd;
+                    });
+                };
+                const av = combinedData.availability as HourAvailabilityData;
+                const filteredHours = filterHoursByWH(av.hours);
+                setHourAvailability({ periodMinutes: av.periodMinutes, hours: filteredHours });
             } catch (e: any) {
                 console.error('Failed to load slots/availability', e);
                 if (mySeq === fetchSeqRef.current) {
@@ -291,9 +371,32 @@ export default function BookAppointmentModal({
                                 .map((s: any) => String(s.time).slice(0,5));
                             setAvailableTimes(Array.from(new Set(times)).sort());
                         }
+                        // Ensure we at least have a generic hour grid visible
+                        if (!hourAvailability) {
+                            const mkLabel = (h: number) => ({
+                                hour: String(h).padStart(2, '0'),
+                                capacity: -1,
+                                bookedCount: 0,
+                                isFull: false,
+                                labelFrom: `${String(h).padStart(2, '0')}:00`,
+                                labelTo: `${String(h + 1).padStart(2, '0')}:00`,
+                            });
+                            const fallbackHours = Array.from({ length: 8 }, (_, i) => mkLabel(10 + i));
+                            setHourAvailability({ periodMinutes: 60, hours: fallbackHours });
+                        }
                     } else {
                         setAvailableTimes([]);
-                        setHourAvailability(null);
+                        // Provide generic fallback grid instead of spinner
+                        const mkLabel = (h: number) => ({
+                            hour: String(h).padStart(2, '0'),
+                            capacity: -1,
+                            bookedCount: 0,
+                            isFull: false,
+                            labelFrom: `${String(h).padStart(2, '0')}:00`,
+                            labelTo: `${String(h + 1).padStart(2, '0')}:00`,
+                        });
+                        const fallbackHours = Array.from({ length: 8 }, (_, i) => mkLabel(10 + i));
+                        setHourAvailability({ periodMinutes: 60, hours: fallbackHours });
                     }
                 }
             } finally {
@@ -435,6 +538,7 @@ function HourAvailabilityGrid({ availability, date, selectedTime, onSelect }: { 
             {hours.map(h => {
                 const disabled = h.isFull;
                 const isSelected = selectedTime ? String(selectedTime).slice(0,2) === h.hour : false;
+                const slotsLeft = Math.max(0, h.capacity - h.bookedCount);
                 return (
                     <button
                         key={h.hour}
@@ -447,6 +551,9 @@ function HourAvailabilityGrid({ availability, date, selectedTime, onSelect }: { 
                         <div className="font-semibold">{h.labelFrom} - {h.labelTo}</div>
                         <div className={`text-sm ${disabled ? 'text-gray-500' : isSelected ? 'text-blue-700' : 'text-green-700'}`}>
                             {disabled ? 'Unavailable' : isSelected ? 'Selected' : 'Available'}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600">
+                            {h.bookedCount}/{h.capacity} booked{slotsLeft > 0 ? ` • ${slotsLeft} left` : ''}
                         </div>
                     </button>
                 );

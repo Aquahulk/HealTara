@@ -21,18 +21,20 @@ function RegisterClient() {
   const [doctorPassword, setDoctorPassword] = useState('');
   const [doctorLoading, setDoctorLoading] = useState(false);
   const [doctorMessage, setDoctorMessage] = useState('');
+  const [doctorName, setDoctorName] = useState('');
 
   const [hospitalEmail, setHospitalEmail] = useState('');
   const [hospitalPassword, setHospitalPassword] = useState('');
   const [hospitalLoading, setHospitalLoading] = useState(false);
   const [hospitalMessage, setHospitalMessage] = useState('');
+  const [hospitalName, setHospitalName] = useState('');
 
   const handleDoctorRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setDoctorMessage('');
     setDoctorLoading(true);
     try {
-      await register(doctorEmail, doctorPassword, 'DOCTOR');
+      await register(doctorEmail, doctorPassword, 'DOCTOR', doctorName.trim() || undefined);
       setDoctorMessage('Doctor registration successful. Redirecting...');
     } catch (err: any) {
       setDoctorMessage(err?.message || 'Registration failed.');
@@ -46,7 +48,7 @@ function RegisterClient() {
     setHospitalMessage('');
     setHospitalLoading(true);
     try {
-      await register(hospitalEmail, hospitalPassword, 'HOSPITAL_ADMIN');
+      await register(hospitalEmail, hospitalPassword, 'HOSPITAL_ADMIN', hospitalName.trim() || undefined);
       setHospitalMessage('Hospital admin registration successful. Redirecting...');
     } catch (err: any) {
       setHospitalMessage(err?.message || 'Registration failed.');
@@ -89,6 +91,16 @@ function RegisterClient() {
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Doctor Registration</h2>
               <form onSubmit={handleDoctorRegister} className="space-y-4">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name (optional)</label>
+                  <input
+                    type="text"
+                    value={doctorName}
+                    onChange={(e) => setDoctorName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Dr. John Smith"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input
                     type="email"
@@ -126,6 +138,16 @@ function RegisterClient() {
             <div className="max-w-lg mx-auto bg-white rounded-2xl shadow p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Hospital Admin Registration</h2>
               <form onSubmit={handleHospitalRegister} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name (optional)</label>
+                  <input
+                    type="text"
+                    value={hospitalName}
+                    onChange={(e) => setHospitalName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="e.g., Jane Admin"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                   <input

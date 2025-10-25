@@ -407,7 +407,17 @@ export default function HospitalAdminProfilePage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8 min-h-screen bg-gray-50 text-gray-900">
-      <h1 className="text-3xl font-bold">Hospital Profile</h1>
+      <section className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white p-6">
+  <div className="flex items-center space-x-4">
+    {profile.general?.logoUrl && (
+      <img src={profile.general.logoUrl} alt="Logo" className="h-12 w-12 rounded-full border border-white/30" />
+    )}
+    <div>
+      <h1 className="text-2xl sm:text-3xl font-bold">{profile.general?.brandName || profile.general?.legalName || 'Hospital Profile'}</h1>
+      <p className="opacity-90 text-sm sm:text-base">{profile.general?.tagline || 'Manage your hospital information and doctor team'}</p>
+    </div>
+  </div>
+</section>
       {message && <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>}
 
       {/* Hospital-wide Slot Admin section removed. Only per-doctor Slot Admin controls remain below. */}

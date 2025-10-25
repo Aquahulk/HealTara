@@ -11,6 +11,7 @@ export default function AuthPageClient() {
   const [isLoginMode, setIsLoginMode] = useState(initialIsLogin);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [role, setRole] = useState('PATIENT');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function AuthPageClient() {
       if (isLoginMode) {
         await login(email, password);
       } else {
-        await register(email, password, role);
+        await register(email, password, role, name.trim() || undefined);
       }
     } catch (err: any) {
       const serverMsg = err?.response?.data?.message;
@@ -66,17 +67,29 @@ export default function AuthPageClient() {
             />
           </div>
           {!isLoginMode && (
-            <div>
-              <label className="block mb-2 text-sm font-medium">I am a:</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full p-3 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-              >
-                <option value="PATIENT">Patient</option>
-                <option value="DOCTOR">Doctor</option>
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="block mb-2 text-sm font-medium">Full Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Jane Doe"
+                  className="w-full p-3 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-sm font-medium">I am a:</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  className="w-full p-3 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="PATIENT">Patient</option>
+                  <option value="DOCTOR">Doctor</option>
+                </select>
+              </div>
+            </>
           )}
           <button 
             type="submit" 

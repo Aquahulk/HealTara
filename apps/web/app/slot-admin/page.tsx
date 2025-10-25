@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { io } from "socket.io-client";
 
 const API_URL = ""; // use relative URLs with Next.js dev rewrites
 
@@ -82,6 +83,8 @@ export default function SlotAdminPanelPage() {
     const mi = get('minute');
     return `${y}-${m}-${d}T${h}:${mi}`;
   };
+
+  const istLocalStringFromDate = (date: Date) => formatISTDateTimeLocal(date);
   const istLocalStringToISO = (s: string) => {
     // s: YYYY-MM-DDTHH:mm interpreted in IST (UTC+5:30)
     if (!s || !s.includes('T')) return new Date().toISOString();
@@ -97,15 +100,20 @@ export default function SlotAdminPanelPage() {
     const [hh, mm] = timeStr.split(':').map((x) => parseInt(x));
     return new Date(Date.UTC(y, (m - 1), d, (hh - 5), (mm - 30), 0, 0));
   };
+  const getISTNow = () => new Date(istLocalStringToISO(istLocalStringFromDate(new Date())));
+
   const [token, setToken] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
+  const [showHistory, setShowHistory] = useState<boolean>(false);
   const [doctorName, setDoctorName] = useState<string>('');
   const [hospitalName, setHospitalName] = useState<string>('');
+  const [hospitalId, setHospitalId] = useState<number | null>(null);
   const [doctorId, setDoctorId] = useState<number | null>(null);
+  const [socketReady, setSocketReady] = useState(false);
   const [doctorProfileId, setDoctorProfileId] = useState<number | null>(null);
   const [doctorOptions, setDoctorOptions] = useState<Array<{ id: number; email: string; doctorProfileId: number }>>([]);
   const [timeOff, setTimeOff] = useState<DoctorTimeOff[]>([]);
@@ -163,6 +171,7 @@ export default function SlotAdminPanelPage() {
         await loadSlotPeriod(tkn, doc.id);
       }
       if (hosp) {
+        setHospitalId(hosp.id);
         setHospitalName(hosp.name || '');
         // If hospital-managed and doctor is not set, load doctors in scope for selection
         if (!doc) {
@@ -268,6 +277,78 @@ export default function SlotAdminPanelPage() {
     }
   };
 
+  // Live updates via WebSocket: prefer sockets when connected
+  useEffect(() => {
+    if (!token) return;
+    const socket = io('http://localhost:3001', { transports: ['websocket'] });
+
+    const joinRooms = () => {
+      if (hospitalId) socket.emit('join-hospital', hospitalId);
+      if (doctorId) socket.emit('join-doctor', doctorId);
+    };
+
+    const refresh = async () => {
+      try {
+        if (token) {
+          await Promise.all([loadAppointments(token), loadSlots(token)]);
+        }
+      } catch {}
+    };
+
+    socket.on('connect', () => { setSocketReady(true); joinRooms(); });
+    socket.on('disconnect', () => setSocketReady(false));
+    socket.on('appointment-updated', refresh);
+    socket.on('appointment-updated-optimistic', refresh);
+    socket.on('appointment-cancelled', refresh);
+    socket.on('appointment-booked', refresh);
+
+    joinRooms();
+
+    return () => {
+      socket.off('appointment-updated', refresh);
+      socket.off('appointment-updated-optimistic', refresh);
+      socket.off('appointment-cancelled', refresh);
+      socket.off('appointment-booked', refresh);
+      socket.disconnect();
+    };
+  }, [token, doctorId, hospitalId]);
+
+  // Live updates via SSE: subscribe to doctor appointment events when sockets are not ready
+  useEffect(() => {
+    if (socketReady) return;
+    const did = doctorId ?? undefined;
+    if (!did) return;
+    const es = new EventSource(`/api/doctors/${did}/appointments/events`);
+
+    const refresh = async () => { try { if (token) { await Promise.all([loadAppointments(token), loadSlots(token)]); } } catch {} };
+
+    es.addEventListener('appointment-updated', () => refresh());
+    es.addEventListener('appointment-updated-optimistic', () => refresh());
+    es.addEventListener('appointment-cancelled', () => refresh());
+    es.addEventListener('appointment-booked', () => refresh());
+    es.onerror = () => {};
+
+    return () => { es.close(); };
+  }, [socketReady, doctorId, token]);
+
+  // Live updates via SSE: subscribe to hospital appointment events when sockets are not ready
+  useEffect(() => {
+    if (socketReady) return;
+    const hid = hospitalId ?? undefined;
+    if (!hid) return;
+    const es = new EventSource(`/api/hospitals/${hid}/appointments/events`);
+
+    const refresh = async () => { try { if (token) { await Promise.all([loadAppointments(token), loadSlots(token)]); } } catch {} };
+
+    es.addEventListener('appointment-updated', () => refresh());
+    es.addEventListener('appointment-updated-optimistic', () => refresh());
+    es.addEventListener('appointment-cancelled', () => refresh());
+    es.addEventListener('appointment-booked', () => refresh());
+    es.onerror = () => {};
+
+    return () => { es.close(); };
+  }, [socketReady, hospitalId, token]);
+
   // Load working hours; for hospital-managed admins, doctorId is required
   const loadWorkingHours = async (tkn: string, docId?: number) => {
     try {
@@ -302,8 +383,8 @@ export default function SlotAdminPanelPage() {
       });
       if (!res.ok) return;
       const data = await res.json();
-      const minutes = Number(data?.slotPeriodMinutes) || 15;
-      setSlotPeriodMinutes(minutes);
+      const maybe = (data && typeof data.slotPeriodMinutes === 'number') ? Number(data.slotPeriodMinutes) : undefined;
+      setSlotPeriodMinutes((prev) => (maybe ?? prev ?? 15));
     } catch {
       // ignore
     }
@@ -698,7 +779,10 @@ export default function SlotAdminPanelPage() {
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Doctor Appointments</h2>
-              <button onClick={() => token && loadAppointments(token)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">Refresh</button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => token && loadAppointments(token)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">Refresh</button>
+                <button onClick={() => setShowHistory((v) => !v)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">{showHistory ? 'Hide History' : 'Show History'}</button>
+              </div>
             </div>
             <p className="mt-1 text-xs text-gray-500">Capacity per hour: {Math.max(1, Math.floor(60 / Math.max(1, slotPeriodMinutes)))} slots • Period {slotPeriodMinutes} min</p>
             {/* Filters */}
@@ -736,7 +820,10 @@ export default function SlotAdminPanelPage() {
                     const dt = new Date(a.date);
                     const okFrom = fromDate ? dt >= new Date(`${fromDate}T00:00:00`) : true;
                     const okTo = toDate ? dt <= new Date(`${toDate}T23:59:59`) : true;
-                    return okStatus && okFrom && okTo;
+                    const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                    const todayStr = fmtDate.format(getISTNow());
+                    const okNotPast = fmtDate.format(dt) >= todayStr;
+                    return okStatus && okFrom && okTo && okNotPast;
                   });
 
                 if (filtered.length === 0) {
@@ -784,7 +871,7 @@ export default function SlotAdminPanelPage() {
                         <div key={key} className="border border-gray-200 rounded-lg">
                           <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                             <div className="text-sm text-gray-800">
-                              {formatIST(slotStart, { dateStyle: 'medium', timeStyle: 'short', hour12: false })} → {formatIST(slotEnd, { timeStyle: 'short', hour12: false })}
+                              {formatIST(slotStart, { dateStyle: 'medium', timeStyle: 'short', hour12: false })} to {formatIST(slotEnd, { timeStyle: 'short', hour12: false })}
                             </div>
                             <div className="text-xs text-gray-600">Bookings: {list.length}</div>
                           </div>
@@ -821,6 +908,40 @@ export default function SlotAdminPanelPage() {
                 );
               })()}
             </div>
+            {showHistory && (
+              <div className="mt-6 border-t border-gray-200">
+                <div className="px-6 py-4">
+                  <h3 className="text-md font-semibold">History of Bookings</h3>
+                  {(() => {
+                    const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                    const fmtDateTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short', hour12: false });
+                    const todayStr = fmtDate.format(getISTNow());
+                    const past = appointments.filter((a) => {
+                      const d = new Date(a.date);
+                      return fmtDate.format(d) < todayStr;
+                    });
+                    if (past.length === 0) {
+                      return <div className="text-gray-600">No previous day bookings.</div>;
+                    }
+                    const sorted = past.sort((aa, bb) => new Date(bb.date).getTime() - new Date(aa.date).getTime());
+                    return (
+                      <ul className="divide-y">
+                        {sorted.map((a) => (
+                          <li key={a.id} className="py-3 flex items-center justify-between">
+                            <div>
+                              <div className="font-mono text-sm text-gray-700">ID: {a.id}</div>
+                              <div className="text-gray-800">{fmtDateTime.format(new Date(a.date))} — <span className="uppercase text-xs bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">{a.status}</span></div>
+                              <div className="text-sm text-gray-600">Patient: {a.patient?.email || a.patientId}</div>
+                              {a.reason && <div className="text-sm text-gray-600">{a.reason}</div>}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
           <div className="p-6">
             {appointments.length === 0 ? (
@@ -858,12 +979,14 @@ export default function SlotAdminPanelPage() {
         {/* Pending Bookings Panel - expired PENDING appointments to allot */}
         <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pending Bookings (Expired)</h2>
+            <h2 className="text-lg font-semibold">Pending Bookings (Expired Today)</h2>
             <span className="text-sm text-gray-600">Admin can allot slot by setting date/time</span>
           </div>
           <div className="p-6">
             {(() => {
-              const now = new Date();
+              const now = getISTNow();
+              const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+              const todayStr = fmtDate.format(now);
               const items = appointments.filter((a) => {
                 if (a.status !== 'PENDING') return false;
                 let d: Date;
@@ -874,7 +997,7 @@ export default function SlotAdminPanelPage() {
                 } catch {
                   d = new Date(a.date);
                 }
-                return d.getTime() < now.getTime();
+                return fmtDate.format(d) === todayStr && d.getTime() < now.getTime();
               });
               if (items.length === 0) {
                 return <div className="text-gray-600">No expired pending bookings.</div>;
@@ -896,8 +1019,8 @@ export default function SlotAdminPanelPage() {
                     {items.map((a) => (
                       <tr key={a.id}>
                         <td className="px-4 py-2 text-sm text-gray-900">#{a.id}</td>
-                        <td className="px-4 py-2 text-sm text-gray-700">{a.doctor?.email || a.doctorId}</td>
-                        <td className="px-4 py-2 text-sm text-gray-700">{a.patient?.email || a.patientId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{(a.doctor as any)?.doctorProfile?.slug || a.doctor?.email?.split('@')[0] || a.doctorId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{(a.patient as any)?.name || a.patient?.email?.split('@')[0] || a.patientId}</td>
                         <td className="px-4 py-2 text-sm text-gray-500">{formatIST(istDateTimeFromDateAndTime(a.date.includes('T') ? a.date.split('T')[0] : a.date, a.time || '00:00'))}</td>
                         <td className="px-4 py-2">
                           <input
@@ -962,7 +1085,7 @@ export default function SlotAdminPanelPage() {
                     {items.map((a) => (
                       <tr key={a.id}>
                         <td className="px-4 py-2 text-sm text-gray-900">#{a.id}</td>
-                        <td className="px-4 py-2 text-sm text-gray-700">{a.doctor?.email || a.doctorId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{(a.doctor as any)?.doctorProfile?.slug || a.doctor?.email?.split('@')[0] || a.doctorId}</td>
                         <td className="px-4 py-2 text-sm text-gray-700">{a.patient?.email || a.patientId}</td>
                         <td className="px-4 py-2 text-sm text-gray-700">{a.reason || '—'}</td>
                         <td className="px-4 py-2">
@@ -1067,7 +1190,7 @@ export default function SlotAdminPanelPage() {
                     <li key={t.id} className="py-3 flex items-center justify-between">
                       <div>
                         <div className="font-mono text-sm text-gray-700">ID: {t.id}</div>
-                        <div className="text-gray-800">{formatIST(new Date(t.start))} → {formatIST(new Date(t.end))}</div>
+                        <div className="text-gray-800">{formatIST(new Date(t.start))} to {formatIST(new Date(t.end))}</div>
                         <div className="text-sm text-gray-600">{t.reason || "No reason provided"}</div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1115,102 +1238,95 @@ export default function SlotAdminPanelPage() {
               <div className="text-center text-gray-600">No slots available in your scope.</div>
             ) : (
               <ul className="divide-y">
-                {slots.map((slot) => {
-                  const slotStart = istDateTimeFromDateAndTime(slot.date, String(slot.time).slice(0,5));
-                  const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
-                  const inSlot = appointments.filter((a) => {
-                    const t = new Date(a.date).getTime();
-                    return t >= slotStart.getTime() && t <= slotEnd.getTime();
-                  });
-                  // Availability check based on configured working hours
-                  const dayIdx = getISTDayIndex(slotStart);
-                  const wh = hoursInputs[dayIdx];
-                  const hasTiming = wh && wh.start && wh.end;
-                  const within = (() => {
-                    if (!hasTiming) return true; // if not configured, don't block
-                    const toMin = (t: string) => {
-                      const [hh, mm] = t.split(':').map(Number);
-                      return hh * 60 + mm;
-                    };
-                    const { hour: istH, minute: istM } = getISTHoursMinutes(slotStart);
-                    const startMin = istH * 60 + istM;
-                    const endMin = startMin + 60;
-                    const whStart = toMin(wh.start);
-                    const whEnd = toMin(wh.end);
-                    return startMin >= whStart && endMin <= whEnd;
-                  })();
-                  return (
-                    <li key={slot.id} className="py-3 flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="font-mono text-sm text-gray-700">Slot #{slot.id}</div>
-                        <div className="text-gray-800">
-                          {formatIST(slotStart)} → {formatIST(slotEnd)}
+                {slots
+                  .filter((s) => s.date >= new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow()))
+                  .map((slot) => {
+                    const slotStart = istDateTimeFromDateAndTime(slot.date, String(slot.time).slice(0,5));
+                    const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+                    const inSlot = appointments.filter((a) => {
+                      const t = new Date(a.date).getTime();
+                      return t >= slotStart.getTime() && t <= slotEnd.getTime();
+                    });
+                    const dayIdx = getISTDayIndex(slotStart);
+                    const wh = hoursInputs[dayIdx];
+                    const hasTiming = wh && wh.start && wh.end;
+                    const within = (() => {
+                      if (!hasTiming) return true;
+                      const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
+                      const { hour: istH, minute: istM } = getISTHoursMinutes(slotStart);
+                      const startMin = istH * 60 + istM;
+                      const endMin = startMin + 60;
+                      const whStart = toMin(wh.start);
+                      const whEnd = toMin(wh.end);
+                      return startMin >= whStart && endMin <= whEnd;
+                    })();
+                    const period = Number(slotPeriodMinutes) || 15;
+                    const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                    const segments = Array.from({ length: count }, (_, idx) => {
+                      const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
+                      const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                      const inSeg = inSlot.filter((a) => {
+                        const t = new Date(a.date).getTime();
+                        return t >= segStart.getTime() && t < segEnd.getTime();
+                      });
+                      return { idx, segStart, segEnd, inSeg };
+                    });
+                    return (
+                      <li key={slot.id} className="py-3 flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="font-mono text-sm text-gray-700">Slot #{slot.id}</div>
+                          <div className="text-gray-800">
+                            {formatIST(slotStart)} to {formatIST(slotEnd)}
+                          </div>
+                          <div className="text-sm text-gray-600 mb-2">
+                            {slot.doctorProfileId ? `DoctorProfile: ${slot.doctorProfileId}` : ''}
+                            {slot.hospitalId ? ` Hospital: ${slot.hospitalId}` : ''}
+                            {slot.status ? ` Status: ${slot.status}` : ''}
+                          </div>
+                          {hasTiming && !within && (
+                            <div className="mb-2 inline-block px-2 py-0.5 text-xs rounded bg-red-100 text-red-700">Not available</div>
+                          )}
+                          {/* Render computed sub-slots */}
+                          <div>
+                            <div className="text-sm font-medium text-gray-700 mb-1">Sub-slots ({period} min): {count} per hour</div>
+                            <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {segments.map(({ idx, segStart, segEnd, inSeg }) => (
+                                <li key={idx} className="border border-gray-200 rounded px-3 py-2">
+                                  <div className="text-xs font-medium text-gray-800">
+                                    {formatISTTime(segStart)} {' '}to{' '} {formatISTTime(segEnd)}
+                                  </div>
+                                  {inSeg.length === 0 ? (
+                                    <div className="text-xs text-gray-500 mt-1">Empty</div>
+                                  ) : (
+                                    <ul className="mt-1 space-y-1">
+                                      {inSeg.map((a) => (
+                                        <li key={a.id} className="flex items-center justify-between">
+                                          <div className="text-xs text-gray-800">Appt #{a.id} — {formatISTTime(new Date(a.date))}</div>
+                                          <div className="flex items-center gap-2">
+                                            <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Confirm</button>
+                                            <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded">Complete</button>
+                                            <button onClick={() => cancelAppointment(a.id)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded">Cancel</button>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-600 mb-2">
-                          {slot.doctorProfileId ? `DoctorProfile: ${slot.doctorProfileId}` : ''}
-                          {slot.hospitalId ? ` Hospital: ${slot.hospitalId}` : ''}
-                          {slot.status ? ` Status: ${slot.status}` : ''}
+                        <div>
+                          <button
+                            onClick={() => cancelSlot(slot.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg"
+                          >
+                            Cancel Slot
+                          </button>
                         </div>
-                        {hasTiming && !within && (
-                          <div className="mb-2 inline-block px-2 py-0.5 text-xs rounded bg-red-100 text-red-700">Not available</div>
-                        )}
-                        {(() => {
-                          const period = Number(slotPeriodMinutes) || 15;
-                          const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
-                          const segments = Array.from({ length: count }, (_, idx) => {
-                            const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
-                            const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
-                            const inSeg = inSlot.filter((a) => {
-                              const t = new Date(a.date).getTime();
-                              return t >= segStart.getTime() && t < segEnd.getTime();
-                            });
-                            return { idx, segStart, segEnd, inSeg };
-                          });
-                          return (
-                            <div>
-                              <div className="text-sm font-medium text-gray-700 mb-1">Sub-slots ({period} min): {count} per hour</div>
-                              <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                {segments.map(({ idx, segStart, segEnd, inSeg }) => (
-                                  <li key={idx} className="border border-gray-200 rounded px-3 py-2">
-                                    <div className="text-xs font-medium text-gray-800">
-                                      {formatISTTime(segStart)}
-                                       {' '}→{' '}
-                                      {formatISTTime(segEnd)}
-                                    </div>
-                                    {inSeg.length === 0 ? (
-                                      <div className="text-xs text-gray-500 mt-1">Empty</div>
-                                    ) : (
-                                      <ul className="mt-1 space-y-1">
-                                        {inSeg.map((a) => (
-                                          <li key={a.id} className="flex items-center justify-between">
-                                            <div className="text-xs text-gray-800">Appt #{a.id} — {formatISTTime(new Date(a.date))}</div>
-                                            <div className="flex items-center gap-2">
-                                              <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Confirm</button>
-                                              <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded">Complete</button>
-                                              <button onClick={() => cancelAppointment(a.id)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded">Cancel</button>
-                                            </div>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div>
-                        <button
-                          onClick={() => cancelSlot(slot.id)}
-                          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg"
-                        >
-                          Cancel Slot
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
+                      </li>
+                    );
+                  })}
               </ul>
             )}
           </div>

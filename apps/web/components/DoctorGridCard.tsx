@@ -93,7 +93,7 @@ export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGrid
               });
             }}
           >
-            View Details
+            Visit Website
           </Link>
         ) : (
           <button
@@ -124,7 +124,7 @@ export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGrid
               });
             }}
           >
-            View Details
+            Visit Website
           </button>
         )}
         {onBookAppointment ? (

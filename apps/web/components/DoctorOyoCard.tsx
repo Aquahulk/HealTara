@@ -147,7 +147,7 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                   });
                 }}
               >
-                View Details
+                Visit Website
               </Link>
             ) : (
               <button
@@ -170,7 +170,7 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                   });
                 }}
               >
-                View Details
+                Visit Website
               </button>
             )}
             {onBookAppointment ? (

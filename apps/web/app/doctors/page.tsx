@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient, Doctor } from '@/lib/api';
 import DoctorOyoCard from '@/components/DoctorOyoCard';
@@ -8,10 +9,20 @@ import BookAppointmentModal from '@/components/BookAppointmentModal';
 import Header from '@/components/Header';
 
 export default function DoctorsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div></div>}>
+      <DoctorsPageContent />
+    </Suspense>
+  );
+}
+
+function DoctorsPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const initialQuery = (searchParams?.get('search') || '').trim();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [selectedSpecialization, setSelectedSpecialization] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [sortBy, setSortBy] = useState<'trending' | 'recent' | 'default'>('trending');
@@ -43,13 +54,46 @@ export default function DoctorsPage() {
     setShowBookingModal(true);
   };
 
+  // Smart disease/symptom to specialization mapping
+  const diseaseToSpecializations: Record<string, string[]> = {
+    dengue: ['Infectious Disease', 'Internal Medicine', 'General Physician'],
+    malaria: ['Infectious Disease', 'Internal Medicine', 'General Physician'],
+    typhoid: ['Infectious Disease', 'Internal Medicine', 'General Physician'],
+    fever: ['General Physician', 'Internal Medicine', 'Pediatrics'],
+    cough: ['Pulmonology', 'General Physician'],
+    cold: ['General Physician', 'Internal Medicine'],
+    flu: ['General Physician', 'Internal Medicine'],
+    covid: ['Pulmonology', 'Internal Medicine'],
+    asthma: ['Pulmonology'],
+    allergy: ['Allergy & Immunology', 'Dermatology'],
+    diabetes: ['Endocrinology', 'Internal Medicine'],
+    heart: ['Cardiology'],
+    chest: ['Pulmonology'],
+    stomach: ['Gastroenterology'],
+    liver: ['Hepatology', 'Gastroenterology'],
+    kidney: ['Nephrology'],
+    skin: ['Dermatology'],
+    eye: ['Ophthalmology'],
+    bone: ['Orthopedics'],
+    pregnancy: ['Gynecology', 'Obstetrics'],
+  };
+
   const filteredDoctors = doctors.filter(doctor => {
-    const matchesSearch = doctor.doctorProfile?.specialization?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         doctor.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.trim().toLowerCase();
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const mappedSpecs = new Set<string>(tokens.flatMap(t => diseaseToSpecializations[t] || []));
+
+    const specialization = String(doctor.doctorProfile?.specialization || '').toLowerCase();
+    const email = String(doctor.email || '').toLowerCase();
+    const nameHandle = email.split('@')[0];
+
+    const matchesText = specialization.includes(q) || email.includes(q) || nameHandle.includes(q);
+    const matchesMapped = mappedSpecs.size > 0 && Array.from(mappedSpecs).some(spec => specialization.includes(spec.toLowerCase()));
+
     const matchesSpecialization = !selectedSpecialization || doctor.doctorProfile?.specialization === selectedSpecialization;
     const matchesCity = !selectedCity || doctor.doctorProfile?.city === selectedCity;
-    
-    return matchesSearch && matchesSpecialization && matchesCity;
+
+    return (matchesText || matchesMapped) && matchesSpecialization && matchesCity;
   });
 
   if (loading) {

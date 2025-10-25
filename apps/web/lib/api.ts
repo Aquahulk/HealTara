@@ -46,7 +46,8 @@ export interface Doctor extends User {
 
 export interface Appointment {
   id: number;                                              // Unique appointment identifier
-  date: string;                                            // Appointment date and time
+  date: string;                                            // Appointment date (ISO or YYYY-MM-DD)
+  time?: string;                                           // Optional time in HH:mm (IST-local)
   reason?: string;                                         // Reason for appointment (optional)
   status: string;                                          // Current status (PENDING, CONFIRMED, CANCELLED, COMPLETED)
   createdAt: string;                                       // When appointment was created
@@ -224,10 +225,10 @@ class ApiClient {
   }
 
   // Register a new user
-  async register(email: string, password: string, role: string): Promise<RegisterResponse> {
+  async register(email: string, password: string, role: string, name?: string): Promise<RegisterResponse> {
     return this.request<RegisterResponse>('/api/register', {
       method: 'POST',                                       // HTTP POST method
-      body: JSON.stringify({ email, password, role }),      // Send user data as JSON
+      body: JSON.stringify({ email, password, role, name }),// Send user data as JSON (optional name)
     });
   }
 
@@ -309,6 +310,17 @@ class ApiClient {
     return this.request<Appointment[]>('/api/my-appointments');
   }
 
+  // Doctor-only: update own appointment (status/date/time) without hospital context
+  async updateDoctorAppointment(
+    appointmentId: number,
+    update: { status?: string; date?: string; time?: string }
+  ): Promise<Appointment> {
+    return this.request<Appointment>(`/api/appointments/${appointmentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(update),
+    });
+  }
+
   // ============================================================================
   // ⏱️ SLOTS & AVAILABILITY - Manage doctor availability slots
   // ============================================================================
@@ -355,7 +367,7 @@ class ApiClient {
 
   // Preferred slot period for authenticated doctor
   async getDoctorSlotPeriod(): Promise<{ slotPeriodMinutes: number }> {
-    return this.request<{ slotPeriodMinutes: number }>(`/api/doctor/slot-period`).catch(() => ({ slotPeriodMinutes: 15 }));
+    return this.request<{ slotPeriodMinutes: number }>(`/api/doctor/slot-period`);
   }
 
   async setDoctorSlotPeriod(minutes: number): Promise<any> {
@@ -367,7 +379,7 @@ class ApiClient {
 
   // Hospital ↔ Doctor specific slot period
   async getHospitalDoctorSlotPeriod(hospitalId: number, doctorId: number): Promise<{ slotPeriodMinutes: number }> {
-    return this.request<{ slotPeriodMinutes: number }>(`/api/hospitals/${hospitalId}/doctors/${doctorId}/slot-period`).catch(() => ({ slotPeriodMinutes: 15 }));
+    return this.request<{ slotPeriodMinutes: number }>(`/api/hospitals/${hospitalId}/doctors/${doctorId}/slot-period`);
   }
 
   async setHospitalDoctorSlotPeriod(hospitalId: number, doctorId: number, minutes: number): Promise<any> {

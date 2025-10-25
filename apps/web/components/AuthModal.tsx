@@ -29,6 +29,10 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>("");
 
+  // New: Optional name fields
+  const [patientName, setPatientName] = useState("");
+  const [providerName, setProviderName] = useState("");
+
   if (!open) return null;
 
   const resetAll = () => {
@@ -40,6 +44,8 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
     setLicenseNumber("");
     setClinicName("");
     setMessage("");
+    setPatientName("");
+    setProviderName("");
   };
 
   const handlePatientSubmit = async (e: React.FormEvent) => {
@@ -53,7 +59,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         // basic validations
         if (patientPassword.length < 6) throw new Error("Password must be at least 6 characters.");
         if (patientPassword !== patientConfirm) throw new Error("Passwords do not match.");
-        await register(patientEmail, patientPassword, "PATIENT");
+        await register(patientEmail, patientPassword, "PATIENT", patientName.trim() || undefined);
       }
       onClose();
       resetAll();
@@ -78,9 +84,9 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         }
         if (!licenseNumber.trim()) throw new Error("License number is required for Doctor registration.");
         if (providerPassword.length < 6) throw new Error("Password must be at least 6 characters.");
-        // Note: backend currently accepts email/password/role only.
+        // Note: backend currently accepts email/password/role/name only.
         // We validate extra fields client-side and can wire them server-side later.
-        await register(providerEmail, providerPassword, "DOCTOR");
+        await register(providerEmail, providerPassword, "DOCTOR", providerName.trim() || undefined);
       }
       onClose();
       resetAll();
@@ -129,6 +135,18 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
               </div>
 
               <form onSubmit={handlePatientSubmit} className="mt-4 space-y-4">
+                {patientMode === "register" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Full Name (optional)</label>
+                    <input
+                      type="text"
+                      value={patientName}
+                      onChange={(e) => setPatientName(e.target.value)}
+                      className="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#003a9f]"
+                      placeholder="e.g., Jane Doe"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Email</label>
                   <input
@@ -220,6 +238,18 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
               </div>
 
               <form onSubmit={handleProviderSubmit} className="mt-4 space-y-4">
+                {providerMode === "register" && providerRole === "DOCTOR" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Full Name (optional)</label>
+                    <input
+                      type="text"
+                      value={providerName}
+                      onChange={(e) => setProviderName(e.target.value)}
+                      className="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#003a9f]"
+                      placeholder="e.g., Dr. John Smith"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Email</label>
                   <input

@@ -407,7 +407,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredDoctors.slice(0, 6).map((doctor, index) => (
+              {filteredDoctors.map((doctor, index) => (
                 <div key={doctor.id} className="group">
                   <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-8 hover:bg-white/15 transition-all duration-300 transform hover:scale-105 hover:-rotate-1">
                     <div className="flex items-center mb-6">

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiClient, Appointment, DoctorWorkingHours } from '@/lib/api';
+import { io } from 'socket.io-client';
 
 interface Props {
   hospitalId: number;
@@ -16,6 +17,7 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [socketReady, setSocketReady] = useState(false);
 
   const hoursByDay = useMemo(() => {
     const map: Record<number, { startTime: string; endTime: string } | null> = {};
@@ -92,6 +94,101 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
     });
   }
 
+  // WebSocket: hospital Socket.IO subscription; prefer sockets, fallback to SSE when disconnected
+  useEffect(() => {
+    if (!hospitalId) return;
+    let s = io('http://localhost:3001', { transports: ['websocket'] });
+    const onUpdate = (updated: any) => {
+      try {
+        const id = Number(updated?.id);
+        const nextStatus = updated?.status;
+        const nextDate = updated?.date;
+        const nextTime = updated?.time;
+        setAppointments(prev => prev.map(a => (
+          a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time } : a
+        )));
+      } catch {}
+    };
+    const onCancel = (msg: any) => {
+      try {
+        const id = Number(msg?.id);
+        setAppointments(prev => prev.filter(a => a.id !== id));
+      } catch {}
+    };
+    s.on('connect', () => {
+      try { s.emit('join-hospital', hospitalId); } catch {}
+      setSocketReady(true);
+    });
+    s.on('appointment-updated', onUpdate);
+    s.on('appointment-updated-optimistic', onUpdate);
+    s.on('appointment-cancelled', onCancel);
+    s.on('disconnect', () => setSocketReady(false));
+    return () => {
+      setSocketReady(false);
+      try {
+        s.off('appointment-updated', onUpdate);
+        s.off('appointment-updated-optimistic', onUpdate);
+        s.off('appointment-cancelled', onCancel);
+        s.disconnect();
+      } catch {}
+    };
+  }, [hospitalId]);
+
+  // Realtime: hospital SSE subscription to reflect updates immediately
+  useEffect(() => {
+    if (!hospitalId || socketReady) return;
+    const es = new EventSource(`/api/hospitals/${hospitalId}/appointments/events`);
+    const onUpdate = (ev: MessageEvent) => {
+      try {
+        const updated: any = JSON.parse(ev.data);
+        const id = Number(updated?.id);
+        const nextStatus = updated?.status;
+        const nextDate = updated?.date;
+        const nextTime = updated?.time;
+        setAppointments(prev => prev.map(a => (
+          a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time } : a
+        )));
+      } catch {}
+    };
+    const onCancel = (ev: MessageEvent) => {
+      try {
+        const msg: any = JSON.parse(ev.data);
+        const id = Number(msg?.id);
+        setAppointments(prev => prev.filter(a => a.id !== id));
+      } catch {}
+    };
+    es.addEventListener('appointment-updated', onUpdate);
+    es.addEventListener('appointment-updated-optimistic', onUpdate);
+    es.addEventListener('appointment-cancelled', onCancel);
+    es.onerror = () => {};
+    return () => { es.close(); };
+  }, [hospitalId, socketReady]);
+
+  // Cross-tab updates: listen to BroadcastChannel to react to reschedules from other tabs
+  useEffect(() => {
+    try {
+      const ch = new BroadcastChannel('appointments-updates');
+      ch.onmessage = (ev) => {
+        const msg: any = ev.data;
+        if (msg?.type === 'appointment-update') {
+          const id = Number(msg?.id);
+          const nextStatus = msg?.status;
+          setAppointments(prev => prev.map(a => (a.id === id ? { ...a, status: nextStatus ?? a.status } : a)));
+        } else if (msg?.type === 'appointment-reschedule') {
+          const id = Number(msg?.id);
+          const payload = msg?.payload || {};
+          const nextDate = payload?.date;
+          const nextTime = payload?.time;
+          setAppointments(prev => prev.map(a => (a.id === id ? { ...a, date: nextDate ?? a.date, time: nextTime ?? a.time } : a)));
+        } else if (msg?.type === 'appointment-cancel') {
+          const id = Number(msg?.id);
+          setAppointments(prev => prev.filter(a => a.id !== id));
+        }
+      };
+      return () => { ch.close(); };
+    } catch {}
+  }, []);
+
   return (
     <div className="border rounded-lg p-6 shadow-sm bg-white">
       <div className="flex items-center justify-between">
@@ -155,7 +252,6 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
           {appointments.map(appt => (
             <div key={appt.id} className="border rounded p-4 flex items-center justify-between">
               <div>
-y
                 <div className="text-sm text-gray-600">Patient: {appt.patient?.email || appt.patientId}</div>
               </div>
               <div className="flex items-center gap-2">

@@ -25,6 +25,7 @@ import { useState, useEffect } from 'react';               // React hooks for st
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
 import { apiClient } from '@/lib/api';                     // API client for making HTTP requests to backend
 import { loadWithCache, PerformanceMonitor, CacheManager } from '@/lib/performance'; // Performance optimization utilities
+import { getUserLabel, getDoctorLabel, getPatientLabel } from '@/lib/utils';         // Friendly display helpers
 
 // ============================================================================
 // 🔐 SECURITY UTILITIES - Advanced security validation functions
@@ -704,7 +705,7 @@ export default function SecureAdminPanel() {
                             </div>
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{user.email}</div>
+                            <div className="text-sm font-medium text-gray-900">{getUserLabel(user)}</div>
                             <div className="text-sm text-gray-500">{user.role}</div>
                           </div>
                         </div>
@@ -765,7 +766,7 @@ export default function SecureAdminPanel() {
                     <li key={doctor.id} className="px-6 py-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{doctor.email}</div>
+                          <div className="text-sm font-medium text-gray-900">{getDoctorLabel({ email: doctor.email, id: doctor.id })}</div>
                           <div className="text-sm text-gray-500">
                             Status: {doctor.status}
                           </div>
@@ -806,20 +807,7 @@ export default function SecureAdminPanel() {
                           placeholder="https://..."
                           className="md:col-span-2 w-full border border-gray-300 rounded px-3 py-1 text-sm"
                         />
-                        <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => setDoctorPhotoFiles((prev) => ({ ...prev, [doctor.id]: e.target.files?.[0] || null }))}
-                            className="md:col-span-2 w-full border border-gray-300 rounded px-3 py-1 text-sm"
-                          />
-                          <button
-                            onClick={() => uploadDoctorPhotoFile(doctor.id)}
-                            className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                          >
-                            Upload Photo
-                          </button>
-                        </div>
+                        <div className="md:col-span-3" />
                       </div>
                     </li>
                   ))}
@@ -875,13 +863,13 @@ export default function SecureAdminPanel() {
                           </button>
                         </div>
                       </div>
-                      {/* Hospital Logo URL inline edit */}
+                      {/* Hospital Logo - upload and URL */}
                       <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
                         <label className="text-xs text-gray-500 md:col-span-1">Logo URL</label>
                         <input
                           type="text"
-                          value={hospitalLogos[hospital.id] ?? ''}
-                          onChange={(e) => setHospitalLogos((prev) => ({ ...prev, [hospital.id]: e.target.value }))}
+                          value={hospitalLogos[hospital.id] || ''}
+                          onChange={(e) => setHospitalLogos(prev => ({ ...prev, [hospital.id]: e.target.value }))}
                           placeholder="https://..."
                           className="md:col-span-2 w-full border border-gray-300 rounded px-3 py-1 text-sm"
                         />
@@ -890,19 +878,7 @@ export default function SecureAdminPanel() {
                             onClick={() => saveHospitalLogoUrl(hospital.id)}
                             className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                           >
-                            Save Logo
-                          </button>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => setHospitalLogoFiles((prev) => ({ ...prev, [hospital.id]: e.target.files?.[0] || null }))}
-                            className="text-xs ml-2"
-                          />
-                          <button
-                            onClick={() => uploadHospitalLogoFile(hospital.id)}
-                            className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 ml-2"
-                          >
-                            Upload Logo
+                            Save Logo URL
                           </button>
                         </div>
                       </div>
@@ -933,7 +909,7 @@ export default function SecureAdminPanel() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="text-sm font-medium text-gray-900">
-                            {appointment.patient.email} → {appointment.doctor.email}
+                            {getPatientLabel({ email: appointment.patient.email })} → {getDoctorLabel({ email: appointment.doctor.email })}
                           </div>
                           <div className="text-sm text-gray-500">
                             {new Date(appointment.date).toLocaleString()}
@@ -994,7 +970,7 @@ export default function SecureAdminPanel() {
                           </div>
                           <div className="text-sm text-gray-500">{log.details}</div>
                           <div className="text-sm text-gray-500">
-                            By: {log.admin.email} • {new Date(log.createdAt).toLocaleString()}
+                            By: {getUserLabel({ email: log.admin.email, role: 'ADMIN' })} • {new Date(log.createdAt).toLocaleString()}
                           </div>
                         </div>
                         <div className="text-sm text-gray-500">
@@ -1248,7 +1224,7 @@ export default function SecureAdminPanel() {
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Update User Role</h3>
               <p className="text-sm text-gray-500 mb-4">
-                Change role for user: <strong>{selectedUser.email}</strong>
+                Change role for user: <strong>{getUserLabel(selectedUser)}</strong>
               </p>
               <select
                 value={newRole}

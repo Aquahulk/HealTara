@@ -371,7 +371,7 @@ export default function HomePage() {
               animate={isDoctorsInView ? "visible" : "hidden"}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
             >
-              {filteredDoctors.slice(0, 6).map((doctor, index) => (
+              {filteredDoctors.map((doctor, index) => (
                 <motion.div key={doctor.id} variants={fadeInUp}>
                   <div className="group bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-gray-100">
                     <div className="flex items-center mb-4">

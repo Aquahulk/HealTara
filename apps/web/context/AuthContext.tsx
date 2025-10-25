@@ -29,7 +29,7 @@ interface AuthContextType {
   user: User | null;                                       // Current authenticated user (null if not logged in)
   loading: boolean;                                        // Loading state while checking authentication
   login: (email: string, password: string, requireAdminRole?: boolean) => Promise<void>; // Function to log in user
-  register: (email: string, password: string, role: string) => Promise<void>; // Function to register new user
+  register: (email: string, password: string, role: string, name?: string) => Promise<void>; // Function to register new user (optional name)
   logout: () => void;                                      // Function to log out user
   updateUserFromToken: () => void;                         // Function to update user from stored token
 }
@@ -211,12 +211,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // ============================================================================
   // 📝 REGISTER FUNCTION - Create new user account
   // ============================================================================
-  const register = async (email: string, password: string, role: string) => {
+  const register = async (email: string, password: string, role: string, name?: string) => {
     try {
       // ============================================================================
       // 🌐 API CALL - Send registration request to backend server
       // ============================================================================
-      await apiClient.register(email, password, role);
+      await apiClient.register(email, password, role, name);
       
       // ============================================================================
       // 🔑 AUTO-LOGIN - Automatically log in user after successful registration

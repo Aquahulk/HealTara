@@ -12,7 +12,7 @@
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
 'use client';                                              // Enable React hooks and client-side features
-import { useState, useEffect } from 'react';               // React hooks for state management and side effects
+import { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';         // React hooks for state management, side effects, refs, memoization, and deferred updates
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
 import { apiClient, Appointment, Slot } from '@/lib/api';  // API client for making HTTP requests
 import Link from 'next/link';                              // Next.js Link component for navigation
@@ -30,6 +30,8 @@ import {
   EnvelopeIcon
 } from '@heroicons/react/24/outline';                      // Heroicons for beautiful icons
 import { doctorMicrositeUrl, hospitalMicrositeUrl } from '@/lib/subdomain';
+import { getDoctorLabel, getPatientLabel, getUserLabel } from '@/lib/utils';
+import { io } from 'socket.io-client';
 
 // ============================================================================
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
@@ -83,16 +85,68 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);        // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
   const [activeTab, setActiveTab] = useState('overview');  // Currently selected tab
-  const [appointmentViewMode, setAppointmentViewMode] = useState<'list' | 'grouped'>('list'); // Doctor appointments view mode
+  const [appointmentViewMode, setAppointmentViewMode] = useState<'list' | 'grouped'>('grouped'); // Doctor appointments view mode
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'|'EMERGENCY'>('ALL'); // Doctor-only filter
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
   const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any }>>([]); // Linked doctors
+  const [hospitalDoctorSearch, setHospitalDoctorSearch] = useState('');
+  const deferredHospitalDoctorSearch = useDeferredValue(hospitalDoctorSearch);
+  const filteredHospitalDoctors = useMemo(() => {
+    const q = deferredHospitalDoctorSearch.trim().toLowerCase();
+    if (!q) return hospitalDoctors;
+    const words = q.split(/\s+/).filter(Boolean);
+    return hospitalDoctors.filter((doc) => {
+      const tokens: string[] = [];
+      if (doc.doctorProfile?.slug) tokens.push(String(doc.doctorProfile.slug).toLowerCase());
+      if (doc.doctorProfile?.specialization) tokens.push(String(doc.doctorProfile.specialization).toLowerCase());
+      if (doc.email) tokens.push(String(doc.email.split('@')[0]).toLowerCase());
+      tokens.push(String(doc.id).toLowerCase());
+      return words.every((w) => tokens.some((t) => t.includes(w)));
+    });
+  }, [hospitalDoctors, deferredHospitalDoctorSearch]);
+
+  const highlightDoctorLabel = (label: string) => {
+    const q = deferredHospitalDoctorSearch.trim();
+    if (!q) return label;
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+    let parts: Array<{ text: string; match: boolean }> = [{ text: label, match: false }];
+    tokens.forEach((t) => {
+      const nextParts: Array<{ text: string; match: boolean }> = [];
+      parts.forEach((p) => {
+        if (p.match) { nextParts.push(p); return; }
+        const idx = p.text.toLowerCase().indexOf(t);
+        if (idx !== -1) {
+          if (idx > 0) nextParts.push({ text: p.text.slice(0, idx), match: false });
+          nextParts.push({ text: p.text.slice(idx, idx + t.length), match: true });
+          const rest = p.text.slice(idx + t.length);
+          if (rest) nextParts.push({ text: rest, match: false });
+        } else {
+          nextParts.push(p);
+        }
+      });
+      parts = nextParts;
+    });
+    return (
+      <span>
+        {parts.map((p, i) => p.match ? (
+          <mark key={i} className="bg-yellow-200 text-gray-900 rounded px-1">{p.text}</mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ))}
+      </span>
+    );
+  };
   const [doctorAppointmentsMap, setDoctorAppointmentsMap] = useState<Record<number, Appointment[]>>({}); // Appointments per doctor
   const [loadingHospitalBookings, setLoadingHospitalBookings] = useState(false); // Loading flag for hospital bookings
   const [hospitalDoctorSlotsMap, setHospitalDoctorSlotsMap] = useState<Record<number, Slot[]>>({}); // Slots per doctor (hospital admin)
   const [hospitalDoctorPeriodMap, setHospitalDoctorPeriodMap] = useState<Record<number, number>>({}); // Slot period per doctor (hospital admin)
+  // Hour-level availability per date for doctor (capacity/booked)
+  const [availabilityByDate, setAvailabilityByDate] = useState<Record<string, { periodMinutes: number; hours: Array<{ hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }> }>>({});
   const [selectedDoctorForTiming, setSelectedDoctorForTiming] = useState<number | null>(null);
+  // History toggles
+  const [showDoctorHistory, setShowDoctorHistory] = useState(false);
+  const [historyVisibleDoctor, setHistoryVisibleDoctor] = useState<Record<number, boolean>>({});
   const [hospitalWorkingHours, setHospitalWorkingHours] = useState<Array<{ dayOfWeek: number; start: string | null; end: string | null }>>([]);
   const [hospitalHoursInputs, setHospitalHoursInputs] = useState<Record<number, { start: string; end: string }>>({
     0: { start: "09:00", end: "17:00" },
@@ -104,6 +158,50 @@ export default function DashboardPage() {
     6: { start: "", end: "" },
   });
   const isDoctorLike = !!(user && (user.role === 'DOCTOR' || user.role === 'HOSPITAL_ADMIN'));
+const [socketReady, setSocketReady] = useState(false);
+
+  // IST date/time helpers for consistent display
+  const formatIST = (date: Date, opts?: Intl.DateTimeFormatOptions) => {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      ...(opts || { dateStyle: 'medium', timeStyle: 'short', hour12: false }),
+    }).format(date);
+  };
+  const formatISTTime = (date: Date) => {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date);
+  };
+  const istDateTimeFromDateAndTime = (dateStr: string, timeStr: string) => {
+    // dateStr: YYYY-MM-DD, timeStr: HH:mm, treated as IST
+    const [y, m, d] = dateStr.split('-').map((x) => parseInt(x));
+    const [hh, mm] = timeStr.split(':').map((x) => parseInt(x));
+    return new Date(Date.UTC(y, (m - 1), d, (hh - 5), (mm - 30), 0, 0));
+  };
+  const getAppointmentISTDate = (a: Appointment) => {
+    try {
+      if (a.time && /^\d{2}:\d{2}$/.test(a.time)) {
+        const datePart = a.date.slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          return istDateTimeFromDateAndTime(datePart, a.time);
+        }
+      }
+      const d = new Date(a.date);
+      if (!isNaN(d.getTime())) return d;
+      return new Date();
+    } catch {
+      return new Date();
+    }
+  };
+  const getISTNow = () => {
+    const now = new Date();
+    const datePart = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    const timePart = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+    return istDateTimeFromDateAndTime(datePart, timePart);
+  };
 
   // ============================================================================
   // 🔄 TAB VALIDATION - Ensure non-doctors can't access doctor-specific tabs
@@ -215,6 +313,57 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [user]);
 
+  // Fetch hour-level availability for appointment dates (doctor)
+  useEffect(() => {
+    if (!user || user.role !== 'DOCTOR') return;
+    const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const dates = Array.from(new Set(appointments.map((a) => fmtDateIST.format(getAppointmentISTDate(a)))));
+    if (dates.length === 0) return;
+    const missing = dates.filter((d) => !availabilityByDate[d]);
+    if (missing.length === 0) return;
+
+    // Instant local fallback for capacity to avoid UI lag
+    const period = Number(doctorProfile?.slotPeriodMinutes ?? 15);
+    const capacityPerHour = Math.max(1, Math.floor(60 / Math.max(1, period)));
+    const initialAvail: Record<string, { periodMinutes: number; hours: Array<{ hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }> }> = { ...availabilityByDate };
+    missing.forEach((date) => {
+      if (!initialAvail[date]) {
+        initialAvail[date] = {
+          periodMinutes: period,
+          hours: Array.from({ length: 24 }, (_, h) => ({
+            hour: String(h).padStart(2, '0') + ':00',
+            capacity: capacityPerHour,
+            bookedCount: 0,
+            isFull: false,
+            labelFrom: `${String(h).padStart(2, '0')}:00`,
+            labelTo: `${String((h + 1) % 24).padStart(2, '0')}:00`,
+          })),
+        };
+      }
+    });
+    setAvailabilityByDate(initialAvail);
+
+    (async () => {
+      try {
+        const results = await Promise.all(
+          missing.map((date) =>
+            apiClient.getSlotsAndAvailability({ doctorId: user.id, date }).catch(() => null)
+          )
+        );
+        const next: Record<string, { periodMinutes: number; hours: Array<{ hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }> }> = { ...availabilityByDate };
+        missing.forEach((date, idx) => {
+          const r = results[idx] as any;
+          if (r && r.availability) {
+            next[date] = r.availability;
+          }
+        });
+        setAvailabilityByDate(next);
+      } catch (err) {
+        console.warn('Failed to fetch availability:', err);
+      }
+    })();
+  }, [user, appointments]);
+
   // Load hospital doctors and their bookings for hospital admins
   useEffect(() => {
     const loadHospitalBookings = async () => {
@@ -241,11 +390,18 @@ export default function DashboardPage() {
               ]);
               perDoctor[d.id] = Array.isArray(items) ? items : [];
               perDoctorSlots[d.id] = Array.isArray(s) ? s : [];
-              perDoctorPeriod[d.id] = Number((p as any)?.slotPeriodMinutes) || 15;
+              const prev = hospitalDoctorPeriodMap[d.id];
+              const pval = (p && typeof (p as any).slotPeriodMinutes === 'number') ? Number((p as any).slotPeriodMinutes) : undefined;
+              const profileVal = (d?.doctorProfile && typeof d.doctorProfile.slotPeriodMinutes === 'number') ? Number(d.doctorProfile.slotPeriodMinutes) : undefined;
+              perDoctorPeriod[d.id] = pval ?? prev ?? profileVal ?? 15;
             } catch {
               if (!perDoctor[d.id]) perDoctor[d.id] = [];
               if (!perDoctorSlots[d.id]) perDoctorSlots[d.id] = [];
-              if (!perDoctorPeriod[d.id]) perDoctorPeriod[d.id] = 15;
+              if (perDoctorPeriod[d.id] === undefined) {
+                const prev = hospitalDoctorPeriodMap[d.id];
+                const profileVal = (d?.doctorProfile && typeof d.doctorProfile.slotPeriodMinutes === 'number') ? Number(d.doctorProfile.slotPeriodMinutes) : undefined;
+                perDoctorPeriod[d.id] = prev ?? profileVal ?? 15;
+              }
             }
           })
         );
@@ -264,7 +420,6 @@ export default function DashboardPage() {
 
   // Update appointment status (hospital admin -> per doctor)
   const updateDoctorAppointmentStatus = async (doctorId: number, appointmentId: number, newStatus: string) => {
-    if (!hospitalProfile?.id) return;
     // Optimistically update UI immediately, then reconcile with server response
     let previous: Appointment[] | undefined;
     setDoctorAppointmentsMap((prev) => {
@@ -274,6 +429,11 @@ export default function DashboardPage() {
       );
       return { ...prev, [doctorId]: nextList };
     });
+    let previousAppointments: Appointment[] | undefined;
+    setAppointments((prev) => {
+      previousAppointments = prev;
+      return prev.map((a) => (a.id === appointmentId ? { ...a, status: newStatus } : a));
+    });
     // Broadcast to other dashboards (e.g., Slot Admin) for instant reflection
     try {
       const bc = new BroadcastChannel('appointments-updates');
@@ -281,22 +441,34 @@ export default function DashboardPage() {
       bc.close();
     } catch {}
     try {
-      const updated = await apiClient.updateHospitalDoctorAppointment(
-        hospitalProfile.id,
-        doctorId,
-        appointmentId,
-        { status: newStatus }
-      );
-      setDoctorAppointmentsMap((prev) => ({
-        ...prev,
-        [doctorId]: (prev[doctorId] || []).map((a) => (a.id === appointmentId ? updated : a)),
-      }));
+      let updated: Appointment | null = null;
+      if (hospitalProfile?.id) {
+        updated = await apiClient.updateHospitalDoctorAppointment(
+          hospitalProfile.id,
+          doctorId,
+          appointmentId,
+          { status: newStatus }
+        );
+      } else if (user?.role === 'DOCTOR') {
+        // Doctor updates own appointment via doctor-owned endpoint (no hospital context required)
+        updated = await apiClient.updateDoctorAppointment(appointmentId, { status: newStatus });
+      }
+      if (updated) {
+        setDoctorAppointmentsMap((prev) => ({
+          ...prev,
+          [doctorId]: (prev[doctorId] || []).map((a) => (a.id === appointmentId ? updated as Appointment : a)),
+        }));
+        setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? updated as Appointment : a)));
+      } else {
+        throw new Error('No permission to update appointment');
+      }
     } catch (e: any) {
       // Revert on failure
       setDoctorAppointmentsMap((prev) => ({
         ...prev,
         [doctorId]: previous || (prev[doctorId] || []),
       }));
+      setAppointments((prev) => previousAppointments || prev);
       alert(e?.message || 'Failed to update appointment status');
     }
   };
@@ -309,6 +481,156 @@ export default function DashboardPage() {
     } catch (e: any) {
       alert(e?.message || 'Failed to cancel appointment');
     }
+  };
+
+  const onDragStartAppointment = (ev: any, appointment: Appointment) => {
+    if (!ev?.dataTransfer) return;
+    try {
+      // Some browsers require a plain text payload to enable drop
+      ev.dataTransfer.setData('text/plain', JSON.stringify({ id: appointment.id }));
+      ev.dataTransfer.setData('appointment-json', JSON.stringify(appointment));
+      ev.dataTransfer.effectAllowed = 'move';
+      console.log('[DND] dragstart', { id: appointment.id, doctorId: appointment.doctorId, date: appointment.date, time: appointment.time });
+    } catch {}
+  };
+
+  // Burst handling: debounce + small concurrency queue + retries
+  const MAX_RESCHEDULE_CONCURRENCY = 3;
+  const rescheduleQueueRef = useRef<{ running: number; q: Array<() => Promise<void>> }>({ running: 0, q: [] });
+  const rescheduleTimersRef = useRef<Map<number, any>>(new Map());
+  const latestRescheduleRef = useRef<Map<number, { dateStr: string; timeStr: string; doctorId: number }>>(new Map());
+  const prevStatesRef = useRef<Map<number, { appts: Appointment[]; map: Record<number, Appointment[]> }>>(new Map());
+
+  const processRescheduleQueue = () => {
+    const q = rescheduleQueueRef.current;
+    while (q.running < MAX_RESCHEDULE_CONCURRENCY && q.q.length > 0) {
+      const task = q.q.shift()!;
+      q.running++;
+      task().finally(() => {
+        q.running--;
+        processRescheduleQueue();
+      });
+    }
+  };
+  const enqueueCommit = (fn: () => Promise<void>) => {
+    rescheduleQueueRef.current.q.push(fn);
+    processRescheduleQueue();
+  };
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const withRetry = async <T,>(fn: () => Promise<T>, max = 5) => {
+    let lastErr: any;
+    for (let i = 0; i < max; i++) {
+      try {
+        return await fn();
+      } catch (e: any) {
+        lastErr = e;
+        const delay = 250 * Math.pow(2, i) + Math.floor(Math.random() * 150);
+        await sleep(delay);
+      }
+    }
+    throw lastErr || new Error('Too many attempts, please try again');
+  };
+
+  const commitReschedule = async (appointmentId: number) => {
+    const latest = latestRescheduleRef.current.get(appointmentId);
+    if (!latest) return;
+    const { dateStr, timeStr, doctorId: did } = latest;
+
+    // Resolve hospital ID for both admin and doctor flows
+    let hid = hospitalProfile?.id as number | undefined;
+    if (!hid && user?.role === 'DOCTOR') {
+      const byDoctor = await apiClient.getHospitalByDoctorId(did).catch(() => null);
+      hid = byDoctor?.hospitalId ?? hid;
+    }
+    if (!hid) {
+      const myHospital = await apiClient.getMyHospital().catch(() => null);
+      hid = myHospital?.id ?? hid;
+    }
+
+    const doUpdate = () =>
+      hid
+        ? apiClient.updateHospitalDoctorAppointment(hid!, did, appointmentId, { date: dateStr, time: timeStr })
+        : apiClient.updateDoctorAppointment(appointmentId, { date: dateStr, time: timeStr });
+
+    await withRetry(doUpdate);
+
+    try {
+      const ch = new BroadcastChannel('appointments-updates');
+      ch.postMessage({ type: 'appointment-reschedule', id: appointmentId, payload: { doctorId: did, date: dateStr, time: timeStr } });
+      ch.close();
+    } catch {}
+  };
+
+  const rescheduleDoctorAppointment = async (appointment: Appointment, targetStart: Date, targetDoctorId?: number) => {
+    const did = targetDoctorId ?? (user?.id ? Number(user?.id) : undefined);
+    if (!did) return;
+
+    const fmtDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const fmtTime = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const dateStr = fmtDate.format(targetStart);
+    const timeStr = fmtTime.format(targetStart);
+
+    console.log('[DND] drop -> reschedule', { id: appointment.id, fromDoctorId: appointment.doctorId, toDoctorId: did, date: dateStr, time: timeStr });
+
+    // Snapshot current state in case we need to revert this exact attempt
+    prevStatesRef.current.set(appointment.id, { appts: appointments, map: doctorAppointmentsMap });
+
+    // Optimistic UI update
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === appointment.id ? { ...a, date: dateStr, time: timeStr, doctorId: did } : a))
+    );
+    setDoctorAppointmentsMap((prev) => {
+      const next: Record<number, Appointment[]> = { ...prev };
+      const oldDid = Number(appointment.doctorId || did);
+      if (oldDid && next[oldDid]) {
+        next[oldDid] = (next[oldDid] || []).filter((a) => a.id !== appointment.id);
+      }
+      next[did] = [...(next[did] || []), { ...appointment, date: dateStr, time: timeStr, doctorId: did }];
+      return next;
+    });
+
+    // Record latest desired state for this appointment
+    latestRescheduleRef.current.set(appointment.id, { dateStr, timeStr, doctorId: did });
+
+    // Debounce commit to absorb rapid bursts
+    const existing = rescheduleTimersRef.current.get(appointment.id);
+    if (existing) {
+      try { clearTimeout(existing as any); } catch {}
+    }
+    const timerId = setTimeout(() => {
+      enqueueCommit(async () => {
+        try {
+          await commitReschedule(appointment.id);
+          // Successful commit clears prev snapshot
+          prevStatesRef.current.delete(appointment.id);
+        } catch (e: any) {
+          console.warn('[DND] reschedule commit failed', e);
+          const latest = latestRescheduleRef.current.get(appointment.id);
+          // Only revert if no newer reschedule has happened for this appointment
+          if (latest && latest.dateStr === dateStr && latest.timeStr === timeStr && latest.doctorId === did) {
+            const prev = prevStatesRef.current.get(appointment.id);
+            if (prev) {
+              setAppointments(prev.appts);
+              setDoctorAppointmentsMap(prev.map);
+            }
+          }
+          alert(e?.message || 'Failed to reschedule appointment');
+        }
+      });
+      rescheduleTimersRef.current.delete(appointment.id);
+    }, 250);
+    rescheduleTimersRef.current.set(appointment.id, timerId);
   };
 
   // Listen for cross-dashboard updates to keep Hospital Admin in sync
@@ -325,6 +647,7 @@ export default function DashboardPage() {
           });
           return next;
         });
+        setAppointments((prev) => prev.map((a) => (a.id === msg.id ? { ...a, status: msg.status } : a)));
       } else if (msg?.type === 'appointment-cancel') {
         setDoctorAppointmentsMap((prev) => {
           const next: Record<number, Appointment[]> = { ...prev };
@@ -332,6 +655,27 @@ export default function DashboardPage() {
             const did = Number(key);
             next[did] = (next[did] || []).filter((a) => a.id !== msg.id);
           });
+          return next;
+        });
+        setAppointments((prev) => prev.filter((a) => a.id !== msg.id));
+      } else if (msg?.type === 'appointment-reschedule') {
+        const payload = msg?.payload || {};
+        const newDid = Number(payload.doctorId);
+        setAppointments((prev) => prev.map((a) => (a.id === msg.id ? { ...a, date: payload.date, time: payload.time, doctorId: newDid || a.doctorId } : a)));
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          // remove from all doctors first
+          Object.keys(next).forEach((key) => {
+            const did = Number(key);
+            next[did] = (next[did] || []).filter((a) => a.id !== msg.id);
+          });
+          // add to new doctor
+          if (newDid) {
+            // try to find the base appointment from previous map
+            const prevAppt = Object.values(prev).flat().find((a) => a.id === msg.id);
+            const updated = prevAppt ? { ...prevAppt, date: payload.date, time: payload.time, doctorId: newDid } : ({ id: msg.id, date: payload.date, time: payload.time, doctorId: newDid } as any);
+            next[newDid] = [...(next[newDid] || []), updated];
+          }
           return next;
         });
       } else if (msg?.type === 'appointment-booked') {
@@ -371,6 +715,455 @@ export default function DashboardPage() {
     };
     return () => channel.close();
   }, []);
+
+  // Live updates via WebSocket: prefer sockets when connected
+useEffect(() => {
+  if (!user) return;
+
+  const socket = io('http://localhost:3001', { transports: ['websocket'] });
+
+  const onUpdate = (updated: any) => {
+    try {
+      const id = Number(updated?.id);
+      const newDid = Number(updated?.doctor?.id ?? updated?.doctorId);
+      const nextStatus = updated?.status;
+      const nextDate = updated?.date;
+      const nextTime = updated?.time;
+
+      setAppointments((prev) => prev.map((a) => (
+        a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time, doctorId: Number.isFinite(newDid) ? newDid : a.doctorId } : a
+      )));
+
+      setDoctorAppointmentsMap((prev) => {
+        const next: Record<number, Appointment[]> = { ...prev };
+        Object.keys(next).forEach((key) => {
+          const didKey = Number(key);
+          next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
+        });
+        if (Number.isFinite(newDid)) {
+          const prevAppt = Object.values(prev).flat().find((a) => a.id === id);
+          const updatedAppt = prevAppt ? { ...prevAppt, status: nextStatus ?? prevAppt.status, date: nextDate ?? prevAppt.date, time: nextTime ?? prevAppt.time, doctorId: newDid } : ({ id, status: nextStatus, date: nextDate, time: nextTime, doctorId: newDid } as any);
+          next[newDid] = [...(next[newDid] || []), updatedAppt];
+        }
+        return next;
+      });
+    } catch {}
+  };
+
+  const onCancel = (msg: any) => {
+    try {
+      const id = Number(msg?.id);
+      setAppointments((prev) => prev.filter((a) => a.id !== id));
+      setDoctorAppointmentsMap((prev) => {
+        const next: Record<number, Appointment[]> = { ...prev };
+        Object.keys(next).forEach((key) => {
+          const didKey = Number(key);
+          next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
+        });
+        return next;
+      });
+    } catch {}
+  };
+
+  const joinRooms = () => {
+    if (hospitalProfile?.id) socket.emit('join-hospital', hospitalProfile.id);
+    if (user?.role === 'DOCTOR' && user?.id) socket.emit('join-doctor', user.id);
+    if (user?.role === 'PATIENT' && user?.id) socket.emit('join-patient', user.id);
+  };
+
+  socket.on('connect', () => { setSocketReady(true); joinRooms(); });
+  socket.on('disconnect', () => setSocketReady(false));
+  socket.on('appointment-updated', onUpdate);
+  socket.on('appointment-updated-optimistic', onUpdate);
+  socket.on('appointment-cancelled', onCancel);
+
+  // On patient booking, refresh that doctor's appointments and slots
+  const onBooked = async (msg: any) => {
+    try {
+      const payload = msg?.payload || {};
+      const did = Number(payload?.doctorId);
+      if (!did) return;
+
+      const refreshForHospital = async (hid: number) => {
+        try {
+          const [items, slots] = await Promise.all([
+            apiClient.getHospitalDoctorAppointments(hid, did),
+            apiClient.getSlots({ doctorId: did }),
+          ]);
+          setDoctorAppointmentsMap((prev) => ({
+            ...prev,
+            [did]: Array.isArray(items) ? items : [],
+          }));
+          setHospitalDoctorSlotsMap((prev) => ({
+            ...prev,
+            [did]: Array.isArray(slots) ? slots : [],
+          }));
+        } catch {}
+      };
+
+      if (hospitalProfile?.id) {
+        await refreshForHospital(hospitalProfile.id);
+      } else {
+        try {
+          const h = await apiClient.getMyHospital();
+          if (h?.id) await refreshForHospital(h.id);
+        } catch {}
+      }
+    } catch {}
+  };
+  socket.on('appointment-booked', onBooked);
+
+  joinRooms();
+
+  return () => {
+    socket.off('appointment-updated', onUpdate);
+    socket.off('appointment-updated-optimistic', onUpdate);
+    socket.off('appointment-cancelled', onCancel);
+    socket.off('appointment-booked', onBooked);
+    socket.disconnect();
+  };
+}, [user?.id, user?.role, hospitalProfile?.id]);
+
+// Live updates via SSE: subscribe to hospital appointment events
+  useEffect(() => {
+    const hid = hospitalProfile?.id;
+    if (!hid || socketReady) return;
+    const es = new EventSource(`/api/hospitals/${hid}/appointments/events`);
+
+    const onUpdate = (ev: MessageEvent) => {
+      try {
+        const updated: any = JSON.parse(ev.data);
+        const id = Number(updated?.id);
+        const newDid = Number(updated?.doctor?.id ?? updated?.doctorId);
+        const nextStatus = updated?.status;
+        const nextDate = updated?.date;
+        const nextTime = updated?.time;
+
+        setAppointments((prev) => prev.map((a) => (
+          a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time, doctorId: Number.isFinite(newDid) ? newDid : a.doctorId } : a
+        )));
+
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const did = Number(key);
+            next[did] = (next[did] || []).filter((a) => a.id !== id);
+          });
+          if (Number.isFinite(newDid)) {
+            const prevAppt = Object.values(prev).flat().find((a) => a.id === id);
+            const updatedAppt = prevAppt ? { ...prevAppt, status: nextStatus ?? prevAppt.status, date: nextDate ?? prevAppt.date, time: nextTime ?? prevAppt.time, doctorId: newDid } : ({ id, status: nextStatus, date: nextDate, time: nextTime, doctorId: newDid } as any);
+            next[newDid] = [...(next[newDid] || []), updatedAppt];
+          }
+          return next;
+        });
+      } catch {}
+    };
+
+    const onCancel = (ev: MessageEvent) => {
+      try {
+        const msg: any = JSON.parse(ev.data);
+        const id = Number(msg?.id);
+        setAppointments((prev) => prev.filter((a) => a.id !== id));
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const did = Number(key);
+            next[did] = (next[did] || []).filter((a) => a.id !== id);
+          });
+          return next;
+        });
+      } catch {}
+    };
+
+    // On patient booking, refresh that doctor's appointments and slots
+    const onBooked = async (ev: MessageEvent) => {
+      try {
+        const msg: any = JSON.parse(ev.data);
+        const payload = msg?.payload || {};
+        const did = Number(payload?.doctorId);
+        if (!did) return;
+        const refreshForHospital = async (hid2: number) => {
+          try {
+            const [items, slots] = await Promise.all([
+              apiClient.getHospitalDoctorAppointments(hid2, did),
+              apiClient.getSlots({ doctorId: did }),
+            ]);
+            setDoctorAppointmentsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(items) ? items : [],
+            }));
+            setHospitalDoctorSlotsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(slots) ? slots : [],
+            }));
+          } catch {}
+        };
+        await refreshForHospital(hid);
+      } catch {}
+    };
+
+    es.addEventListener('appointment-updated', onUpdate);
+    es.addEventListener('appointment-updated-optimistic', onUpdate);
+    es.addEventListener('appointment-cancelled', onCancel);
+    es.addEventListener('appointment-booked', onBooked);
+    es.onerror = () => {
+      // Optional: could implement exponential backoff reconnect
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [hospitalProfile?.id]);
+
+  // Live updates via SSE: subscribe to doctor appointment events
+  useEffect(() => {
+    const did = user?.role === 'DOCTOR' ? user?.id : undefined;
+    if (!did || socketReady) return;
+    const es = new EventSource(`/api/doctors/${did}/appointments/events`);
+
+    const onUpdate = (ev: MessageEvent) => {
+      try {
+        const updated: any = JSON.parse(ev.data);
+        const id = Number(updated?.id);
+        const newDid = Number(updated?.doctor?.id ?? updated?.doctorId);
+        const nextStatus = updated?.status;
+        const nextDate = updated?.date;
+        const nextTime = updated?.time;
+
+        setAppointments((prev) => prev.map((a) => (
+          a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time, doctorId: Number.isFinite(newDid) ? newDid : a.doctorId } : a
+        )));
+
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const didKey = Number(key);
+            next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
+          });
+          if (Number.isFinite(newDid)) {
+            const prevAppt = Object.values(prev).flat().find((a) => a.id === id);
+            const updatedAppt = prevAppt ? { ...prevAppt, status: nextStatus ?? prevAppt.status, date: nextDate ?? prevAppt.date, time: nextTime ?? prevAppt.time, doctorId: newDid } : ({ id, status: nextStatus, date: nextDate, time: nextTime, doctorId: newDid } as any);
+            next[newDid] = [...(next[newDid] || []), updatedAppt];
+          }
+          return next;
+        });
+      } catch {}
+    };
+
+    const onCancel = (ev: MessageEvent) => {
+      try {
+        const msg: any = JSON.parse(ev.data);
+        const id = Number(msg?.id);
+        setAppointments((prev) => prev.filter((a) => a.id !== id));
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const didKey = Number(key);
+            next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
+          });
+          return next;
+        });
+      } catch {}
+    };
+
+    // On patient booking, refresh that doctor's appointments and slots
+    const onBooked = async (ev: MessageEvent) => {
+      try {
+        const msg: any = JSON.parse(ev.data);
+        const payload = msg?.payload || {};
+        const bookedDid = Number(payload?.doctorId);
+        if (!bookedDid || bookedDid !== did) return;
+
+        const refreshForHospital = async (hid2: number) => {
+          try {
+            const [items, slots] = await Promise.all([
+              apiClient.getHospitalDoctorAppointments(hid2, did),
+              apiClient.getSlots({ doctorId: did }),
+            ]);
+            setDoctorAppointmentsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(items) ? items : [],
+            }));
+            setHospitalDoctorSlotsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(slots) ? slots : [],
+            }));
+          } catch {}
+        };
+
+        if (hospitalProfile?.id) {
+          await refreshForHospital(hospitalProfile.id);
+        } else {
+          try {
+            const h = await apiClient.getMyHospital();
+            if (h?.id) await refreshForHospital(h.id);
+          } catch {}
+        }
+      } catch {}
+    };
+
+    es.addEventListener('appointment-updated', onUpdate);
+    es.addEventListener('appointment-updated-optimistic', onUpdate);
+    es.addEventListener('appointment-cancelled', onCancel);
+    es.addEventListener('appointment-booked', onBooked);
+    es.onerror = () => {
+      // Optional: could implement exponential backoff reconnect
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [user?.id, user?.role]);
+
+  // Live updates via SSE: subscribe to patient appointment events
+  useEffect(() => {
+    const pid = user?.role === 'PATIENT' ? user?.id : undefined;
+    if (!pid || socketReady) return;
+    const es = new EventSource(`/api/patients/${pid}/appointments/events`);
+
+    const onUpdate = (ev: MessageEvent) => {
+      try {
+        const updated: any = JSON.parse(ev.data);
+        const id = Number(updated?.id);
+        const newDid = Number(updated?.doctor?.id ?? updated?.doctorId);
+        const nextStatus = updated?.status;
+        const nextDate = updated?.date;
+        const nextTime = updated?.time;
+
+        setAppointments((prev) => prev.map((a) => (
+          a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time, doctorId: Number.isFinite(newDid) ? newDid : a.doctorId } : a
+        )));
+
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const did = Number(key);
+            next[did] = (next[did] || []).filter((a) => a.id !== id);
+          });
+          if (Number.isFinite(newDid)) {
+            const prevAppt = Object.values(prev).flat().find((a) => a.id === id);
+            const updatedAppt = prevAppt ? { ...prevAppt, status: nextStatus ?? prevAppt.status, date: nextDate ?? prevAppt.date, time: nextTime ?? prevAppt.time, doctorId: newDid } : ({ id, status: nextStatus, date: nextDate, time: nextTime, doctorId: newDid } as any);
+            next[newDid] = [...(next[newDid] || []), updatedAppt];
+          }
+          return next;
+        });
+      } catch {}
+    };
+
+    const onCancel = (ev: MessageEvent) => {
+      try {
+        const msg: any = JSON.parse(ev.data);
+        const id = Number(msg?.id);
+        setAppointments((prev) => prev.filter((a) => a.id !== id));
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const did = Number(key);
+            next[did] = (next[did] || []).filter((a) => a.id !== id);
+          });
+          return next;
+        });
+      } catch {}
+    };
+
+    // On patient booking, refresh that doctor's appointments and slots
+    const onBooked = async (ev: MessageEvent) => {
+      try {
+        const msg: any = JSON.parse(ev.data);
+        const payload = msg?.payload || {};
+        const did = Number(payload?.doctorId);
+        if (!did) return;
+
+        const refreshForHospital = async (hid2: number) => {
+          try {
+            const [items, slots] = await Promise.all([
+              apiClient.getHospitalDoctorAppointments(hid2, did),
+              apiClient.getSlots({ doctorId: did }),
+            ]);
+            setDoctorAppointmentsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(items) ? items : [],
+            }));
+            setHospitalDoctorSlotsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(slots) ? slots : [],
+            }));
+          } catch {}
+        };
+
+        if (hospitalProfile?.id) {
+          await refreshForHospital(hospitalProfile.id);
+        } else {
+          try {
+            const h = await apiClient.getMyHospital();
+            if (h?.id) await refreshForHospital(h.id);
+          } catch {}
+        }
+      } catch {}
+    };
+
+    es.addEventListener('appointment-updated', onUpdate);
+    es.addEventListener('appointment-updated-optimistic', onUpdate);
+    es.addEventListener('appointment-cancelled', onCancel);
+    es.addEventListener('appointment-booked', onBooked);
+    es.onerror = () => {};
+    return () => { es.close(); };
+  }, [user?.role, user?.id]);
+
+  // Global flags for drag/drop
+  const dropHandledRef = useRef(false);
+
+  // Global dragover/drop fallback for doctor grouped capacity view
+  useEffect(() => {
+    const shouldEnable = activeTab === 'appointments' && user?.role === 'DOCTOR' && appointmentViewMode === 'grouped';
+    if (!shouldEnable) return;
+
+    const onDragOver = (ev: DragEvent) => {
+      ev.preventDefault();
+      try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {}
+    };
+
+    const onDrop = (ev: DragEvent) => {
+      ev.preventDefault();
+      if (dropHandledRef.current) { dropHandledRef.current = false; return; }
+      try {
+        const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
+        if (!raw) { console.warn('[DND] global-drop: missing data'); return; }
+        const appt = JSON.parse(raw);
+        const candidates = Array.from(document.querySelectorAll('[data-seg-start], [data-hour-start]')) as HTMLElement[];
+        if (candidates.length === 0) { console.warn('[DND] global-drop: no capacity candidates'); return; }
+        const y = ev.clientY;
+        let nearest: HTMLElement | null = null;
+        let best = Number.POSITIVE_INFINITY;
+        for (const el of candidates) {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) continue; // skip off-screen/hidden
+          const cy = r.top + r.height / 2;
+          const d = Math.abs(y - cy);
+          if (d < best) { best = d; nearest = el; }
+        }
+        if (!nearest) { console.warn('[DND] global-drop: no nearest slot'); return; }
+        const startIso = nearest.getAttribute('data-seg-start') || nearest.getAttribute('data-hour-start');
+        const didStr = nearest.getAttribute('data-doctor-id') || String(user?.id ?? '');
+        if (!startIso || !didStr) { console.warn('[DND] global-drop: missing target data'); return; }
+        const did = Number(didStr);
+        const targetStart = new Date(startIso);
+        console.log('[DND] global drop', { apptId: appt.id, doctorId: did, startIso });
+        rescheduleDoctorAppointment(appt, targetStart, did);
+      } catch (err) {
+        console.warn('[DND] global-drop parse error', err);
+      }
+    };
+
+    document.addEventListener('dragenter', onDragOver);
+    document.addEventListener('dragover', onDragOver);
+    document.addEventListener('drop', onDrop);
+    return () => {
+      document.removeEventListener('dragenter', onDragOver);
+      document.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('drop', onDrop);
+    };
+  }, [activeTab, appointmentViewMode, user?.role]);
 
   const loadHospitalDoctorWorkingHours = async (doctorId: number) => {
     if (!hospitalProfile?.id) return;
@@ -512,17 +1305,20 @@ export default function DashboardPage() {
   // ============================================================================
   // Helper: group appointments by date (YYYY-MM-DD) and hour (0-23)
   const groupAppointmentsByDateHour = (list: Appointment[]) => {
-    const result: Record<string, Record<number, Appointment[]>> = {};
-    list.forEach((a) => {
-      const d = new Date(a.date);
-      const dateKey = d.toISOString().slice(0, 10); // stable date key
-      const hour = d.getHours();
-      if (!result[dateKey]) result[dateKey] = {};
-      if (!result[dateKey][hour]) result[dateKey][hour] = [];
-      result[dateKey][hour].push(a);
-    });
-    return result;
-  };
+  const result: Record<string, Record<number, Appointment[]>> = {};
+  const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+  list.forEach((a) => {
+    const d = getAppointmentISTDate(a);
+    const dateKey = fmtDateIST.format(d);
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }).formatToParts(d);
+    const hourStr = parts.find((p) => p.type === 'hour')?.value || '00';
+    const hour = parseInt(hourStr, 10) || 0;
+    if (!result[dateKey]) result[dateKey] = {};
+    if (!result[dateKey][hour]) result[dateKey][hour] = [];
+    result[dateKey][hour].push(a);
+  });
+  return result;
+};
 
   // Helper: format an hour range like "09:00 - 10:00"
   const formatHourRange = (dateKey: string, hour: number) => {
@@ -530,8 +1326,7 @@ export default function DashboardPage() {
     start.setHours(hour, 0, 0, 0);
     const end = new Date(start);
     end.setHours(hour + 1);
-    const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
-    return `${start.toLocaleTimeString([], opts)} - ${end.toLocaleTimeString([], opts)}`;
+    return `${formatISTTime(start)} - ${formatISTTime(end)}`;
   };
 
   return (
@@ -539,22 +1334,22 @@ export default function DashboardPage() {
       {/* ============================================================================
           🎨 HEADER SECTION - Dashboard header with navigation
           ============================================================================ */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex justify-between items-center py-8">
             <div className="flex items-center space-x-4">
               <div className="text-3xl">🏥</div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-2xl font-bold">
                   {isDoctorLike ? 'Doctor Dashboard' : 'Patient Dashboard'}
                 </h1>
-                <p className="text-gray-600">
-                  Welcome back, {user.role === 'DOCTOR' ? 'Dr. ' : ''}{user.email}
+                <p className="opacity-90">
+                  Welcome back, {user.role === 'DOCTOR' ? 'Dr. ' : ''}{getUserLabel(user as any, { doctorProfile: doctorProfile as any, hospitalProfile: hospitalProfile as any })}
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-gray-600">
+              <div className="flex items-center space-x-2 opacity-90">
                 <BellIcon className="h-6 w-6" />
                 <span className="text-sm">Notifications</span>
               </div>
@@ -564,6 +1359,20 @@ export default function DashboardPage() {
               >
                 Logout
               </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-6">
+            <div className="rounded-lg bg-white/10 backdrop-blur p-4">
+              <div className="text-sm opacity-80">Appointments</div>
+              <div className="text-2xl font-semibold">{(appointments || []).length}</div>
+            </div>
+            <div className="rounded-lg bg-white/10 backdrop-blur p-4">
+              <div className="text-sm opacity-80">Linked Doctors</div>
+              <div className="text-2xl font-semibold">{(hospitalDoctors || []).length}</div>
+            </div>
+            <div className="rounded-lg bg-white/10 backdrop-blur p-4">
+              <div className="text-sm opacity-80">Pending</div>
+              <div className="text-2xl font-semibold">{(appointments || []).filter((a: any) => a?.status === 'pending').length}</div>
             </div>
           </div>
         </div>
@@ -733,7 +1542,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex items-center text-gray-600">
                           <EnvelopeIcon className="h-5 w-5 mr-3" />
-                          <span>{user.email}</span>
+                          <span>{user.role === 'HOSPITAL_ADMIN' ? ((hospitalProfile as any)?.general?.name || (user.email?.split('@')[0])) : (user.role === 'DOCTOR' ? (doctorProfile?.slug || (user.email?.split('@')[0])) : (user.email?.split('@')[0]))}</span>
                         </div>
                       </div>
                     </div>
@@ -766,10 +1575,10 @@ export default function DashboardPage() {
                       <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div>
                           <p className="font-medium text-gray-900">
-                            {new Date(appointment.date).toLocaleDateString()} at {new Date(appointment.date).toLocaleTimeString()}
+                            {formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium' })} at {formatISTTime(getAppointmentISTDate(appointment))}
                           </p>
                                                      <p className="text-gray-600">
-                             {user.role === 'DOCTOR' ? `Patient: ${appointment.patient.email}` : `Doctor: ${appointment.doctor?.email || 'Unknown Doctor'}`}
+                             {user.role === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || appointment.patient?.email?.split('@')[0] || appointment.patientId)}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || appointment.doctor?.email?.split('@')[0] || 'Unknown Doctor')}`}
                            </p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -888,10 +1697,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Appointment Slot Boxes (Grouped by hour) */}
+            {/* Appointment Slot Boxes (Per-hour capacity view) */}
             <div className="bg-white shadow-lg rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Slot Boxes (Appointments)</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Slot Boxes (Capacity)</h3>
                 <div className="text-xs text-gray-600">Period: {Number(doctorProfile?.slotPeriodMinutes ?? 15)} min</div>
               </div>
               <div className="p-6">
@@ -904,7 +1713,7 @@ export default function DashboardPage() {
                   const fmtHour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false });
                   const groups = new Map<string, Appointment[]>();
                   filtered.forEach((a) => {
-                    const d = new Date(a.date);
+                    const d = getAppointmentISTDate(a);
                     const key = `${fmtDate.format(d)} ${fmtHour.format(d)}`;
                     const arr = groups.get(key) || [];
                     arr.push(a);
@@ -914,7 +1723,7 @@ export default function DashboardPage() {
                   const period = Number(doctorProfile?.slotPeriodMinutes ?? 15);
                   const segCount = Math.max(1, Math.floor(60 / Math.max(1, period)));
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
                       {entries.map(([key, list]) => {
                         const base = new Date(list[0].date);
                         const slotStart = new Date(base);
@@ -924,42 +1733,27 @@ export default function DashboardPage() {
                           const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
                           const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
                           const inSeg = list.filter((a) => {
-                            const t = new Date(a.date).getTime();
+                            const t = getAppointmentISTDate(a).getTime();
                             return t >= segStart.getTime() && t < segEnd.getTime();
                           });
                           return { segStart, segEnd, inSeg };
                         });
+                        const totalBooked = list.length;
                         return (
-                          <div key={key} className="border border-gray-200 rounded-lg">
+                          <div key={key} className="border border-gray-200 rounded-lg" data-hour-start={slotStart.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] doctor-hour-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] doctor-hour-drop', { targetStart: slotStart, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, slotStart, user.id as number); } catch (err) { console.warn('[DND] doctor-hour-drop parse error', err); } }}>
                             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                               <div className="text-sm text-gray-800">
-                                {slotStart.toLocaleString()} → {slotEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {formatIST(slotStart)} → {formatISTTime(slotEnd)}
                               </div>
-                              <div className="text-xs text-gray-600">Bookings: {list.length}</div>
+                              <div className="text-xs text-gray-600">Capacity: {segCount} • Booked: {totalBooked}</div>
                             </div>
-                            <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+                            <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
                               {segments.map((seg, i) => (
-                                <div key={i} className="border rounded p-2">
+                                <div key={i} className="border rounded p-2" data-seg-start={seg.segStart.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] doctor-seg-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] doctor-seg-drop', { targetStart: seg.segStart, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, seg.segStart, user.id as number); } catch (err) { console.warn('[DND] doctor-seg-drop parse error', err); } }}>
                                   <div className="text-xs text-gray-600 mb-1">
-                                    {seg.segStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {seg.segEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {formatISTTime(seg.segStart)} – {formatISTTime(seg.segEnd)}
                                   </div>
-                                  <div className="text-xs text-gray-700 mb-1">Users: {seg.inSeg.length}</div>
-                                  {seg.inSeg.length > 0 && (
-                                    <ul className="space-y-1">
-                                      {seg.inSeg.map((a) => (
-                                        <li key={a.id} className="flex items-center justify-between">
-                                          <div className="text-xs text-gray-800">
-                                            {a.patient?.email || a.patientId} <span className="ml-1 uppercase bg-blue-50 border border-blue-200 px-1 rounded">{a.status}</span>
-                                          </div>
-                                          <div className="flex items-center gap-1">
-                                            <button onClick={() => updateDoctorAppointmentStatus(user.id as number, a.id, 'CONFIRMED')} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Confirm</button>
-                                            <button onClick={() => updateDoctorAppointmentStatus(user.id as number, a.id, 'COMPLETED')} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">Complete</button>
-                                            <button onClick={() => cancelDoctorAppointment(a.id)} className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">Cancel</button>
-                                          </div>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
+                                  <div className="text-xs text-gray-700">Users: {seg.inSeg.length}</div>
                                 </div>
                               ))}
                             </div>
@@ -986,16 +1780,16 @@ export default function DashboardPage() {
               {user.role === 'DOCTOR' && (
                 <div className="mt-3 inline-flex rounded-md border overflow-hidden">
                   <button
-                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border-r`}
-                    onClick={() => setAppointmentViewMode('list')}
-                  >
-                    List
-                  </button>
-                  <button
-                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'grouped' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'grouped' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border-r`}
                     onClick={() => setAppointmentViewMode('grouped')}
                   >
                     Grouped
+                  </button>
+                  <button
+                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                    onClick={() => setAppointmentViewMode('list')}
+                  >
+                    List
                   </button>
                 </div>
               )}
@@ -1009,48 +1803,123 @@ export default function DashboardPage() {
                   {(!loadingHospitalBookings && hospitalDoctors.length === 0) && (
                     <div className="text-center py-8 text-gray-600">No doctors linked to your hospital yet.</div>
                   )}
+                  <div className="flex items-center justify-between mb-4">
+                    <input
+                      type="text"
+                      value={hospitalDoctorSearch}
+                      onChange={(e) => setHospitalDoctorSearch(e.target.value)}
+                      placeholder="Search doctors by name, slug, or email handle"
+                      className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {hospitalDoctorSearch && (
+                      <button onClick={() => setHospitalDoctorSearch('')} className="ml-2 text-sm text-gray-600 hover:text-gray-800">Clear</button>
+                    )}
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {hospitalDoctors.map((doc) => {
+                    {filteredHospitalDoctors.map((doc) => {
                       const items = doctorAppointmentsMap[doc.id] || [];
                       return (
                         <div key={doc.id} className="border rounded-lg overflow-hidden">
-                          <div className="px-4 py-3 border-b bg-gray-50">
-                            <div className="font-semibold text-gray-900">Doctor: {doc.email}</div>
-                            {doc.doctorProfile?.clinicName && (
-                              <div className="text-sm text-gray-600">{doc.doctorProfile.clinicName}</div>
-                            )}
+                          <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+                            <div>
+                              <div className="font-semibold text-gray-900">Doctor: {highlightDoctorLabel(getDoctorLabel(doc))}</div>
+                              {doc.doctorProfile?.clinicName && (
+                                <div className="text-sm text-gray-600">{doc.doctorProfile.clinicName}</div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setHistoryVisibleDoctor((prev) => ({ ...prev, [doc.id]: !prev[doc.id] }))}
+                              className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+                            >
+                              {historyVisibleDoctor[doc.id] ? 'Hide History' : 'Show History'}
+                            </button>
                           </div>
-                  <div className="p-4">
+                  <div className="p-4" onDragEnterCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOverCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
+                            {/* Pending Bookings (time has passed, today) */}
+                            {(() => {
+                              const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                              const todayStr = fmtDateIST.format(getISTNow());
+                              const nowTs = getISTNow().getTime();
+                              const pendingToday = items.filter((a) => {
+                                const d = getAppointmentISTDate(a);
+                                const isToday = fmtDateIST.format(d) === todayStr;
+                                return isToday && d.getTime() < nowTs && a.status === 'PENDING';
+                              });
+                              if (pendingToday.length === 0) return null;
+                              return (
+                                <div className="bg-white border rounded-lg overflow-hidden mb-3">
+                                  <div className="px-4 py-2 border-b border-yellow-200 flex items-center justify-between">
+                                    <h4 className="text-sm font-semibold text-gray-900">Pending Bookings</h4>
+                                    <div className="text-xs text-gray-600">Time passed, awaiting action</div>
+                                  </div>
+                                  <div className="p-3 space-y-2">
+                                    {pendingToday.map((appointment) => (
+                                      <div key={appointment.id} className="border rounded px-3 py-2">
+                                        <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                        <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {/* History of Bookings (previous days) */}
+                            {historyVisibleDoctor[doc.id] && (() => {
+                              const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                              const todayStr = fmtDateIST.format(getISTNow());
+                              const history = items.filter((a) => fmtDateIST.format(getAppointmentISTDate(a)) < todayStr);
+                              if (history.length === 0) return <div className="text-sm text-gray-600">No previous bookings.</div>;
+                              return (
+                                <div className="bg-white border rounded-lg overflow-hidden mb-3">
+                                  <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                                    <h4 className="text-sm font-semibold text-gray-900">History of Bookings</h4>
+                                    <div className="text-xs text-gray-600">Previous days</div>
+                                  </div>
+                                  <div className="p-3 space-y-2">
+                                    {history.map((appointment) => (
+                                      <div key={appointment.id} className="border rounded px-3 py-2">
+                                        <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                        <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             {(items.length === 0 && (hospitalDoctorSlotsMap[doc.id] || []).length === 0) ? (
                               <div className="text-sm text-gray-500">No bookings or slots found for this doctor.</div>
                             ) : (
-                              <ul className="space-y-4">
+                              <ul className="space-y-4" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
                                 {(() => {
-                                  const slots = (hospitalDoctorSlotsMap[doc.id] || []).filter((slot) => {
-                                    const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
-                                    const dayIdx = slotStart.getDay();
-                                    const wh = hospitalHoursInputs[dayIdx];
-                                    const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
-                                    if (!hasTiming) return true;
-                                    const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
-                                    const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
-                                    const endMin = startMin + 60;
-                                    const whStart = toMin(wh.start);
-                                    const whEnd = toMin(wh.end);
-                                    return startMin >= whStart && endMin <= whEnd;
-                                  });
+                                  const fmtDateIST2 = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                                  const todayStr = fmtDateIST2.format(getISTNow());
+                                  const slots = (hospitalDoctorSlotsMap[doc.id] || [])
+                                    .filter((slot) => slot.date >= todayStr)
+                                    .filter((slot) => {
+                                      const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
+                                      const dayIdx = slotStart.getDay();
+                                      const wh = hospitalHoursInputs[dayIdx];
+                                      const hasTiming = selectedDoctorForTiming === doc.id && wh && wh.start && wh.end;
+                                      if (!hasTiming) return true;
+                                      const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
+                                      const startMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+                                      const endMin = startMin + 60;
+                                      const whStart = toMin(wh.start);
+                                      const whEnd = toMin(wh.end);
+                                      return startMin >= whStart && endMin <= whEnd;
+                                    });
                                   const children = slots.map((slot) => {
                                     const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
                                     const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
                                     const slotAppointments = items.filter((a) => {
-                                      const t = new Date(a.date).getTime();
+                                      const t = getAppointmentISTDate(a).getTime();
                                       return t >= slotStart.getTime() && t <= slotEnd.getTime();
                                     });
                                     return (
-                                      <li key={slot.id} className="border border-gray-200 rounded">
+                                      <li key={slot.id} className="border border-gray-200 rounded" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] slot-level drop', { targetStart: slotStart, doctorId: doc.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, slotStart, doc.id); } catch (err) { console.warn('[DND] drop parse error', err); } }}>
                                         <div className="px-3 py-2">
                                           <div className="text-sm font-medium text-gray-900">Slot #{slot.id}</div>
-                                          <div className="text-sm text-gray-700">{slotStart.toLocaleString()} → {slotEnd.toLocaleString()}</div>
+                                          <div className="text-sm text-gray-700">{formatIST(slotStart)} → {formatIST(slotEnd)}</div>
                                           <div className="text-xs text-gray-500">Status: {slot.status || 'UNKNOWN'}</div>
                                           {(() => {
                                             const dayIdx = slotStart.getDay();
@@ -1073,7 +1942,7 @@ export default function DashboardPage() {
                                             ) : null;
                                           })()}
                                         </div>
-                                        <div className="px-3 pb-3">
+                                        <div className="px-3 pb-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
                                           {(() => {
                                             const period = Number(hospitalDoctorPeriodMap[doc.id] ?? doc?.doctorProfile?.slotPeriodMinutes ?? 15);
                                             const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
@@ -1081,7 +1950,7 @@ export default function DashboardPage() {
                                               const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
                                               const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
                                               const inSeg = slotAppointments.filter((a) => {
-                                                const t = new Date(a.date).getTime();
+                                                const t = getAppointmentISTDate(a).getTime();
                                                 return t >= segStart.getTime() && t < segEnd.getTime();
                                               });
                                               return { idx, segStart, segEnd, inSeg };
@@ -1091,21 +1960,21 @@ export default function DashboardPage() {
                                                 <div className="text-xs text-gray-600 mb-2">Sub-slots ({period} min): {count} per hour</div>
                                                 <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                                   {segments.map(({ idx, segStart, segEnd, inSeg }) => (
-                                                    <li key={idx} className="border border-gray-200 rounded px-3 py-2">
+                                                    <li key={idx} className="border border-gray-200 rounded px-3 py-2 hover:bg-blue-50" onDragEnter={(ev) => { try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] seg-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] seg-level drop', { targetStart: segStart, doctorId: doc.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, segStart, doc.id); } catch (err) { console.warn('[DND] seg-drop parse error', err); } }}>
                                                       <div className="text-xs font-medium text-gray-800">
-                                                        {segStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {formatISTTime(segStart)}
                                                         {' '}
                                                         →
                                                         {' '}
-                                                        {segEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {formatISTTime(segEnd)}
                                                       </div>
                                                       {inSeg.length === 0 ? (
                                                         <div className="text-xs text-gray-500 mt-1">Empty</div>
                                                       ) : (
                                                         <ul className="mt-1 space-y-1">
                                                           {inSeg.map((a) => (
-                                                            <li key={a.id} className="flex items-center justify-between">
-                                                              <div className="text-xs text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleTimeString()}</div>
+                                                            <li key={a.id} className="flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                                              <div className="text-xs text-gray-800">Appt #{a.id} — {formatISTTime(getAppointmentISTDate(a))}</div>
                                                               <div>
                                                                 <select
                                                                   className="border rounded px-2 py-1 text-xs"
@@ -1142,10 +2011,10 @@ export default function DashboardPage() {
                                         <div className="px-3 pb-3">
                                           <ul className="space-y-2">
                                             {items.map((a) => (
-                                              <li key={`appt-${a.id}`} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between">
+                                              <li key={`appt-${a.id}`} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
                                                 <div>
-                                                  <div className="text-sm text-gray-800">Appt #{a.id} — {new Date(a.date).toLocaleString()}</div>
-                                                  <div className="text-xs text-gray-600">Patient: {a.patient?.email || a.patientId} • Status: {a.status}</div>
+                                                  <div className="text-sm text-gray-800">Appt #{a.id} — {formatIST(getAppointmentISTDate(a))}</div>
+                                                  <div className="text-xs text-gray-600">Patient: {((a.patient as any)?.name) || ((a.patient as any)?.slug) || a.patient?.email?.split('@')[0] || a.patientId} • Status: {a.status}</div>
                                                 </div>
                                                 <div>
                                                   <select
@@ -1193,38 +2062,79 @@ export default function DashboardPage() {
                                 <div className="mt-4">
                                   <div className="text-sm font-semibold text-gray-900 mb-2">Slot Boxes (Capacity View)</div>
                                   <p className="text-xs text-gray-600 mb-3">Each hour shows {count} user slots ({period} min each)</p>
-                                  <ul className="space-y-3">
+                                  <ul className="space-y-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
                                     {slots.map((slot) => {
                                       const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
                                       const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
                                       const slotAppointments = items.filter((a) => {
-                                        const t = new Date(a.date).getTime();
+                                        const t = getAppointmentISTDate(a).getTime();
                                         return t >= slotStart.getTime() && t <= slotEnd.getTime();
                                       });
                                       const segments = Array.from({ length: count }, (_, idx) => {
                                         const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
                                         const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
                                         const inSeg = slotAppointments.filter((a) => {
-                                          const t = new Date(a.date).getTime();
+                                          const t = getAppointmentISTDate(a).getTime();
                                           return t >= segStart.getTime() && t < segEnd.getTime();
                                         });
                                         return { idx, segStart, segEnd, inSeg };
                                       });
                                       return (
-                                        <li key={`cap-${slot.id}`} className="border border-gray-200 rounded">
+                                        <li
+                                          key={`cap-${slot.id}`}
+                                          className="border border-gray-200 rounded hover:bg-blue-50"
+                                          data-hour-start={slotStart.toISOString()}
+                                          data-doctor-id={String(slot.doctorId)}
+                                          onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }}
+                                          onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }}
+                                          onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                          onDrop={(ev) => {
+                                            ev.preventDefault();
+                                            ev.stopPropagation();
+                                            try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {};
+                                            dropHandledRef.current = true;
+                                            const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain');
+                                            if (!data) { console.warn('[DND] drop: missing data'); return; }
+                                            try {
+                                              const appt = JSON.parse(data);
+                                              console.log('[DND] slot-level drop', { targetStart: slotStart, doctorId: slot.doctorId, apptId: appt.id });
+                                              rescheduleDoctorAppointment(appt, slotStart, slot.doctorId);
+                                            } catch (err) { console.warn('[DND] drop parse error', err); }
+                                          }}
+                                        >
                                           <div className="px-3 py-2">
                                             <div className="text-sm font-medium text-gray-900">Slot #{slot.id}</div>
-                                            <div className="text-sm text-gray-700">{slotStart.toLocaleString()} → {slotEnd.toLocaleString()}</div>
+                                            <div className="text-sm text-gray-700">{formatIST(slotStart)} → {formatIST(slotEnd)}</div>
                                             <div className="text-xs text-gray-500">Status: {slot.status || 'UNKNOWN'}</div>
                                           </div>
-                                          <div className="px-3 pb-3">
+                                          <div className="px-3 pb-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                                    onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
                                             <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                               {segments.map(({ idx, segStart, segEnd, inSeg }) => (
-                                                <li key={idx} className="border border-gray-200 rounded px-3 py-2">
+                                                <li
+                                                  key={idx}
+                                                  className="border border-gray-200 rounded px-3 py-2 hover:bg-blue-50"
+                                                  data-seg-start={segStart.toISOString()}
+                                                  data-doctor-id={String(slot.doctorId)}
+                                                  onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }}
+                                                  onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }}
+                                                  onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                                  onDrop={(ev) => {
+                                                    ev.preventDefault();
+                                                    ev.stopPropagation();
+                                                    try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {};
+                                                    dropHandledRef.current = true;
+                                                    const raw = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain');
+                                                    if (!raw) { console.warn('[DND] seg-drop: missing data'); return; }
+                                                    try {
+                                                      const appt = JSON.parse(raw);
+                                                      console.log('[DND] seg-level drop', { targetStart: segStart, doctorId: slot.doctorId, apptId: appt.id });
+                                                      rescheduleDoctorAppointment(appt, segStart, slot.doctorId);
+                                                    } catch (err) { console.warn('[DND] seg-drop parse error', err); }
+                                                  }}
+                                                >
                                                   <div className="text-xs font-medium text-gray-800">
-                                                    {segStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    {' '}→{' '}
-                                                    {segEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {formatISTTime(segStart)} → {formatISTTime(segEnd)}
                                                   </div>
                                                   <div className="text-xs text-gray-600 mt-1">Users: {inSeg.length}</div>
                                                 </li>
@@ -1258,7 +2168,7 @@ export default function DashboardPage() {
                         >
                           <option value="">Select a doctor</option>
                           {hospitalDoctors.map((d) => (
-                            <option key={d.id} value={d.id}>{d.email}</option>
+                            <option key={d.id} value={d.id}>Dr. {getDoctorLabel(d)}</option>
                           ))}
                         </select>
                         <button onClick={() => selectedDoctorForTiming && loadHospitalDoctorWorkingHours(selectedDoctorForTiming)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">Refresh</button>
@@ -1301,126 +2211,358 @@ export default function DashboardPage() {
                     {appointmentViewMode === 'grouped' ? (
                       <>
                         {/* Doctor-only controls */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <label className="text-sm text-gray-700">Filter:</label>
-                            <select
-                              value={doctorStatusFilter}
-                              onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
-                              className="border rounded-md px-2 py-1 text-sm"
-                            >
-                              <option value="ALL">All</option>
-                              <option value="CONFIRMED">Confirmed</option>
-                              <option value="PENDING">Pending</option>
-                              <option value="EMERGENCY">Emergency</option>
-                              <option value="CANCELLED">Cancelled</option>
-                            </select>
-                          </div>
-                          <button
-                            className="text-sm text-blue-600 hover:text-blue-800"
-                            onClick={() => {
-                              const groups = groupAppointmentsByDateHour(appointments);
-                              const next: Record<string, boolean> = {};
-                              let anyOpen = false;
-                              Object.entries(groups).forEach(([dateKey, hours]) => {
-                                Object.keys(hours).forEach((h) => {
-                                  const k = `${dateKey}-${h}`;
-                                  if (!collapsedHourKeys[k]) anyOpen = true;
-                                });
-                              });
-                              Object.entries(groups).forEach(([dateKey, hours]) => {
-                                Object.keys(hours).forEach((h) => {
-                                  const k = `${dateKey}-${h}`;
-                                  next[k] = anyOpen; // if any were open, close all; otherwise open all
-                                });
-                              });
-                              setCollapsedHourKeys(next);
-                            }}
-                          >
-                            {Object.values(collapsedHourKeys).some((v) => !v) ? 'Collapse All' : 'Expand All'}
-                          </button>
-                        </div>
-
-                        {Object.entries(groupAppointmentsByDateHour(appointments))
-                          .sort(([a], [b]) => a.localeCompare(b))
-                          .map(([dateKey, hours]) => (
-                            <div key={dateKey} className="space-y-4">
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-md font-semibold text-gray-900">
-                                  {new Date(dateKey).toLocaleDateString()}
-                                </h4>
+                        {/* Pending Bookings (time has passed, today) */}
+                        {(() => {
+                          const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                          const todayStr = fmtDateIST.format(getISTNow());
+                          const nowTs = getISTNow().getTime();
+                          const pendingToday = appointments.filter((a) => {
+                            const d = getAppointmentISTDate(a);
+                            const isToday = fmtDateIST.format(d) === todayStr;
+                            return isToday && d.getTime() < nowTs && a.status === 'PENDING';
+                          });
+                          if (pendingToday.length === 0) return null;
+                          return (
+                            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+                              <div className="px-6 py-4 border-b border-yellow-200 flex items-center justify-between">
+                                <h4 className="text-md font-semibold text-gray-900">Pending Bookings</h4>
+                                <div className="text-xs text-gray-600">Time passed, awaiting action</div>
                               </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {Object.entries(hours)
-                                  .sort(([ha], [hb]) => Number(ha) - Number(hb))
-                                  .map(([hourStr, items]) => {
-                                    const filtered = doctorStatusFilter === 'ALL' ? items : items.filter(a => a.status === doctorStatusFilter);
-                                    if (filtered.length === 0) return null;
-                                    const counts = {
-                                      CONFIRMED: items.filter(a => a.status === 'CONFIRMED').length,
-                                      PENDING: items.filter(a => a.status === 'PENDING').length,
-                                      EMERGENCY: items.filter(a => a.status === 'EMERGENCY').length,
-                                      CANCELLED: items.filter(a => a.status === 'CANCELLED').length,
-                                    };
-                                    const key = `${dateKey}-${hourStr}`;
-                                    const isCollapsed = !!collapsedHourKeys[key];
-                                    return (
-                                      <div key={hourStr} className="border rounded-lg bg-gray-50">
-                                        <button
-                                          className="w-full px-4 py-2 border-b flex items-center justify-between hover:bg-gray-100"
-                                          onClick={() => setCollapsedHourKeys(prev => ({...prev, [key]: !prev[key]}))}
-                                        >
-                                          <div className="font-medium text-gray-900">
-                                            {formatHourRange(dateKey, Number(hourStr))}
-                                          </div>
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">{filtered.length} booked</span>
-                                            {counts.CONFIRMED > 0 && (
-                                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">{counts.CONFIRMED} confirmed</span>
-                                            )}
-                                            {counts.PENDING > 0 && (
-                                              <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">{counts.PENDING} pending</span>
-                                            )}
-                                            {counts.CANCELLED > 0 && (
-                                              <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">{counts.CANCELLED} cancelled</span>
-                                            )}
-                                            <span className="text-xs text-gray-500">{isCollapsed ? '▲' : '▼'}</span>
-                                          </div>
-                                        </button>
-                                        {!isCollapsed && (
-                                          <div className="p-3 space-y-2">
-                                            {filtered.map((appointment) => (
-                                              <div key={appointment.id} className="flex items-center justify-between bg-white border rounded-md p-2">
-                                                <div className="min-w-0">
-                                                  <p className="text-sm font-medium text-gray-900 truncate">
-                                                    Patient: {appointment.patient.email}
-                                                  </p>
-                                                  {appointment.reason && (
-                                                    <p className="text-xs text-gray-600 truncate">{appointment.reason}</p>
-                                                  )}
-                                                </div>
-                                                <div className="flex items-center space-x-3">
-                                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                    appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                                                    appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                                                    appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                    'bg-gray-100 text-gray-800'
-                                                  }`}>
-                                                    {appointment.status}
-                                                  </span>
-                                                  <button className="text-blue-600 hover:text-blue-900 text-xs">Update</button>
-                                                  <button className="text-red-600 hover:text-red-900 text-xs">Cancel</button>
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                              <div className="p-4 space-y-2">
+                                {pendingToday.map((appointment) => (
+                                  <div key={appointment.id} className="border rounded px-3 py-2">
+                                    <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || appointment.patientId} • Status: {appointment.status}</div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          ))}
+                          );
+                        })()}
+
+                        {/* History of Bookings (previous days) toggle */}
+                        <div className="flex justify-end mt-2">
+                          <button
+                            onClick={() => setShowDoctorHistory((v) => !v)}
+                            className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+                          >
+                            {showDoctorHistory ? 'Hide History' : 'Show History'}
+                          </button>
+                        </div>
+                        {showDoctorHistory && (() => {
+                          const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                          const todayStr = fmtDateIST.format(getISTNow());
+                          const history = appointments.filter((a) => fmtDateIST.format(getAppointmentISTDate(a)) < todayStr);
+                          if (history.length === 0) return <div className="text-sm text-gray-600">No previous bookings.</div>;
+                          return (
+                            <div className="bg-white shadow-lg rounded-lg overflow-hidden mt-2">
+                              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                                <h4 className="text-md font-semibold text-gray-900">History of Bookings</h4>
+                                <div className="text-xs text-gray-600">Previous days</div>
+                              </div>
+                              <div className="p-4 space-y-2">
+                                {history.map((appointment) => (
+                                  <div key={appointment.id} className="border rounded px-3 py-2">
+                                    <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || appointment.patientId} • Status: {appointment.status}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Capacity-only Slot Boxes (Appointments) */}
+                        {(() => {
+                          const period = Number(doctorProfile?.slotPeriodMinutes ?? 15);
+                          const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                          const fmtDateIST2 = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                          const dateWithAppointments = new Set(appointments.map((a) => fmtDateIST2.format(getAppointmentISTDate(a))));
+                          const capacitySlots = slots.filter((slot) => dateWithAppointments.has(slot.date));
+                          const list = capacitySlots.length > 0 ? capacitySlots : slots;
+                          if (list.length === 0) {
+                            const todayStr = fmtDateIST2.format(getISTNow());
+                            const dates = Array.from(dateWithAppointments).filter((d) => d >= todayStr).sort((a, b) => a.localeCompare(b));
+                            if (dates.length === 0 || Object.keys(availabilityByDate).length === 0) {
+                              return <div className="text-sm text-gray-500">No slots or availability found.</div>;
+                            }
+                            return (
+                              <div className="space-y-4 mt-2" onDragEnterCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOverCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-md font-semibold text-gray-900">Slot Boxes (Capacity)</h4>
+                                  <div className="flex items-center space-x-3">
+                                    <label className="text-sm text-gray-700">Filter:</label>
+                                    <select
+                                      value={doctorStatusFilter}
+                                      onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
+                                      className="border rounded-md px-2 py-1 text-sm"
+                                    >
+                                      <option value="ALL">All</option>
+                                      <option value="CONFIRMED">Confirmed</option>
+                                      <option value="PENDING">Pending</option>
+                                      <option value="EMERGENCY">Emergency</option>
+                                      <option value="CANCELLED">Cancelled</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                {dates.map((dateKey) => {
+                                  let avail = availabilityByDate[dateKey];
+                                  if (!avail || !Array.isArray(avail.hours) || avail.hours.length === 0) {
+                                    // Local fallback to show capacity instantly without waiting for network
+                                    const periodMinutes = Number(doctorProfile?.slotPeriodMinutes ?? 15);
+                                    const localCapacity = Math.max(1, Math.floor(60 / Math.max(1, periodMinutes)));
+                                    avail = {
+                                      periodMinutes,
+                                      hours: Array.from({ length: 24 }, (_, h) => ({
+                                        hour: String(h).padStart(2, '0') + ':00',
+                                        capacity: localCapacity,
+                                        bookedCount: 0,
+                                        isFull: false,
+                                        labelFrom: `${String(h).padStart(2, '0')}:00`,
+                                        labelTo: `${String((h + 1) % 24).padStart(2, '0')}:00`,
+                                      })),
+                                    };
+                                  }
+                                  return (
+                                    <div key={dateKey} className="border border-gray-200 rounded">
+                                      <div className="px-3 py-2">
+                                        <div className="text-sm font-medium text-gray-900">{formatIST(new Date(`${dateKey}T00:00:00`), { dateStyle: 'medium' })}</div>
+                                        <div className="text-xs text-gray-600">Period: {avail.periodMinutes} min</div>
+                                      </div>
+                                      <div className="px-3 pb-3">
+                                        <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                          {avail.hours.map((h, idx) => {
+                                            const start = new Date(`${dateKey}T${h.hour}:00`);
+                                            const end = new Date(start.getTime() + 60 * 60 * 1000);
+                                            const filteredBooked = appointments.filter((a) => {
+                                              const t = getAppointmentISTDate(a).getTime();
+                                              return (
+                                                t >= start.getTime() &&
+                                                t < end.getTime() &&
+                                                (doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
+                                              );
+                                            }).length;
+                                            const hourAppointments = appointments.filter((a) => {
+                                              const t = getAppointmentISTDate(a).getTime();
+                                              return (
+                                                t >= start.getTime() &&
+                                                t < end.getTime() &&
+                                                (doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
+                                              );
+                                            });
+                                            const isFull = hourAppointments.length >= h.capacity;
+                                            return (
+                                              <li key={`${dateKey}-${idx}`} className={`border rounded px-3 py-2 ${isFull ? 'bg-gray-100' : 'bg-white'}`} data-hour-start={start.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] hour-availability-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] hour-availability drop', { targetStart: start, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, start, user.id as number); } catch (err) { console.warn('[DND] hour-availability parse error', err); } }}>
+                                                <div className="text-xs font-medium text-gray-800">
+                                                  {h.labelFrom} → {h.labelTo}
+                                                </div>
+                                                <div className="text-xs text-gray-600 mt-1">Capacity: {h.capacity}</div>
+                                                <div className="text-xs text-gray-600">Booked: {hourAppointments.length}</div>
+                                                <div className="text-xs text-gray-600">Free: {Math.max(0, h.capacity - hourAppointments.length)}</div>
+                                                {hourAppointments.length > 0 && (
+                                                  <ul className="mt-2 space-y-2">
+                                                    {hourAppointments.map((appointment) => (
+                                                      <li key={appointment.id} className="flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, appointment)}>
+                                                        <div className="min-w-0">
+                                                          <p className="text-xs font-medium text-gray-900 truncate">
+                                                            {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || 'Unknown'}
+                                                          </p>
+                                                          {appointment.reason && (
+                                                            <p className="text-[11px] text-gray-600 truncate">
+                                                              {appointment.reason}
+                                                            </p>
+                                                          )}
+                                                        </div>
+                                                        <div className="flex items-center space-x-2">
+                                                          <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${
+                                                            appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                                                            appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                                            appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                                            'bg-gray-100 text-gray-800'
+                                                          }`}>
+                                                            {appointment.status}
+                                                          </span>
+                                                          <button
+                                                            className="text-blue-600 hover:text-blue-900 text-[11px]"
+                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, appointment.status === 'CONFIRMED' ? 'PENDING' : 'CONFIRMED')}
+                                                          >
+                                                            Update
+                                                          </button>
+                                                          <button
+                                                            className="text-red-600 hover:text-red-900 text-[11px]"
+                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, 'CANCELLED')}
+                                                          >
+                                                            Cancel
+                                                          </button>
+                                                        </div>
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
+                                              </li>
+                                            );
+                                          })}
+                                        </ul>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="space-y-4 mt-2" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-md font-semibold text-gray-900">Slot Boxes (Capacity)</h4>
+                                <div className="flex items-center space-x-3">
+                                  <label className="text-sm text-gray-700">Filter:</label>
+                                  <select
+                                    value={doctorStatusFilter}
+                                    onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
+                                    className="border rounded-md px-2 py-1 text-sm"
+                                  >
+                                    <option value="ALL">All</option>
+                                    <option value="CONFIRMED">Confirmed</option>
+                                    <option value="PENDING">Pending</option>
+                                    <option value="EMERGENCY">Emergency</option>
+                                    <option value="CANCELLED">Cancelled</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-600">Each hour shows {count} user slots ({period} min each)</p>
+                              <ul className="space-y-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
+                                {list
+                                  .sort((a, b) =>
+                                    new Date(`${a.date}T${String(a.time).slice(0, 5)}:00`).getTime() -
+                                    new Date(`${b.date}T${String(b.time).slice(0, 5)}:00`).getTime()
+                                  )
+                                  .map((slot) => {
+                                    const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0, 5)}:00`);
+                                    const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+                                    const slotAppointments = appointments.filter((a) => {
+                                      const t = getAppointmentISTDate(a).getTime();
+                                      return (
+                                        t >= slotStart.getTime() &&
+                                        t <= slotEnd.getTime() &&
+                                        (doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
+                                      );
+                                    });
+                                    const segments = Array.from({ length: count }, (_, idx) => {
+                                      const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
+                                      const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                                      const inSeg = slotAppointments.filter((a) => {
+                                        const t = getAppointmentISTDate(a).getTime();
+                                        return t >= segStart.getTime() && t < segEnd.getTime();
+                                      });
+                                      return { idx, segStart, segEnd, inSeg };
+                                    });
+                                    return (
+                                      <li
+                                        key={`appt-cap-${slot.id}`}
+                                        className="border border-gray-200 rounded hover:bg-blue-50"
+                                        data-hour-start={slotStart.toISOString()}
+                                        data-doctor-id={String(slot.doctorId)}
+                                         onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                          onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                         onDrop={(ev) => {
+                                           ev.preventDefault();
+                                           ev.stopPropagation();
+                                           const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain');
+                                           if (!data) { console.warn('[DND] drop: missing data'); return; }
+                                           try {
+                                             const appt = JSON.parse(data);
+                                             console.log('[DND] slot-level drop', { targetStart: slotStart, doctorId: slot.doctorId, apptId: appt.id });
+                                             rescheduleDoctorAppointment(appt, slotStart, slot.doctorId);
+                                           } catch (err) { console.warn('[DND] drop parse error', err); }
+                                         }}
+                                      >
+                                        <div className="px-3 py-2">
+                                          <div className="text-sm font-medium text-gray-900">
+                                            {formatIST(slotStart, { dateStyle: 'medium' })} •{' '}
+                                            {formatISTTime(slotStart)} →{' '}
+                                        {formatISTTime(slotEnd)}
+                                          </div>
+                                          <div className="text-xs text-gray-500">Slot #{slot.id} • Status: {slot.status || 'UNKNOWN'}</div>
+                                        </div>
+                                        <div className="px-3 pb-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                                  onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
+                                          <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            {segments.map(({ idx, segStart, segEnd, inSeg }) => (
+                                              <li
+                                                key={idx}
+                                                className="border border-gray-200 rounded px-3 py-2 hover:bg-blue-50"
+                                                data-seg-start={segStart.toISOString()}
+                                                data-doctor-id={String(slot.doctorId)}
+                                                 onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                                 onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
+                                                 onDrop={(ev) => {
+                                                   ev.preventDefault();
+                                                   ev.stopPropagation();
+                                                   const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain');
+                                                   if (!data) { console.warn('[DND] seg-drop: missing data'); return; }
+                                                   try {
+                                                     const appt = JSON.parse(data);
+                                                     console.log('[DND] seg-level drop', { targetStart: segStart, doctorId: slot.doctorId, apptId: appt.id });
+                                                     rescheduleDoctorAppointment(appt, segStart, slot.doctorId);
+                                                   } catch (err) { console.warn('[DND] seg-drop parse error', err); }
+                                                 }}
+                                              >
+                                                <div className="text-xs font-medium text-gray-800">
+                                                  {formatISTTime(segStart)} →{' '}
+                                                  {formatISTTime(segEnd)}
+                                                </div>
+                                                <div className="text-xs text-gray-600 mt-1">Users: {inSeg.length}</div>
+                                                {inSeg.length > 0 && (
+                                                  <ul className="mt-2 space-y-2">
+                                                    {inSeg.map((appointment) => (
+                                                      <li key={appointment.id} className="flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, appointment)}>
+                                                        <div className="min-w-0">
+                                                          <p className="text-xs font-medium text-gray-900 truncate">
+                                                            {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || 'Unknown'}
+                                                          </p>
+                                                          {appointment.reason && (
+                                                            <p className="text-[11px] text-gray-600 truncate">
+                                                              {appointment.reason}
+                                                            </p>
+                                                          )}
+                                                        </div>
+                                                        <div className="flex items-center space-x-2">
+                                                          <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${
+                                                            appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                                                            appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                                                            appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                                            'bg-gray-100 text-gray-800'
+                                                          }`}>
+                                                            {appointment.status}
+                                                          </span>
+                                                          <button
+                                                            className="text-blue-600 hover:text-blue-900 text-[11px]"
+                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, appointment.status === 'CONFIRMED' ? 'PENDING' : 'CONFIRMED')}
+                                                          >
+                                                            Update
+                                                          </button>
+                                                          <button
+                                                            className="text-red-600 hover:text-red-900 text-[11px]"
+                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, 'CANCELLED')}
+                                                          >
+                                                            Cancel
+                                                          </button>
+                                                        </div>
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      </li>
+                                    );
+                                  })}
+                              </ul>
+                            </div>
+                          );
+                        })()}
                       </>
                     ) : (
                       <>
@@ -1444,12 +2586,12 @@ export default function DashboardPage() {
                         <ul className="space-y-3 mt-4">
                           {appointments
                             .filter((a) => doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
-                            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                            .sort((a, b) => getAppointmentISTDate(a).getTime() - getAppointmentISTDate(b).getTime())
                             .map((appointment) => (
                               <li key={appointment.id} className="bg-white border rounded-md p-3 flex items-center justify-between">
                                 <div className="min-w-0">
-                                  <p className="text-sm font-medium text-gray-900 truncate">{new Date(appointment.date).toLocaleString()}</p>
-                                  <p className="text-xs text-gray-700 truncate">Patient: {appointment.patient.email}</p>
+                                  <p className="text-sm font-medium text-gray-900 truncate">{formatIST(getAppointmentISTDate(appointment))}</p>
+                                  <p className="text-xs text-gray-700 truncate">Patient: {((appointment.patient as any)?.name) || appointment.patient?.email?.split('@')[0] || appointment.patientId}</p>
                                   {appointment.reason && (
                                     <p className="text-xs text-gray-600 truncate">{appointment.reason}</p>
                                   )}
@@ -1498,11 +2640,11 @@ export default function DashboardPage() {
                         {appointments.map((appointment) => (
                           <tr key={appointment.id}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {new Date(appointment.date).toLocaleDateString()}<br/>
-                              <span className="text-gray-500">{new Date(appointment.date).toLocaleTimeString()}</span>
+                              {formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium' })}<br/>
+                              <span className="text-gray-500">{formatISTTime(getAppointmentISTDate(appointment))}</span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {appointment.doctor?.email || 'Unknown Doctor'}
+                              {(((appointment.doctor as any)?.doctorProfile?.slug) || appointment.doctor?.email?.split('@')[0] || 'Unknown Doctor')}
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-900">
                               {appointment.reason || 'No reason provided'}
@@ -1715,10 +2857,24 @@ function DoctorSettings() {
     const loadSlotPeriod = async () => {
       try {
         const res = await apiClient.getDoctorSlotPeriod();
-        if (res?.slotPeriodMinutes) setSlotPeriodMinutes(res.slotPeriodMinutes);
+        if (res && typeof res.slotPeriodMinutes === 'number') {
+          setSlotPeriodMinutes(Number(res.slotPeriodMinutes));
+          return;
+        }
       } catch (e: any) {
-        console.error('Failed to load slot period', e);
+        // fall through to profile-based fallback
       }
+      try {
+        const prof = await apiClient.getDoctorProfile();
+        const maybe = (prof && typeof (prof as any)?.slotPeriodMinutes === 'number')
+          ? Number((prof as any).slotPeriodMinutes)
+          : (prof && (prof as any)?.doctorProfile && typeof (prof as any).doctorProfile.slotPeriodMinutes === 'number'
+              ? Number((prof as any).doctorProfile.slotPeriodMinutes)
+              : undefined);
+        if (typeof maybe === 'number') {
+          setSlotPeriodMinutes(maybe);
+        }
+      } catch {}
     };
     const loadProfile = async () => {
       try {
@@ -2008,7 +3164,8 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
         await Promise.all(
           links.map(async (d: any) => {
             initial[d.id] = { currentEmail: null, email: '', password: '', loading: true, message: null };
-            periodInitial[d.id] = { minutes: 15, loading: true, message: '' };
+            const profileVal = (d?.doctorProfile && typeof d.doctorProfile.slotPeriodMinutes === 'number') ? Number(d.doctorProfile.slotPeriodMinutes) : undefined;
+            periodInitial[d.id] = { minutes: profileVal ?? 15, loading: true, message: '' };
             try {
               const res = await apiClient.getHospitalSlotAdmin(d.id);
               const cur = res?.slotAdmin?.email || null;
@@ -2018,9 +3175,10 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
             }
             try {
               const sp = await apiClient.getHospitalDoctorSlotPeriod(hid, d.id);
-              periodInitial[d.id] = { minutes: Number(sp?.slotPeriodMinutes) || 15, loading: false, message: '' };
+              const pval = (sp && typeof sp.slotPeriodMinutes === 'number') ? Number(sp.slotPeriodMinutes) : undefined;
+              periodInitial[d.id] = { minutes: pval ?? (periodInitial[d.id]?.minutes ?? 15), loading: false, message: '' };
             } catch {
-              periodInitial[d.id] = { minutes: 15, loading: false, message: '' };
+              periodInitial[d.id] = { minutes: (periodInitial[d.id]?.minutes ?? 15), loading: false, message: '' };
             }
           })
         );
@@ -2206,7 +3364,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <div className="text-sm text-gray-600">Doctor</div>
-                        <div className="font-medium text-gray-900">{d.email}</div>
+                        <div className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || d.email?.split('@')[0] || d.id)}</div>
                       </div>
                       <div className="text-sm text-gray-600">Capacity per hour: <span className="font-medium text-gray-900">{capacity}</span> • Period {form.minutes} min</div>
                     </div>
@@ -2261,7 +3419,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
                     <div className="flex justify-between items-center mb-3">
                       <div>
                         <p className="text-sm text-gray-600">Doctor</p>
-                        <p className="font-medium text-gray-900">{d.email}</p>
+                        <p className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || d.email?.split('@')[0] || d.id)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-gray-600">Current Slot Admin</p>

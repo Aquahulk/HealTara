@@ -92,35 +92,42 @@ export default function DoctorProfilePage() {
 ];
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
-      <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-center">Manage Your Profile</h1>
-      <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-lg space-y-4 max-w-2xl mx-auto">
-        {formFields.map(({ name, type }) => (
-          <div key={name}>
-            <label className="block mb-2 text-sm font-medium capitalize">
-              {name.replace(/([A-Z])/g, ' $1')} {/* Adds a space before capital letters for readability */}
-            </label>
-            <input
-              type={type}
-              name={name}
-              value={formData[name as keyof typeof formData]}
-              onChange={handleChange}
-              required
-              className="w-full p-3 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-            />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white p-6 sm:p-10">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-8 rounded-xl overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 shadow-lg">
+          <h1 className="text-3xl sm:text-4xl font-bold">Doctor Profile</h1>
+          <p className="mt-2 opacity-90">Update your specialization, experience, and clinic details.</p>
+        </div>
+        <form onSubmit={handleSubmit} className="bg-white/10 backdrop-blur p-6 rounded-xl space-y-4">
+          {formFields.map(({ name, type }) => (
+            <div key={name} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+              <label className="sm:text-right text-sm font-medium capitalize opacity-90">
+                {name.replace(/([A-Z])/g, ' $1')}
+              </label>
+              <input
+                type={type}
+                name={name}
+                value={formData[name as keyof typeof formData]}
+                onChange={handleChange}
+                required
+                className="sm:col-span-2 w-full p-3 bg-white/5 rounded border border-white/10 focus:border-white/30 focus:outline-none"
+              />
+            </div>
+          ))}
+
+          <div className="flex justify-end">
+            <button type="submit" className="px-5 py-3 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold transition-colors">
+              Save Profile
+            </button>
           </div>
-        ))}
 
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition-colors">
-          Save Profile
-        </button>
-
-        {message && (
-          <p className={`mt-4 text-center text-sm ${message.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
-            {message}
-          </p>
-        )}
-      </form>
+          {message && (
+            <p className={`mt-4 text-center text-sm ${message.startsWith('Error') ? 'text-red-300' : 'text-emerald-300'}`}>
+              {message}
+            </p>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

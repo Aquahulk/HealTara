@@ -82,7 +82,7 @@ export default function HospitalDoctorsRoster({ doctors, profileDoctors }: Hospi
                     }}
                     className="inline-block bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold px-4 py-2 rounded-lg"
                   >
-                    View Details
+                    Visit Website
                   </button>
                 )}
               </div>

@@ -46,13 +46,19 @@ import {
   ArrowRight,
   MapIcon
 } from "lucide-react";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName } from '@/lib/subdomain';
 
 export default function HomePage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [doctors, setDoctors] = useState<any[]>([]);
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [selectedSpecialization, setSelectedSpecialization] = useState('');
@@ -108,16 +114,55 @@ export default function HomePage() {
     setShowAppointmentModal(true);
   };
 
+  // Smart mapping from diseases/symptoms to relevant specializations
+  const diseaseToSpecializations: Record<string, string[]> = {
+    dengue: ['Infectious Disease', 'Internal Medicine', 'General Practitioner'],
+    malaria: ['Infectious Disease', 'Internal Medicine', 'General Practitioner'],
+    typhoid: ['Infectious Disease', 'Internal Medicine', 'General Practitioner'],
+    fever: ['General Practitioner', 'Internal Medicine', 'Pediatrics'],
+    cough: ['Pulmonology', 'General Practitioner'],
+    cold: ['General Practitioner', 'Internal Medicine'],
+    flu: ['General Practitioner', 'Internal Medicine'],
+    covid: ['Pulmonology', 'Internal Medicine'],
+    asthma: ['Pulmonology'],
+    allergy: ['Allergy & Immunology', 'Dermatology'],
+    diabetes: ['Endocrinology', 'Internal Medicine'],
+    heart: ['Cardiology'],
+    chest: ['Pulmonology'],
+    stomach: ['Gastroenterology'],
+    liver: ['Hepatology', 'Gastroenterology'],
+    kidney: ['Nephrology'],
+    skin: ['Dermatology'],
+    eye: ['Ophthalmology'],
+    bone: ['Orthopedics'],
+    pregnancy: ['Gynecology', 'Obstetrics'],
+  };
+
   const filteredDoctors = doctors.filter((doctor: any) => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
-    const profile = doctor.doctorProfile;
-    return (
-      profile?.specialization?.toLowerCase().includes(query) ||
-      profile?.clinicName?.toLowerCase().includes(query) ||
-      profile?.city?.toLowerCase().includes(query) ||
-      doctor.email?.toLowerCase().includes(query)
+
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const mappedSpecs = new Set<string>(tokens.flatMap((t) => diseaseToSpecializations[t] || []));
+
+    const profile = doctor.doctorProfile || {};
+    const specialization = String(profile.specialization || '').toLowerCase();
+    const clinicName = String(profile.clinicName || '').toLowerCase();
+    const city = String(profile.city || '').toLowerCase();
+    const email = String(doctor.email || '').toLowerCase();
+
+    const matchesText = (
+      specialization.includes(query) ||
+      clinicName.includes(query) ||
+      city.includes(query) ||
+      email.includes(query)
     );
+
+    const matchesMapped = mappedSpecs.size > 0 && Array.from(mappedSpecs).some((spec) =>
+      specialization.includes(spec.toLowerCase())
+    );
+
+    return matchesText || matchesMapped;
   });
 
   // Quick Categories Data
@@ -313,9 +358,51 @@ export default function HomePage() {
                       type="text"
                       placeholder="Search by Doctor / Specialty / Location"
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setSearchQuery(raw);
+                        const query = raw.trim().toLowerCase();
+                        if (!query) { setSuggestions([]); setShowSuggestions(false); return; }
+                        const mapped = new Set<string>((diseaseToSpecializations[query] || []).map(s => `${s} (specialization)`));
+                        const fromDoctors = new Set<string>();
+                        doctors.slice(0, 30).forEach((d: any) => {
+                          const spec = String(d.doctorProfile?.specialization || '').toLowerCase();
+                          const handle = String(d.email || '').split('@')[0].toLowerCase();
+                          if (spec.includes(query)) fromDoctors.add(`${d.doctorProfile?.specialization}`);
+                          if (handle.includes(query)) fromDoctors.add(`Dr. ${handle}`);
+                        });
+                        const combined = Array.from(new Set([...mapped, ...fromDoctors])).slice(0, 8);
+                        setSuggestions(combined);
+                        setShowSuggestions(combined.length > 0);
+                      }}
+                      onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const q = searchQuery.trim();
+                          if (q) { setShowSuggestions(false); router.push(`/doctors?search=${encodeURIComponent(q)}`); }
+                        }
+                      }}
                       className="w-full pl-16 pr-6 py-3 bg-white border-2 border-gray-200 rounded-2xl text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     />
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg z-20">
+                        {suggestions.map((s, i) => (
+                          <button
+                            key={i}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                            onMouseDown={() => {
+                              const q = s.replace(/ \((specialization)\)$/i, '');
+                              setSearchQuery(q);
+                              setShowSuggestions(false);
+                              router.push(`/doctors?search=${encodeURIComponent(q)}`);
+                            }}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Filters Row */}
@@ -481,11 +568,27 @@ export default function HomePage() {
               <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
                 Top-rated doctors near you, verified by our AI system for excellence in care
               </p>
+
+              {/* Smart match hint */}
+              {(() => {
+                const q = searchQuery.trim().toLowerCase();
+                if (!q) return null;
+                const tokens = q.split(/\s+/).filter(Boolean);
+                const mapped = Array.from(new Set(tokens.flatMap(t => (diseaseToSpecializations as any)[t] || [])));
+                if (mapped.length === 0) return null;
+                return (
+                  <div className="mt-4 inline-flex items-center gap-2 bg-white/20 text-white px-4 py-2 rounded-2xl border border-white/30">
+                    <span className="text-sm opacity-90">Smart matches:</span>
+                    <span className="text-sm font-semibold">{tokens.join(' ')}</span>
+                    <span className="text-sm opacity-90">→ {mapped.join(', ')}</span>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Vertical Doctor Cards - One per row */}
             <div className="space-y-6">
-              {filteredDoctors.slice(0, 6).map((doctor, index) => (
+              {filteredDoctors.map((doctor, index) => (
                 <motion.div 
                   key={doctor.id}
                   initial={{ opacity: 0, x: -50 }}
@@ -543,7 +646,55 @@ export default function HomePage() {
                       </div>
 
                       {/* Book Button */}
-                      <div className="ml-8">
+                      <div className="ml-8 flex items-center gap-3">
+                        {doctor.doctorProfile?.slug ? (
+                          <Link
+                            href={`/site/${doctor.doctorProfile.slug}`}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
+                            onClick={(e) => {
+                              if (shouldUseSubdomainNav()) {
+                                e.preventDefault();
+                                window.location.href = doctorMicrositeUrl(String(doctor.doctorProfile?.slug || ''));
+                              }
+                              import('@/lib/api').then(({ apiClient }) => {
+                                apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+                              });
+                            }}
+                          >
+                            Visit Website
+                          </Link>
+                        ) : (
+                          <button
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
+                            onClick={() => {
+                              import('@/lib/api').then(({ apiClient }) => {
+                                apiClient
+                                  .getHospitalByDoctorId(doctor.id)
+                                  .then((resp) => {
+                                    const name = resp?.hospital?.name || '';
+                                    if (name) {
+                                      if (shouldUseSubdomainNav()) {
+                                        window.location.href = hospitalMicrositeUrl(name);
+                                      } else {
+                                        router.push(`/hospital-site/${slugifyName(name)}`);
+                                      }
+                                    } else {
+                                      if (shouldUseSubdomainNav()) {
+                                        window.location.href = hospitalIdMicrositeUrl(resp.hospitalId);
+                                      } else {
+                                        router.push(`/hospital-site/${String(resp.hospitalId)}`);
+                                      }
+                                    }
+                                  })
+                                  .catch(() => {
+                                    // silently ignore if no hospital link
+                                  });
+                              });
+                            }}
+                          >
+                            Visit Hospital
+                          </button>
+                        )}
                         <button 
                           onClick={() => handleBookAppointment(doctor)}
                           className="btn-brand font-bold py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"

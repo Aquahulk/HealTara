@@ -77,7 +77,7 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
                             });
                         }}
                     >
-                        View Details
+                        Visit Website
                     </Link>
                 ) : (
                     <button
@@ -108,7 +108,7 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
                             });
                         }}
                     >
-                        View Details
+                        Visit Website
                     </button>
                 )}
                 {onBookAppointment || onBookClick ? (
@@ -136,3 +136,4 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
         </div>
     );
 }
+
