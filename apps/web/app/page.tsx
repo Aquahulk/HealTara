@@ -390,7 +390,7 @@ export default function HomePage() {
                         {suggestions.map((s, i) => (
                           <button
                             key={i}
-                            className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                            className="w-full text-left px-4 py-2 text-gray-900 hover:bg-gray-50"
                             onMouseDown={() => {
                               const q = s.replace(/ \((specialization)\)$/i, '');
                               setSearchQuery(q);
