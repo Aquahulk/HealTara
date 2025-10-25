@@ -34,6 +34,7 @@ declare global {
         email: string;                                     // User's email address
         role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN';             // User's role in the system
       };
+      file?: Express.Multer.File;
     }
   }
 }
@@ -236,8 +237,8 @@ app.get('/api/doctors/:doctorId/appointments/events', authMiddleware, (req: Requ
 
 // Multer storage configuration for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, uploadsDir),
+  filename: (req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const upload = multer({ storage });
 
