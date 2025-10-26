@@ -174,3 +174,20 @@ model DoctorEngagement {
 
   @@unique([doctorId, date])
 }
+
+model SearchAnalytics {
+  id                 Int      @id @default(autoincrement())
+  query              String
+  normalizedQuery    String
+  matchedConditions  String[]
+  matchedSpecialties String[]
+  topRankedDoctorId  Int?
+  clickedDoctorId    Int?
+  meta               Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([normalizedQuery])
+  @@index([topRankedDoctorId])
+  @@index([clickedDoctorId])
+}

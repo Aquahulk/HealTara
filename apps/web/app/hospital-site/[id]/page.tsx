@@ -92,7 +92,7 @@ async function getHospitalProfileById(id: string): Promise<HospitalProfileRespon
       return null;
     }
 
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const url = `${apiHost}/api/hospitals/${id}/profile`;
     
     console.log(`Attempting to fetch hospital profile from: ${url}`);
@@ -160,7 +160,7 @@ async function getHospitalDetailsById(id: string): Promise<HospitalDetailsRespon
       return null;
     }
 
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const url = `${apiHost}/api/hospitals/${id}`;
     
     console.log(`Attempting to fetch hospital details from: ${url}`);

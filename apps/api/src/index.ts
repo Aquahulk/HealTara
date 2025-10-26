@@ -20,6 +20,8 @@ import multer from 'multer';
 import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import { mapQueryToSpecialties, suggestFromDoctors } from './conditionSpecialtyMap';
+import { incrementTokenSpecialty, getAllWeights } from './learningStore';
 
 // ============================================================================
 // 🔐 TYPE DEFINITIONS - Extending Express Request to include user data
@@ -532,6 +534,175 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
   }
 });
 
+// Smart Search: map condition → specialties and rank doctors
+app.get('/api/search/doctors', async (req: Request, res: Response) => {
+  const qRaw = String(req.query.q ?? '');
+  const { normalizedQuery, conditions, specialties } = mapQueryToSpecialties(qRaw);
+  try {
+    const doctors = await prisma.user.findMany({
+      where: { role: 'DOCTOR' },
+      include: { doctorProfile: true },
+    });
+    const candidates = doctors.filter((d: any) => !!d.doctorProfile);
+
+    const matchedSpecs = new Set(specialties.map(s => s.toLowerCase()));
+    const scored = candidates.map((d: any) => {
+      const profile = d.doctorProfile || {};
+      const spec = String(profile.specialization || '').toLowerCase();
+      const handle = String(d.email || '').split('@')[0].toLowerCase();
+      const textMatch = normalizedQuery && (spec.includes(normalizedQuery) || handle.includes(normalizedQuery)) ? 0.2 : 0;
+      const specMatch = matchedSpecs.size > 0 && Array.from(matchedSpecs).some(ms => spec.includes(ms)) ? 1.0 : 0;
+      const experienceBoost = Number(profile.experience || 0) > 5 ? 0.1 : 0;
+      const score = specMatch + textMatch + experienceBoost;
+      return { score, d };
+    }).filter((x: any) => x.score > 0 || specialties.length === 0);
+
+    const ranked = scored.sort((a: any, b: any) => b.score - a.score).map((x: any) => x.d);
+
+    const mappedSuggestions = specialties.map(s => `${s} (specialization)`);
+    const doctorSuggestions = suggestFromDoctors(normalizedQuery, candidates);
+    const suggestions = Array.from(new Set([...mappedSuggestions, ...doctorSuggestions])).slice(0, 10);
+
+    const finalDoctors = specialties.length > 0 ? ranked : candidates.filter((d: any) => {
+      const profile = d.doctorProfile || {};
+      const spec = String(profile.specialization || '').toLowerCase();
+      const handle = String(d.email || '').split('@')[0].toLowerCase();
+      return normalizedQuery ? (spec.includes(normalizedQuery) || handle.includes(normalizedQuery)) : true;
+    });
+
+    res.status(200).json({
+      query: qRaw,
+      normalizedQuery,
+      matchedConditions: conditions,
+      matchedSpecialties: specialties,
+      doctors: finalDoctors,
+      suggestions,
+      meta: { strategy: specialties.length ? 'condition-specialty' : 'text-fallback' }
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ message: 'Search failed' });
+  }
+});
+
+// Analytics: capture search query to improve token→specialty mapping
+app.post('/api/analytics/search', async (req: Request, res: Response) => {
+  try {
+    const { query, matchedSpecialties = [], matchedConditions = [], topDoctorIds = [] } = req.body || {};
+    const qRaw = String(query ?? '');
+    const { normalizedQuery } = mapQueryToSpecialties(qRaw);
+    const tokens = normalizedQuery.split(' ').filter(Boolean);
+    const tokensPlus = normalizedQuery && normalizedQuery.includes(' ') ? [...tokens, normalizedQuery] : tokens;
+
+    // Learn from mapped specialties (curated suggestions)
+    for (const t of tokensPlus) {
+      for (const spec of matchedSpecialties) {
+        incrementTokenSpecialty(t, String(spec), 1);
+      }
+    }
+
+    // Learn from top doctor IDs (clicked or highly ranked results)
+    const ids: number[] = Array.isArray(topDoctorIds) ? topDoctorIds.map((x: any) => Number(x)).filter(Number.isFinite) : [];
+    if (ids.length > 0) {
+      try {
+        const profiles: Array<{ specialization: string | null }> = await prisma.doctorProfile.findMany({
+          where: { userId: { in: ids } },
+          select: { specialization: true }
+        });
+        const specs: string[] = Array.from(
+          new Set(
+            (profiles || [])
+              .map((p: { specialization: string | null }) => String(p.specialization ?? '').trim())
+              .filter((s: string) => s.length > 0)
+          )
+        );
+        for (const t of tokensPlus) {
+          for (const spec of specs) {
+            incrementTokenSpecialty(String(t), spec, 2); // stronger signal for doctor-based learning
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Persist analytics if DB table exists
+    try {
+      await (prisma as any).searchAnalytics?.create?.({
+        data: {
+          query: qRaw,
+          normalizedQuery,
+          matchedConditions,
+          matchedSpecialties,
+          topDoctorIds: ids,
+        }
+      });
+    } catch (_) {}
+
+    return res.status(200).json({ ok: true, tokens: tokensPlus, updated: matchedSpecialties.length });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ message: 'Analytics save failed' });
+  }
+});
+
+// Analytics: doctor click → learn query→specialization
+app.post('/api/analytics/doctor/click', async (req: Request, res: Response) => {
+  try {
+    const { doctorId, action, query } = req.body || {};
+    const idNum = Number(doctorId);
+    if (!Number.isFinite(idNum)) {
+      return res.status(400).json({ message: 'Invalid doctorId' });
+    }
+
+    // Find doctor specialization
+    const profile = await prisma.doctorProfile.findUnique({
+      where: { userId: idNum },
+      select: { specialization: true }
+    });
+    const spec = String(profile?.specialization || '').trim();
+
+    // Optional: learn from query if provided
+    if (query && spec) {
+      const qRaw = String(query);
+      const { normalizedQuery } = mapQueryToSpecialties(qRaw);
+      const tokens = normalizedQuery.split(' ').filter(Boolean);
+      const tokensPlus = normalizedQuery && normalizedQuery.includes(' ') ? [...tokens, normalizedQuery] : tokens;
+      for (const t of tokensPlus) {
+        incrementTokenSpecialty(t, spec, 3); // strongest signal: explicit click
+      }
+    }
+
+    // Persist click analytics if table exists
+    try {
+      await (prisma as any).doctorClickAnalytics?.create?.({
+        data: { doctorId: idNum, action: String(action || ''), query: String(query || ''), specialization: spec }
+      });
+    } catch (_) {}
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('Doctor click analytics error:', error);
+    res.status(500).json({ message: 'Doctor click analytics failed' });
+  }
+});
+
+// Analytics: doctor view (minimal endpoint to avoid client errors)
+app.post('/api/analytics/doctor/view', async (req: Request, res: Response) => {
+  try {
+    const { doctorId } = req.body || {};
+    const idNum = Number(doctorId);
+    if (!Number.isFinite(idNum)) {
+      return res.status(400).json({ message: 'Invalid doctorId' });
+    }
+    try {
+      await (prisma as any).doctorViewAnalytics?.create?.({ data: { doctorId: idNum } });
+    } catch (_) {}
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('Doctor view analytics error:', error);
+    res.status(500).json({ message: 'Doctor view analytics failed' });
+  }
+});
+
 // --- Get Doctor by Slug Endpoint (Public) ---
 app.get('/api/doctors/slug/:slug', async (req: Request, res: Response) => {
   const { slug } = req.params;
@@ -780,6 +951,17 @@ const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
   }
   next();
 };
+
+// --- Admin: View learning weights ---
+app.get('/api/admin/learning/weights', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const weights = getAllWeights();
+    return res.status(200).json({ weights });
+  } catch (error) {
+    console.error('Failed to get learning weights:', error);
+    return res.status(500).json({ message: 'Failed to retrieve learning weights' });
+  }
+});
 
 // --- Get Dashboard Stats (Admin Only) ---
 app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {

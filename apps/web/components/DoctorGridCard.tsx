@@ -9,9 +9,11 @@ import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shoul
 interface DoctorGridCardProps {
   doctor: Doctor;
   onBookAppointment?: () => void;
+  // Optional search query for analytics context
+  searchQuery?: string;
 }
 
-export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGridCardProps) {
+export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery }: DoctorGridCardProps) {
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -89,7 +91,10 @@ export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGrid
                 window.location.href = doctorMicrositeUrl(slug);
               }
               import("@/lib/api").then(({ apiClient }) => {
-                apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+                apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
+                if (searchQuery) {
+                  apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                }
               });
             }}
           >
@@ -132,7 +137,10 @@ export default function DoctorGridCard({ doctor, onBookAppointment }: DoctorGrid
             onClick={() => {
               onBookAppointment();
               import("@/lib/api").then(({ apiClient }) => {
-                apiClient.trackDoctorClick(doctor.id, 'book').catch(() => {});
+                apiClient.trackDoctorClick(doctor.id, 'book', searchQuery || undefined).catch(() => {});
+                if (searchQuery) {
+                  apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                }
               });
             }}
             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"

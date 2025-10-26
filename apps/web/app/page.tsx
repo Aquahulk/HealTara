@@ -302,7 +302,7 @@ export default function HomePage() {
         {/* ============================================================================
             🌟 HERO SECTION - Main landing area with search (BLUE GRADIENT)
             ============================================================================ */}
-        <section className="relative py-16 px-4 overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500">
+        <section className="relative py-16 px-4 overflow-visible bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500">
           {/* Enhanced Background Pattern */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-blue-500/95 to-cyan-500/90" />
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.1%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
@@ -352,28 +352,34 @@ export default function HomePage() {
               <div className="bg-white/95 backdrop-blur-sm border border-white/20 rounded-3xl p-8 shadow-2xl">
                 <div className="space-y-6">
                   {/* Main Search */}
-                  <div className="relative">
+                  <div className="relative z-30">
                     <Search className="absolute left-6 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search by Doctor / Specialty / Location"
                       value={searchQuery}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const raw = e.target.value;
                         setSearchQuery(raw);
-                        const query = raw.trim().toLowerCase();
-                        if (!query) { setSuggestions([]); setShowSuggestions(false); return; }
-                        const mapped = new Set<string>((diseaseToSpecializations[query] || []).map(s => `${s} (specialization)`));
-                        const fromDoctors = new Set<string>();
-                        doctors.slice(0, 30).forEach((d: any) => {
-                          const spec = String(d.doctorProfile?.specialization || '').toLowerCase();
-                          const handle = String(d.email || '').split('@')[0].toLowerCase();
-                          if (spec.includes(query)) fromDoctors.add(`${d.doctorProfile?.specialization}`);
-                          if (handle.includes(query)) fromDoctors.add(`Dr. ${handle}`);
-                        });
-                        const combined = Array.from(new Set([...mapped, ...fromDoctors])).slice(0, 8);
-                        setSuggestions(combined);
-                        setShowSuggestions(combined.length > 0);
+                        const q = raw.trim();
+                        if (!q) { setSuggestions([]); setShowSuggestions(false); return; }
+                        try {
+                          const resp = await apiClient.searchDoctors(q);
+                          const combined = resp.suggestions.slice(0, 8);
+                          setSuggestions(combined);
+                          setShowSuggestions(combined.length > 0);
+                          // Track search to teach new words → specialties
+                          apiClient.trackSearchDebounced(q, {
+                            matchedSpecialties: resp.matchedSpecialties,
+                            matchedConditions: resp.matchedConditions,
+                            topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id),
+                          });
+                        } catch {
+                          setSuggestions([]);
+                          setShowSuggestions(false);
+                          // Still send minimal analytics to learn tokens
+                          apiClient.trackSearchDebounced(q);
+                        }
                       }}
                       onFocus={() => setShowSuggestions(suggestions.length > 0)}
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
@@ -386,7 +392,7 @@ export default function HomePage() {
                       className="w-full pl-16 pr-6 py-3 bg-white border-2 border-gray-200 rounded-2xl text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     />
                     {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg z-20">
+                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg z-50 max-h-60 overflow-auto">
                         {suggestions.map((s, i) => (
                           <button
                             key={i}
@@ -395,6 +401,8 @@ export default function HomePage() {
                               const q = s.replace(/ \((specialization)\)$/i, '');
                               setSearchQuery(q);
                               setShowSuggestions(false);
+                              // Track suggestion selection to reinforce learning
+                              apiClient.trackSearch(q);
                               router.push(`/doctors?search=${encodeURIComponent(q)}`);
                             }}
                           >

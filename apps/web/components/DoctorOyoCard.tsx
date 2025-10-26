@@ -11,10 +11,12 @@ import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shoul
 interface DoctorOyoCardProps {
   doctor: Doctor;
   onBookAppointment?: () => void;
+  // Optional: current search query to tie clicks to analytics
+  searchQuery?: string;
 }
 
 // OYO-style horizontal listing card: image left, details middle, price/actions right
-export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCardProps) {
+export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }: DoctorOyoCardProps) {
   const router = useRouter();
   const profile = doctor.doctorProfile;
   const emailName = (doctor?.email || "").split("@")[0];
@@ -111,7 +113,10 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                       .getHospitalByDoctorId(doctor.id)
                       .then((resp) => {
                         // Track microsite click
-                        apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+                        apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
+                        if (searchQuery) {
+                          apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                        }
                         if (resp && resp.hospitalId) {
                           // Prefer hospital microsite if doctor is hospital-linked
                           const name = resp?.hospital?.name || '';
@@ -142,7 +147,10 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                           router.push(`/site/${slug}`);
                         }
                         // Track microsite click (fallback)
-                        apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+                        apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
+                        if (searchQuery) {
+                          apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                        }
                       });
                   });
                 }}
@@ -178,7 +186,10 @@ export default function DoctorOyoCard({ doctor, onBookAppointment }: DoctorOyoCa
                 onClick={() => {
                   onBookAppointment();
                   import("@/lib/api").then(({ apiClient }) => {
-                      apiClient.trackDoctorClick(doctor.id, 'book').catch(() => {});
+                      apiClient.trackDoctorClick(doctor.id, 'book', searchQuery || undefined).catch(() => {});
+                      if (searchQuery) {
+                        apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                      }
                   });
                 }}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"

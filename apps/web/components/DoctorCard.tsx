@@ -12,9 +12,11 @@ export interface DoctorCardProps {
     onBookAppointment?: () => void;
     // Backward-compatible handler: accepts a doctorId
     onBookClick?: (doctorId: number) => void;
+    // Optional search query to attach analytics context
+    searchQuery?: string;
 }
 
-export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: DoctorCardProps) {
+export default function DoctorCard({ doctor, onBookAppointment, onBookClick, searchQuery }: DoctorCardProps) {
     const router = useRouter();
     const cardRef = useRef<HTMLDivElement | null>(null);
     const profile = doctor.doctorProfile;
@@ -73,7 +75,10 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
                                 // Let the default Link navigation proceed
                             }
                             import("@/lib/api").then(({ apiClient }) => {
-                                apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+                                apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
+                                if (searchQuery) {
+                                    apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                                }
                             });
                         }}
                     >
@@ -120,7 +125,10 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick }: D
                                 onBookClick(doctor.id);
                             }
                             import("@/lib/api").then(({ apiClient }) => {
-                                apiClient.trackDoctorClick(doctor.id, 'book').catch(() => {});
+                                apiClient.trackDoctorClick(doctor.id, 'book', searchQuery || undefined).catch(() => {});
+                                if (searchQuery) {
+                                    apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                                }
                             });
                         }}
                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"

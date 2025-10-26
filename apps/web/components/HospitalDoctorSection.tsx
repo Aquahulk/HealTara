@@ -97,7 +97,7 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
   // WebSocket: hospital Socket.IO subscription; prefer sockets, fallback to SSE when disconnected
   useEffect(() => {
     if (!hospitalId) return;
-    let s = io('http://localhost:3001', { transports: ['websocket'] });
+    const s = io(process.env.NEXT_PUBLIC_API_URL || undefined, { transports: ['websocket'] });
     const onUpdate = (updated: any) => {
       try {
         const id = Number(updated?.id);

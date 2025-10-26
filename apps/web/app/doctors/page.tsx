@@ -31,14 +31,30 @@ function DoctorsPageContent() {
   const [hasMore, setHasMore] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  // Suggested specializations/phrases from backend
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     const loadDoctors = async () => {
       try {
+        if (searchQuery) { return; }
         setLoading(true);
-        const doctorsData = await apiClient.getDoctors({ sort: sortBy, page, pageSize });
-        setDoctors(doctorsData);
-        setHasMore(doctorsData.length === pageSize);
+        if (initialQuery) {
+          const resp = await apiClient.searchDoctors(initialQuery);
+          setDoctors(resp.doctors);
+          setSuggestions(resp.suggestions || []);
+          // Track initial query from URL to seed learning
+          apiClient.trackSearch(initialQuery, {
+            matchedSpecialties: resp.matchedSpecialties,
+            matchedConditions: resp.matchedConditions,
+            topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id),
+          });
+        } else {
+          const doctorsData = await apiClient.getDoctors({ sort: sortBy, page, pageSize });
+          setDoctors(doctorsData);
+          setHasMore(doctorsData.length === pageSize);
+          setSuggestions([]);
+        }
       } catch (error) {
         console.error('Error loading doctors:', error);
       } finally {
@@ -47,53 +63,50 @@ function DoctorsPageContent() {
     };
 
     loadDoctors();
-  }, [sortBy, page, pageSize]);
+  }, [sortBy, page, pageSize, searchQuery, initialQuery]);
+
+  useEffect(() => {
+    const fetchSearch = async () => {
+      const q = searchQuery.trim();
+      if (!q) return;
+      try {
+        setLoading(true);
+        const resp = await apiClient.searchDoctors(q);
+        setDoctors(resp.doctors);
+        setSuggestions(resp.suggestions || []);
+        // Track typed queries to reinforce learning
+        // ... existing code ...
+        apiClient.trackSearchDebounced(q, {
+          matchedSpecialties: resp.matchedSpecialties,
+          matchedConditions: resp.matchedConditions,
+          topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id),
+        });
+      } catch (error) {
+        console.error('Search load error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSearch();
+  }, [searchQuery]);
 
   const handleBookAppointment = (doctor: any) => {
     setSelectedDoctor(doctor);
     setShowBookingModal(true);
   };
 
-  // Smart disease/symptom to specialization mapping
-  const diseaseToSpecializations: Record<string, string[]> = {
-    dengue: ['Infectious Disease', 'Internal Medicine', 'General Physician'],
-    malaria: ['Infectious Disease', 'Internal Medicine', 'General Physician'],
-    typhoid: ['Infectious Disease', 'Internal Medicine', 'General Physician'],
-    fever: ['General Physician', 'Internal Medicine', 'Pediatrics'],
-    cough: ['Pulmonology', 'General Physician'],
-    cold: ['General Physician', 'Internal Medicine'],
-    flu: ['General Physician', 'Internal Medicine'],
-    covid: ['Pulmonology', 'Internal Medicine'],
-    asthma: ['Pulmonology'],
-    allergy: ['Allergy & Immunology', 'Dermatology'],
-    diabetes: ['Endocrinology', 'Internal Medicine'],
-    heart: ['Cardiology'],
-    chest: ['Pulmonology'],
-    stomach: ['Gastroenterology'],
-    liver: ['Hepatology', 'Gastroenterology'],
-    kidney: ['Nephrology'],
-    skin: ['Dermatology'],
-    eye: ['Ophthalmology'],
-    bone: ['Orthopedics'],
-    pregnancy: ['Gynecology', 'Obstetrics'],
-  };
-
   const filteredDoctors = doctors.filter(doctor => {
     const q = searchQuery.trim().toLowerCase();
-    const tokens = q.split(/\s+/).filter(Boolean);
-    const mappedSpecs = new Set<string>(tokens.flatMap(t => diseaseToSpecializations[t] || []));
 
     const specialization = String(doctor.doctorProfile?.specialization || '').toLowerCase();
     const email = String(doctor.email || '').toLowerCase();
     const nameHandle = email.split('@')[0];
 
-    const matchesText = specialization.includes(q) || email.includes(q) || nameHandle.includes(q);
-    const matchesMapped = mappedSpecs.size > 0 && Array.from(mappedSpecs).some(spec => specialization.includes(spec.toLowerCase()));
-
+    const matchesText = !q || specialization.includes(q) || email.includes(q) || nameHandle.includes(q);
     const matchesSpecialization = !selectedSpecialization || doctor.doctorProfile?.specialization === selectedSpecialization;
     const matchesCity = !selectedCity || doctor.doctorProfile?.city === selectedCity;
 
-    return (matchesText || matchesMapped) && matchesSpecialization && matchesCity;
+    return matchesText && matchesSpecialization && matchesCity;
   });
 
   if (loading) {
@@ -125,6 +138,23 @@ function DoctorsPageContent() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
+              {suggestions && suggestions.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {suggestions.slice(0, 6).map((s, i) => (
+                    <button
+                      key={i}
+                      className="text-sm px-3 py-1 rounded-full border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      onClick={() => {
+                        const q = s.replace(/ \((specialization)\)$/i, '');
+                        setSearchQuery(q);
+                        apiClient.trackSearch(q).catch(() => {});
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <select
@@ -198,6 +228,7 @@ function DoctorsPageContent() {
               key={doctor.id}
               doctor={doctor}
               onBookAppointment={() => handleBookAppointment(doctor)}
+              searchQuery={searchQuery}
             />
           ))}
         </div>

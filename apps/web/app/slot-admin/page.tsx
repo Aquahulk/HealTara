@@ -280,7 +280,7 @@ export default function SlotAdminPanelPage() {
   // Live updates via WebSocket: prefer sockets when connected
   useEffect(() => {
     if (!token) return;
-    const socket = io('http://localhost:3001', { transports: ['websocket'] });
+    const socket = io(process.env.NEXT_PUBLIC_API_URL || undefined, { transports: ['websocket'] });
 
     const joinRooms = () => {
       if (hospitalId) socket.emit('join-hospital', hospitalId);
