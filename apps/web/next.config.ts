@@ -8,10 +8,6 @@ const nextConfig: NextConfig = {
     // In dev, do not block on type errors
     ignoreBuildErrors: isDev,
   },
-  eslint: {
-    // In dev, do not block on ESLint errors
-    ignoreDuringBuilds: isDev,
-  },
   async rewrites() {
     // Proxy API routes using env var in production, localhost in dev
     const apiBase = process.env.NEXT_PUBLIC_API_URL;
