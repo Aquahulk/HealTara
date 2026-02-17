@@ -139,24 +139,9 @@ export default function HorizontalDoctorScroll({ doctors, onBookAppointment }: H
           doctorId={selectedDoctor.id}
           doctorName={`Dr. ${selectedDoctor.email.split('@')[0]}`}
           onSubmit={async (appointmentData) => {
-            try {
-              if (appointmentData.time) {
-                const { apiClient } = await import('@/lib/api');
-                await apiClient.bookAppointment({
-                  ...appointmentData,
-                  time: appointmentData.time
-                });
-                setShowBookingModal(false);
-                setSelectedDoctor(null);
-                alert('Appointment booked successfully!');
-              }
-            } catch (error) {
-              console.error('Error booking appointment:', error);
-              alert('Failed to book appointment. Please try again.');
-            }
+            const { apiClient } = await import('@/lib/api');
+            return apiClient.bookAppointment(appointmentData);
           }}
-          patientLoggedIn={false}
-          patientRole={null}
         />
       )}
     </>

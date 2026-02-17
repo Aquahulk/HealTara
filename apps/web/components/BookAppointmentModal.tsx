@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient, Doctor } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { io } from "socket.io-client";
 
 interface BookAppointmentModalProps {
     // Optional: if omitted, modal shows when a doctor/doctorId is provided
@@ -91,13 +92,19 @@ export default function BookAppointmentModal({
             return;
         }
     
-        // Prevent booking in the past
-        const selectedDate = new Date(date);
-        if (isNaN(selectedDate.getTime())) {
+        // Prevent booking in the past (include hour/minute if selected)
+        const selectedDateOnly = date;
+        if (!selectedDateOnly) {
             setError("Please select a valid date and time.");
             return;
         }
-        if (selectedDate.getTime() < Date.now()) {
+        const selectedDateTimeStr = time ? `${selectedDateOnly}T${time}:00` : `${selectedDateOnly}T00:00:00`;
+        const selectedDateTime = new Date(selectedDateTimeStr);
+        if (isNaN(selectedDateTime.getTime())) {
+            setError("Please select a valid date and time.");
+            return;
+        }
+        if (selectedDateTime.getTime() < Date.now()) {
             setError("Cannot book a past time slot. Please choose a future time.");
             return;
         }
@@ -106,11 +113,11 @@ export default function BookAppointmentModal({
         try {
             // Extract date and time from inputs to match backend expectations
             // date: YYYY-MM-DD, time: HH:mm
-            const [dateOnly, timeHM] = date.includes('T') ? date.split('T') : [date, undefined];
+            const [dateOnly] = selectedDateOnly.includes('T') ? selectedDateOnly.split('T') : [selectedDateOnly];
             const payload = {
                 doctorId: effectiveDoctorId,
                 date: dateOnly,
-                time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                time: (time || selectedDateTime.toTimeString().slice(0,5)),
                 reason: reason || undefined
             };
     
@@ -137,13 +144,10 @@ export default function BookAppointmentModal({
                         },
                     });
                 } catch {}
-                setSuccess("Appointment booked successfully");
+                // Removed inline success text; close quickly after broadcast
                 setDate("");
                 setReason("");
-                setTimeout(() => {
-                    setSuccess(null);
-                    onClose();
-                }, 700);
+                onClose();
             } else if (outcome.kind === 'timeout') {
                 // Optimistic quick close; keep booking in background
                 try {
@@ -158,14 +162,10 @@ export default function BookAppointmentModal({
                         },
                     });
                 } catch {}
-                setSuccess("Request sent — confirming...");
+                // Removed inline "confirming" text; close and rely on status bar
                 setDate("");
                 setReason("");
-                setTimeout(() => {
-                    setSuccess(null);
-                    onClose();
-                }, 600);
-                // Continue background booking: broadcast result when available
+                setTimeout(() => onClose(), 300);
                 bookingPromise
                     .then((res: any) => {
                         try {
@@ -446,7 +446,16 @@ export default function BookAppointmentModal({
                                 availability={hourAvailability}
                                 date={date}
                                 selectedTime={time}
-                                onSelect={(hour) => setTime(`${hour}:00`)}
+                                onSelect={(h) => {
+                                    // Allow selecting hour from grid; if specific times are available, pick the first.
+                                    const matchingTimes = availableTimes.filter((t) => t.startsWith(h));
+                                    if (matchingTimes.length > 0) {
+                                        setTime(matchingTimes[0]);
+                                    } else {
+                                        // No specific times list — default to hour start to enable booking
+                                        setTime(`${h}:00`);
+                                    }
+                                }}
                             />
                         )}
                         <div className="text-xs text-gray-500 mt-1">
@@ -561,3 +570,6 @@ function HourAvailabilityGrid({ availability, date, selectedTime, onSelect }: { 
         </div>
     );
 }
+
+
+// removed stray duplicate realtime and overlay code

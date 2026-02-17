@@ -112,13 +112,34 @@ class ApiClient {
   private baseURL: string;                                  // Base URL for all API requests
   private token: string | null;                             // Current authentication token
   private _searchDebounceTimer: any;                        // Timer for debounced search tracking
-
-  // ============================================================================
-  // 🏗️ CONSTRUCTOR - Initialize the API client
-  // ============================================================================
+  // Client-side micro cache for rapid repeated queries
+  private _searchCache: Map<string, { at: number; payload: SearchDoctorsResponse } > = new Map();
+  private _searchCacheTTL: number = 3000; // milliseconds
+  // Local suggestion memory (session) for reinforcing user-confirmed terms
+  private _localSuggestions: Map<string, string[]> = new Map();
+  private _localSuggestionStoreKey: string = 'localSearchSuggestions';
+  private _commonSeeds: string[] = [
+    'Cardiology', 'Dermatology', 'Orthopedics', 'Pediatrics', 'Neurology',
+    'Diabetes', 'Hypertension', 'ENT', 'Dentist', 'Physician', 'Oncology',
+    'Eye Care', 'Gynecology', 'Urology', 'Psychiatry', 'Physiotherapy'
+  ];
   constructor(baseURL: string = API_BASE_URL) {
-    this.baseURL = baseURL;                                 // Set the server address
-    this.token = this.getStoredToken();                     // Load any existing token from storage
+    this.baseURL = baseURL;
+    this.token = this.getStoredToken();
+    // Load local suggestions from sessionStorage if available
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const raw = window.sessionStorage.getItem(this._localSuggestionStoreKey);
+        if (raw) {
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj === 'object') {
+            Object.entries(obj).forEach(([k, arr]) => {
+              if (Array.isArray(arr)) this._localSuggestions.set(String(k).toLowerCase(), arr.slice(0, 10));
+            });
+          }
+        }
+      }
+    } catch {}
     this._searchDebounceTimer = null;                       // Initialize debounce timer
   }
 
@@ -250,7 +271,16 @@ class ApiClient {
 
   async searchDoctors(q: string): Promise<SearchDoctorsResponse> {
     const query = new URLSearchParams({ q }).toString();
-    return this.request(`/api/search/doctors?${query}`);
+    const key = q.trim().toLowerCase();
+    // Return from micro-cache if fresh
+    const cached = this._searchCache.get(key);
+    if (cached && (Date.now() - cached.at) < this._searchCacheTTL) {
+      return Promise.resolve(cached.payload);
+    }
+    const resp = await this.request(`/api/search/doctors?${query}`);
+    // Store in micro-cache
+    this._searchCache.set(key, { at: Date.now(), payload: resp });
+    return resp;
   }
 
   async getDoctorBySlug(slug: string): Promise<Doctor> {
@@ -618,7 +648,7 @@ class ApiClient {
   // Analytics: search query tracking for learning loop
   async trackSearch(
     query: string,
-    data: { matchedSpecialties?: string[]; matchedConditions?: string[]; topDoctorIds?: number[] } = {}
+    data: { matchedSpecialties?: string[]; matchedConditions?: string[]; topDoctorIds?: number[]; source?: string; selectedSuggestion?: string } = {}
   ): Promise<void> {
     try {
       await this.request('/api/analytics/search', {
@@ -634,7 +664,7 @@ class ApiClient {
   async trackSearchDebounced(
     query: string,
     data: { matchedSpecialties?: string[]; matchedConditions?: string[]; topDoctorIds?: number[] } = {},
-    delayMs: number = 600
+    delayMs: number = 250
   ): Promise<void> {
     if (this._searchDebounceTimer) {
       try { clearTimeout(this._searchDebounceTimer); } catch (_) {}
@@ -646,6 +676,54 @@ class ApiClient {
         resolve();
       }, delayMs);
     });
+  }
+
+  // Peek cached search result without network
+  peekCachedSearch(q: string): SearchDoctorsResponse | null {
+    const key = q.trim().toLowerCase();
+    const cached = this._searchCache.get(key);
+    if (cached && (Date.now() - cached.at) < this._searchCacheTTL) {
+      return cached.payload;
+    }
+    return null;
+  }
+
+  // Suggestion memory helpers
+  getSeedSuggestions(): string[] {
+    const mem = Array.from(this._localSuggestions.values()).flat();
+    const uniq = Array.from(new Set([...mem, ...this._commonSeeds]));
+    return uniq.slice(0, 12);
+  }
+
+  getLocalSuggestions(q: string): string[] {
+    const key = q.trim().toLowerCase();
+    if (!key) return this.getSeedSuggestions();
+    const direct = this._localSuggestions.get(key) || [];
+    const related: string[] = [];
+    for (const [tok, arr] of this._localSuggestions.entries()) {
+      if (tok.includes(key)) related.push(...arr);
+      else arr.forEach((s) => { if (s.toLowerCase().includes(key)) related.push(s); });
+    }
+    const uniq = Array.from(new Set([...direct, ...related]));
+    return uniq.slice(0, 12);
+  }
+
+  addLocalSuggestion(q: string, suggestion: string): void {
+    const key = q.trim().toLowerCase();
+    const s = suggestion.trim();
+    if (!key || !s) return;
+    const arr = this._localSuggestions.get(key) || [];
+    if (!arr.includes(s)) {
+      const next = [s, ...arr].slice(0, 10);
+      this._localSuggestions.set(key, next);
+      try {
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          const obj: Record<string, string[]> = {};
+          for (const [k, v] of this._localSuggestions.entries()) { obj[k] = v; }
+          window.sessionStorage.setItem(this._localSuggestionStoreKey, JSON.stringify(obj));
+        }
+      } catch {}
+    }
   }
 
   // ============================================================================

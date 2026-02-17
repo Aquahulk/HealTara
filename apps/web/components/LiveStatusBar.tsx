@@ -25,17 +25,17 @@ export default function LiveStatusBar() {
       const time = payload.time || "";
 
       if (msg.type === "appointment-pending") {
-        setText(`Booking request sent for ${date} at ${time} — confirming…`);
+        setText(`Booking request received for ${date} at ${time}. We’ll confirm shortly.`);
         setVariant("info");
         setVisible(true);
         resetHideTimer(4500);
       } else if (msg.type === "appointment-booked") {
-        setText(`Appointment confirmed with ${doctorName} on ${date} at ${time}.`);
+        setText(`Appointment scheduled with ${doctorName} on ${date} at ${time}.`);
         setVariant("success");
         setVisible(true);
         resetHideTimer(6000);
       } else if (msg.type === "appointment-failed") {
-        const err = (msg.error as string) || "Booking failed";
+        const err = (msg.error as string) || "Could not complete booking";
         setText(`${err}. Please try again.`);
         setVariant("error");
         setVisible(true);

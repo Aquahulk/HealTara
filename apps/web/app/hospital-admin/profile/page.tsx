@@ -94,6 +94,9 @@ export default function HospitalAdminProfilePage() {
   const [aboutExpanded, setAboutExpanded] = useState(true);
   const [generalExpanded, setGeneralExpanded] = useState(true);
   const [doctorAdmins, setDoctorAdmins] = useState<Record<number, { currentEmail?: string; email: string; password: string; saving: boolean; loading: boolean }>>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
+  const isHospitalAdmin = user?.role === "HOSPITAL_ADMIN";
 
   useEffect(() => {
     if (loading) return;
@@ -379,9 +382,6 @@ export default function HospitalAdminProfilePage() {
   }
 
   // Frontend guard: surface clearer hint if not HOSPITAL_ADMIN
-  const isHospitalAdmin = user.role === "HOSPITAL_ADMIN";
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
 
   const handleUploadLogo = async () => {
     if (!hospitalId) {

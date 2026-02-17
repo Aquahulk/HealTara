@@ -33,8 +33,9 @@ export default function SlotAdminLoginPage() {
       const token = data?.token;
       if (!token) throw new Error("No token returned");
       const decoded: any = jwtDecode(token);
-      if (decoded?.role !== "SLOT_ADMIN") {
-        throw new Error("This login is only for Slot Admin accounts");
+      const role = decoded?.role;
+      if (role !== "SLOT_ADMIN" && role !== "ADMIN") {
+        throw new Error("This login is only for Slot Admin or Admin accounts");
       }
       localStorage.setItem("slotAdminToken", token);
       window.location.href = "/slot-admin";
@@ -48,33 +49,35 @@ export default function SlotAdminLoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-6">
       <div className="bg-white shadow-lg rounded-lg w-full max-w-md p-6">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-2">🕒</div>
-          <h1 className="text-2xl font-bold text-gray-800">Doctors Management Login</h1>
-          <p className="text-gray-600 text-sm mt-1">Manage doctor/hospital scheduling with your staff account</p>
-        </div>
+        <div className="text-5xl mb-4">🕒</div>
+        <h1 className="text-2xl font-bold text-gray-800">Doctors Management Panel</h1>
+        <p className="text-gray-600 mb-6">Sign in as Slot Admin or Admin</p>
+
         {message && (
-          <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
+          <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
+            {message}
+          </div>
         )}
+
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm text-gray-700 mb-1">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="slot-admin@example.com"
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full border border-gray-300 rounded-lg p-2"
+              placeholder="you@example.com"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm text-gray-700 mb-1">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full border border-gray-300 rounded-lg p-2"
+              placeholder="••••••••"
             />
           </div>
           <button
@@ -87,7 +90,7 @@ export default function SlotAdminLoginPage() {
         </div>
 
         <div className="text-center mt-6 text-sm text-gray-600">
-          Need help? Ask your doctor or hospital admin to set up your Slot Admin account in their dashboard.{' '}
+          Need help? Ask your doctor or hospital admin to set up your Slot Admin account in their dashboard.{" "}
           <Link href="/" className="text-blue-600 underline">Go home</Link>
         </div>
       </div>

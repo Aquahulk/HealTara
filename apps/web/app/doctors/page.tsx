@@ -53,7 +53,7 @@ function DoctorsPageContent() {
           const doctorsData = await apiClient.getDoctors({ sort: sortBy, page, pageSize });
           setDoctors(doctorsData);
           setHasMore(doctorsData.length === pageSize);
-          setSuggestions([]);
+          setSuggestions(apiClient.getSeedSuggestions());
         }
       } catch (error) {
         console.error('Error loading doctors:', error);
@@ -71,6 +71,13 @@ function DoctorsPageContent() {
       if (!q) return;
       try {
         setLoading(true);
+        // Instant cached suggestions if available
+        const cached = apiClient.peekCachedSearch(q);
+        if (cached) {
+          setSuggestions(cached.suggestions || []);
+          // Also show cached doctors list while fresh
+          if (Array.isArray(cached.doctors)) setDoctors(cached.doctors);
+        }
         const resp = await apiClient.searchDoctors(q);
         setDoctors(resp.doctors);
         setSuggestions(resp.suggestions || []);

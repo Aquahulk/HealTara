@@ -69,6 +69,58 @@ interface DashboardStats {
 }
 
 // ============================================================================
+// 🎨 SLOT COLOR UTILITY - Visual differentiation for slot boxes
+// ============================================================================
+const getSlotBoxColors = (appointmentCount: number, _slotStart: Date, capacity: number = 1) => {
+  // Unified 5-level capacity palette (time-agnostic):
+  // empty → low → medium → high → full
+  const ratio = Math.max(0, Math.min(1, capacity > 0 ? appointmentCount / capacity : 0));
+  if (ratio === 0) {
+    return 'border border-sky-300 bg-sky-100 hover:bg-sky-200'; // empty
+  } else if (ratio > 0 && ratio <= 0.25) {
+    return 'border border-green-400 bg-green-200 hover:bg-green-300'; // low
+  } else if (ratio > 0.25 && ratio <= 0.5) {
+    return 'border border-yellow-400 bg-yellow-200 hover:bg-yellow-300'; // medium
+  } else if (ratio > 0.5 && ratio < 1) {
+    return 'border border-orange-500 bg-orange-200 hover:bg-orange-300'; // high
+  } else {
+    return 'border border-red-600 bg-red-200 hover:bg-red-300'; // full
+  }
+};
+
+const getSegmentBoxColors = (appointmentCount: number, segStart: Date) => {
+  const hour = segStart.getHours();
+  const isEmpty = appointmentCount === 0;
+  
+  // Segment colors - lighter than slot colors
+  if (isEmpty) {
+    if (hour >= 6 && hour < 10) {
+      return 'border border-blue-200 bg-blue-50 hover:bg-blue-100';
+    } else if (hour >= 10 && hour < 14) {
+      return 'border border-green-200 bg-green-50 hover:bg-green-100';
+    } else if (hour >= 14 && hour < 18) {
+      return 'border border-yellow-200 bg-yellow-50 hover:bg-yellow-100';
+    } else if (hour >= 18 && hour < 22) {
+      return 'border border-purple-200 bg-purple-50 hover:bg-purple-100';
+    } else {
+      return 'border border-gray-200 bg-gray-50 hover:bg-gray-100';
+    }
+  } else {
+    if (hour >= 6 && hour < 10) {
+      return 'border border-blue-300 bg-blue-100 hover:bg-blue-200';
+    } else if (hour >= 10 && hour < 14) {
+      return 'border border-green-300 bg-green-100 hover:bg-green-200';
+    } else if (hour >= 14 && hour < 18) {
+      return 'border border-yellow-300 bg-yellow-100 hover:bg-yellow-200';
+    } else if (hour >= 18 && hour < 22) {
+      return 'border border-purple-300 bg-purple-100 hover:bg-purple-200';
+    } else {
+      return 'border border-gray-300 bg-gray-100 hover:bg-gray-200';
+    }
+  }
+};
+
+// ============================================================================
 // 🏥 DOCTOR DASHBOARD COMPONENT - Main dashboard component
 // ============================================================================
 export default function DashboardPage() {
@@ -1334,6 +1386,7 @@ useEffect(() => {
       {/* ============================================================================
           🎨 HEADER SECTION - Dashboard header with navigation
           ============================================================================ */}
+      {activeTab === 'overview' && (
       <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-8">
@@ -1377,6 +1430,7 @@ useEffect(() => {
           </div>
         </div>
       </header>
+      )}
 
       {/* ============================================================================
           📊 MAIN CONTENT - Dashboard content with tabs
@@ -2082,7 +2136,7 @@ useEffect(() => {
                                       return (
                                         <li
                                           key={`cap-${slot.id}`}
-                                          className="border border-gray-200 rounded hover:bg-blue-50"
+                                          className={`rounded ${getSlotBoxColors(slotAppointments.length, slotStart, count)}`}
                                           data-hour-start={slotStart.toISOString()}
                                           data-doctor-id={String(slot.doctorId)}
                                           onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }}
@@ -2113,7 +2167,7 @@ useEffect(() => {
                                               {segments.map(({ idx, segStart, segEnd, inSeg }) => (
                                                 <li
                                                   key={idx}
-                                                  className="border border-gray-200 rounded px-3 py-2 hover:bg-blue-50"
+                                                  className={`rounded px-3 py-2 ${getSegmentBoxColors(inSeg.length, segStart)}`}
                                                   data-seg-start={segStart.toISOString()}
                                                   data-doctor-id={String(slot.doctorId)}
                                                   onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }}
@@ -2281,10 +2335,16 @@ useEffect(() => {
                           const capacitySlots = slots.filter((slot) => dateWithAppointments.has(slot.date));
                           const list = capacitySlots.length > 0 ? capacitySlots : slots;
                           if (list.length === 0) {
-                            const todayStr = fmtDateIST2.format(getISTNow());
-                            const dates = Array.from(dateWithAppointments).filter((d) => d >= todayStr).sort((a, b) => a.localeCompare(b));
-                            if (dates.length === 0 || Object.keys(availabilityByDate).length === 0) {
-                              return <div className="text-sm text-gray-500">No slots or availability found.</div>;
+                            const today = getISTNow();
+                            const todayStr = fmtDateIST2.format(today);
+                            let dates = Array.from(dateWithAppointments).filter((d) => d >= todayStr).sort((a, b) => a.localeCompare(b));
+                            // Fallback: show capacity boxes for the next 7 days when there are no appointments or slots
+                            if (dates.length === 0) {
+                              dates = Array.from({ length: 7 }, (_, i) => {
+                                const d = new Date(today);
+                                d.setDate(today.getDate() + i);
+                                return fmtDateIST2.format(d);
+                              });
                             }
                             return (
                               <div className="space-y-4 mt-2" onDragEnterCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOverCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
@@ -2352,7 +2412,7 @@ useEffect(() => {
                                             });
                                             const isFull = hourAppointments.length >= h.capacity;
                                             return (
-                                              <li key={`${dateKey}-${idx}`} className={`border rounded px-3 py-2 ${isFull ? 'bg-gray-100' : 'bg-white'}`} data-hour-start={start.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] hour-availability-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] hour-availability drop', { targetStart: start, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, start, user.id as number); } catch (err) { console.warn('[DND] hour-availability parse error', err); } }}>
+                                              <li key={`${dateKey}-${idx}`} className={`rounded px-3 py-2 ${getSlotBoxColors(hourAppointments.length, start, h.capacity)}`} data-hour-start={start.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] hour-availability-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] hour-availability drop', { targetStart: start, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, start, user.id as number); } catch (err) { console.warn('[DND] hour-availability parse error', err); } }}>
                                                 <div className="text-xs font-medium text-gray-800">
                                                   {h.labelFrom} → {h.labelTo}
                                                 </div>
@@ -2837,6 +2897,24 @@ useEffect(() => {
 // ============================================================================
 // ⚙️ DOCTOR SETTINGS COMPONENT - Manage Slot Admin credentials
 // ============================================================================
+// Helper to sanitize server error messages that may contain HTML
+function sanitizeMessage(raw?: any): string | null {
+  if (raw == null) return null;
+  const str = String(raw);
+  const pre = str.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  if (pre && pre[1]) return pre[1].replace(/\s+/g, ' ').trim();
+  const text = str
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return null;
+  const cannot = text.match(/Cannot\s+\w+\s+[^\s]+/i);
+  return (cannot && cannot[0]) || text.slice(0, 500);
+}
 function DoctorSettings() {
   const { user } = useAuth();
   const [currentSlotAdminEmail, setCurrentSlotAdminEmail] = useState<string | null>(null);
@@ -2899,7 +2977,7 @@ function DoctorSettings() {
           setCurrentSlotAdminEmail(null);
         }
       } catch (e: any) {
-        setMessage(e?.message || 'Failed to load Slot Admin info');
+        setMessage(sanitizeMessage(e?.message) || 'Failed to load Slot Admin info');
       } finally {
         setLoading(false);
       }
@@ -2920,7 +2998,7 @@ function DoctorSettings() {
       setPassword('');
       setMessage('Slot Admin credentials updated successfully');
     } catch (e: any) {
-      setMessage(e?.message || 'Failed to update Slot Admin credentials');
+      setMessage(sanitizeMessage(e?.message) || 'Failed to update Slot Admin credentials');
     } finally {
       setLoading(false);
     }
@@ -3134,7 +3212,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
           setCurrentSlotAdminEmail(null);
         }
       } catch (e: any) {
-        setMessage(e?.message || 'Failed to load Slot Admin info');
+        setMessage(sanitizeMessage(e?.message) || 'Failed to load Slot Admin info');
       } finally {
         setLoading(false);
       }
@@ -3171,7 +3249,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
               const cur = res?.slotAdmin?.email || null;
               initial[d.id] = { currentEmail: cur, email: cur || '', password: '', loading: false, message: null };
             } catch (e: any) {
-              initial[d.id] = { currentEmail: null, email: '', password: '', loading: false, message: e?.message || null };
+              initial[d.id] = { currentEmail: null, email: '', password: '', loading: false, message: sanitizeMessage(e?.message) || null };
             }
             try {
               const sp = await apiClient.getHospitalDoctorSlotPeriod(hid, d.id);
@@ -3218,7 +3296,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
     } catch (e: any) {
       setDoctorAdminForm((prev) => ({
         ...prev,
-        [doctorId]: { ...(prev[doctorId] || {}), loading: false, message: e?.message || 'Failed to update' },
+        [doctorId]: { ...(prev[doctorId] || {}), loading: false, message: sanitizeMessage(e?.message) || 'Failed to update' },
       }));
     }
   };

@@ -37,6 +37,58 @@ type DoctorTimeOff = {
   updatedAt: string;
 };
 
+// ============================================================================
+// 🎨 SLOT COLOR UTILITY - Visual differentiation for slot boxes
+// ============================================================================
+const getSlotBoxColors = (appointmentCount: number, _slotStart: Date, capacity: number = 1) => {
+  // Unified 5-level capacity palette (time-agnostic):
+  // empty → low → medium → high → full
+  const ratio = Math.max(0, Math.min(1, capacity > 0 ? appointmentCount / capacity : 0));
+  if (ratio === 0) {
+    return 'border border-sky-300 bg-sky-100 hover:bg-sky-200'; // empty
+  } else if (ratio > 0 && ratio <= 0.25) {
+    return 'border border-green-400 bg-green-200 hover:bg-green-300'; // low
+  } else if (ratio > 0.25 && ratio <= 0.5) {
+    return 'border border-yellow-400 bg-yellow-200 hover:bg-yellow-300'; // medium
+  } else if (ratio > 0.5 && ratio < 1) {
+    return 'border border-orange-500 bg-orange-200 hover:bg-orange-300'; // high
+  } else {
+    return 'border border-red-600 bg-red-200 hover:bg-red-300'; // full
+  }
+};
+
+const getSegmentBoxColors = (appointmentCount: number, segStart: Date) => {
+  const hour = segStart.getHours();
+  const isEmpty = appointmentCount === 0;
+  
+  // Segment colors - lighter than slot colors
+  if (isEmpty) {
+    if (hour >= 6 && hour < 10) {
+      return 'border border-blue-200 bg-blue-50 hover:bg-blue-100';
+    } else if (hour >= 10 && hour < 14) {
+      return 'border border-green-200 bg-green-50 hover:bg-green-100';
+    } else if (hour >= 14 && hour < 18) {
+      return 'border border-yellow-200 bg-yellow-50 hover:bg-yellow-100';
+    } else if (hour >= 18 && hour < 22) {
+      return 'border border-purple-200 bg-purple-50 hover:bg-purple-100';
+    } else {
+      return 'border border-gray-200 bg-gray-50 hover:bg-gray-100';
+    }
+  } else {
+    if (hour >= 6 && hour < 10) {
+      return 'border border-blue-300 bg-blue-100 hover:bg-blue-200';
+    } else if (hour >= 10 && hour < 14) {
+      return 'border border-green-300 bg-green-100 hover:bg-green-200';
+    } else if (hour >= 14 && hour < 18) {
+      return 'border border-yellow-300 bg-yellow-100 hover:bg-yellow-200';
+    } else if (hour >= 18 && hour < 22) {
+      return 'border border-purple-300 bg-purple-100 hover:bg-purple-200';
+    } else {
+      return 'border border-gray-300 bg-gray-100 hover:bg-gray-200';
+    }
+  }
+};
+
 export default function SlotAdminPanelPage() {
   // IST formatting and parsing helpers
   const formatIST = (date: Date, opts?: Intl.DateTimeFormatOptions) => {
@@ -139,6 +191,7 @@ export default function SlotAdminPanelPage() {
     6: { start: "", end: "" },
   });
   const [slotPeriodMinutes, setSlotPeriodMinutes] = useState<number>(15);
+const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
 
   useEffect(() => {
     const t = localStorage.getItem("slotAdminToken");
@@ -501,6 +554,90 @@ export default function SlotAdminPanelPage() {
     }
   };
 
+  // Drag-and-drop: start + reschedule + global drop
+  const onDragStartAppointment = (ev: any, appointment: Appointment) => {
+    if (!ev?.dataTransfer) return;
+    try {
+      ev.dataTransfer.setData('text/plain', JSON.stringify({ id: appointment.id }));
+      ev.dataTransfer.setData('appointment-json', JSON.stringify(appointment));
+      ev.dataTransfer.effectAllowed = 'move';
+    } catch {}
+  };
+
+  const rescheduleAppointment = async (appointment: Appointment, targetStart: Date) => {
+    if (!token) return;
+    try {
+      setMessage(null);
+      const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+      const fmtTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+      const dateStr = fmtDate.format(targetStart);
+      const timeStr = fmtTime.format(targetStart);
+
+      // Optimistic UI update
+      setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, date: dateStr, time: timeStr } : a)));
+
+      const res = await fetch(`/api/slot-admin/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ date: dateStr, time: timeStr }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to reschedule appointment' }));
+        throw new Error(err.message || 'Failed to reschedule appointment');
+      }
+      const json = await res.json();
+      const updated = json?.appointment || json;
+      setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? updated : a)));
+      setMessage('Appointment rescheduled');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to reschedule appointment');
+    }
+  };
+
+  useEffect(() => {
+    // Global fallback: allow drop anywhere, target nearest segment/hour box
+    const onDragOver = (ev: DragEvent) => {
+      ev.preventDefault();
+      try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {}
+    };
+    const onDrop = (ev: DragEvent) => {
+      ev.preventDefault();
+      try {
+        const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
+        if (!raw) return;
+        const appt = JSON.parse(raw);
+        const candidates = Array.from(document.querySelectorAll('[data-seg-start], [data-hour-start]')) as HTMLElement[];
+        if (candidates.length === 0) return;
+        const y = ev.clientY;
+        let nearest: HTMLElement | null = null;
+        let best = Number.POSITIVE_INFINITY;
+        for (const el of candidates) {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) continue;
+          const cy = r.top + r.height / 2;
+          const d = Math.abs(y - cy);
+          if (d < best) { best = d; nearest = el; }
+        }
+        if (!nearest) return;
+        const startIso = nearest.getAttribute('data-seg-start') || nearest.getAttribute('data-hour-start');
+        if (!startIso) return;
+        const targetStart = new Date(startIso);
+        rescheduleAppointment(appt as Appointment, targetStart);
+      } catch {}
+    };
+    document.addEventListener('dragenter', onDragOver);
+    document.addEventListener('dragover', onDragOver);
+    document.addEventListener('drop', onDrop);
+    return () => {
+      document.removeEventListener('dragenter', onDragOver);
+      document.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('drop', onDrop);
+    };
+  }, [token, doctorId]);
+
   // Allot pending expired booking: set new date/time and optionally confirm
   const allotPendingAppointment = async (id: number, date: string, time: string, status?: string) => {
     if (!token) return;
@@ -810,10 +947,25 @@ export default function SlotAdminPanelPage() {
                 <button onClick={() => { setStatusFilter(''); setFromDate(''); setToDate(''); }} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded">Clear</button>
               </div>
             </div>
+            {/* View mode toggle */}
+            <div className="mt-3 inline-flex rounded-md border overflow-hidden">
+              <button
+                className={`px-3 py-1 text-sm ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border-r`}
+                onClick={() => setViewMode('day')}
+              >
+                Whole Day
+              </button>
+              <button
+                className={`px-3 py-1 text-sm ${viewMode === 'grouped' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                onClick={() => setViewMode('grouped')}
+              >
+                Grouped
+              </button>
+            </div>
             {/* Slot Boxes (Grouped by appointment hour) */}
             <div className="mt-6">
-              <div className="text-sm font-medium text-gray-700 mb-2">Slot Boxes (Grouped by time)</div>
-              {(() => {
+              <div className="text-sm font-medium text-gray-700 mb-2">Slot Boxes (Capacity)</div>
+              {(() => { if (viewMode !== 'grouped') return null;
                 const filtered = appointments
                   .filter((a) => {
                     const okStatus = statusFilter ? a.status === statusFilter : true;
@@ -868,7 +1020,7 @@ export default function SlotAdminPanelPage() {
                       });
 
                       return (
-                        <div key={key} className="border border-gray-200 rounded-lg">
+                        <div key={key} className={`rounded-lg ${getSlotBoxColors(list.length, slotStart, segCount)}`}>
                           <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                             <div className="text-sm text-gray-800">
                               {formatIST(slotStart, { dateStyle: 'medium', timeStyle: 'short', hour12: false })} to {formatIST(slotEnd, { timeStyle: 'short', hour12: false })}
@@ -877,13 +1029,13 @@ export default function SlotAdminPanelPage() {
                           </div>
                           <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                             {segments.map((seg, i) => (
-                              <div key={i} className="border rounded p-2">
-                                <div className="text-xs text-gray-600 mb-1">
-                                  {formatIST(seg.segStart, { timeStyle: 'short', hour12: false })} – {formatIST(seg.segEnd, { timeStyle: 'short', hour12: false })}
-                                </div>
-                                <div className="text-xs text-gray-700 mb-1">Users: {seg.inSeg.length}</div>
-                                {seg.inSeg.length > 0 && (
-                                  <ul className="space-y-1">
+                               <div key={i} className={`rounded p-2 flex flex-col h-24 md:h-28 ${getSlotBoxColors(seg.inSeg.length, seg.segStart, 1)}`}>
+                                 <div className="text-[11px] text-gray-700">
+                                   {formatIST(seg.segStart, { timeStyle: 'short', hour12: false })} – {formatIST(seg.segEnd, { timeStyle: 'short', hour12: false })}
+                                 </div>
+                                 <div className="text-[11px] text-gray-600">Users: {seg.inSeg.length}</div>
+                                 {seg.inSeg.length > 0 && (
+                                    <ul className="mt-1 space-y-1 overflow-y-auto">
                                     {seg.inSeg.map((a) => (
                                       <li key={a.id} className="flex items-center justify-between">
                                         <div className="text-xs text-gray-800">
@@ -908,6 +1060,134 @@ export default function SlotAdminPanelPage() {
                 );
               })()}
             </div>
+            {/* Whole Day (Dashboard-style) */}
+            {(() => {
+              if (viewMode !== 'day') return null;
+              const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+              const filtered = appointments.filter((a) => {
+                const okStatus = statusFilter ? a.status === statusFilter : true;
+                const dateStr = a.date.includes('T') ? a.date.split('T')[0] : a.date;
+                const timeStr = a.time || '00:00';
+                const dt = istDateTimeFromDateAndTime(dateStr, timeStr);
+                const okFrom = fromDate ? dt >= istDateTimeFromDateAndTime(fromDate, '00:00') : true;
+                const okTo = toDate ? dt <= istDateTimeFromDateAndTime(toDate, '23:59') : true;
+                return okStatus && okFrom && okTo;
+              });
+              const dateKeys = Array.from(new Set(filtered.map((a) => {
+                const ds = a.date.includes('T') ? a.date.split('T')[0] : a.date;
+                const ts = a.time || '00:00';
+                return fmtDateIST.format(istDateTimeFromDateAndTime(ds, ts));
+              })));
+              if (dateKeys.length === 0) return <div className="text-gray-600 mt-6">No appointments for selected date range.</div>;
+              const period = Math.max(1, slotPeriodMinutes);
+              const segCount = Math.max(1, Math.floor(60 / Math.max(1, period)));
+              return (
+                <div className="mt-6">
+                  <div className="text-sm font-medium text-gray-700 mb-2">Whole Day (Dashboard-style)</div>
+                  <div className="space-y-4">
+                    {dateKeys.map((dateKey) => {
+                      const dayDate = new Date(`${dateKey}T00:00:00`);
+                      const dayIdx = getISTDayIndex(dayDate);
+                      const wh = hoursInputs[dayIdx];
+                      const startHour = wh?.start ? parseInt(wh.start.split(':')[0]) : 0;
+                      const endHour = wh?.end ? parseInt(wh.end.split(':')[0]) : 24;
+                      const hoursList = Array.from({ length: Math.max(0, endHour - startHour) }, (_, i) => startHour + i);
+                      return (
+                        <div key={dateKey}>
+                          <div className="text-sm font-medium text-gray-800 mb-1">{formatIST(dayDate, { dateStyle: 'full' })}</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {hoursList.map((h) => {
+                              const hourStart = new Date(`${dateKey}T00:00:00`);
+                              hourStart.setHours(h, 0, 0, 0);
+                              const hourEnd = new Date(hourStart);
+                              hourEnd.setHours(h + 1);
+                              const inHour = filtered.filter((a) => {
+                                const ds = a.date.includes('T') ? a.date.split('T')[0] : a.date;
+                                const ts = a.time || '00:00';
+                                const t = istDateTimeFromDateAndTime(ds, ts).getTime();
+                                return t >= hourStart.getTime() && t < hourEnd.getTime();
+                              });
+                              const segments = Array.from({ length: segCount }, (_, idx) => {
+                                const segStart = new Date(hourStart.getTime() + idx * period * 60 * 1000);
+                                const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                                const inSeg = inHour.filter((a) => {
+                                  const ds = a.date.includes('T') ? a.date.split('T')[0] : a.date;
+                                  const ts = a.time || '00:00';
+                                  const t = istDateTimeFromDateAndTime(ds, ts).getTime();
+                                  return t >= segStart.getTime() && t < segEnd.getTime();
+                                });
+                                return { idx, segStart, segEnd, inSeg };
+                              });
+                              return (
+                                <div
+                                  key={`${dateKey}-${h}`}
+                                  className={`rounded-lg ${getSlotBoxColors(inHour.length, hourStart, segCount)}`}
+                                  data-hour-start={hourStart.toISOString()}
+                                  onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                  onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                  onDrop={(ev) => {
+                                    ev.preventDefault();
+                                    try {
+                                      const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
+                                      if (!raw) return;
+                                      const appt = JSON.parse(raw);
+                                      rescheduleAppointment(appt as Appointment, hourStart);
+                                    } catch {}
+                                  }}
+                                >
+                                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                                    <div className="text-sm text-gray-800">{formatIST(hourStart, { timeStyle: 'short', hour12: false })} to {formatIST(hourEnd, { timeStyle: 'short', hour12: false })}</div>
+                                    <div className="text-xs text-gray-600">Bookings: {inHour.length} · Cap: {segCount}</div>
+                                  </div>
+                                  <div className="p-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {segments.map(({ idx, segStart, segEnd, inSeg }) => (
+                                      <div
+                                        key={idx}
+                                        className={`rounded p-2 flex flex-col h-24 md:h-28 ${getSlotBoxColors(inSeg.length, segStart, 1)}`}
+                                        data-seg-start={segStart.toISOString()}
+                                        data-doctor-id={doctorId ?? undefined}
+                                        onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                        onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                        onDrop={(ev) => {
+                                          ev.preventDefault();
+                                          try {
+                                            const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
+                                            if (!raw) return;
+                                            const appt = JSON.parse(raw);
+                                            rescheduleAppointment(appt as Appointment, segStart);
+                                          } catch {}
+                                        }}
+                                      >
+                                        <div className="text-[11px] text-gray-700">{formatIST(segStart, { timeStyle: 'short', hour12: false })} – {formatIST(segEnd, { timeStyle: 'short', hour12: false })}</div>
+                                        <div className="text-[11px] text-gray-600">Users: {inSeg.length} · Cap: 1</div>
+                                        {inSeg.length > 0 && (
+                                          <ul className="mt-1 space-y-1 overflow-y-auto">
+                                            {inSeg.map((a) => (
+                                              <li key={a.id} className="flex items-center justify-between" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                                <div className="text-xs text-gray-800 truncate">Appt #{a.id} — {formatISTTime(istDateTimeFromDateAndTime(a.date.includes('T') ? a.date.split('T')[0] : a.date, a.time || '00:00'))}</div>
+                                                <div className="flex items-center gap-1">
+                                                  <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Confirm</button>
+                                                  <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">Complete</button>
+                                                  <button onClick={() => cancelAppointment(a.id)} className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">Cancel</button>
+                                                </div>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             {showHistory && (
               <div className="mt-6 border-t border-gray-200">
                 <div className="px-6 py-4">
@@ -1291,17 +1571,17 @@ export default function SlotAdminPanelPage() {
                             <div className="text-sm font-medium text-gray-700 mb-1">Sub-slots ({period} min): {count} per hour</div>
                             <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
                               {segments.map(({ idx, segStart, segEnd, inSeg }) => (
-                                <li key={idx} className="border border-gray-200 rounded px-3 py-2">
+                                <li key={idx} className={`rounded px-3 py-2 flex flex-col h-24 md:h-28 ${getSlotBoxColors(inSeg.length, segStart, 1)}`}>
                                   <div className="text-xs font-medium text-gray-800">
                                     {formatISTTime(segStart)} {' '}to{' '} {formatISTTime(segEnd)}
                                   </div>
                                   {inSeg.length === 0 ? (
                                     <div className="text-xs text-gray-500 mt-1">Empty</div>
                                   ) : (
-                                    <ul className="mt-1 space-y-1">
+                                    <ul className="mt-1 space-y-1 overflow-y-auto">
                                       {inSeg.map((a) => (
                                         <li key={a.id} className="flex items-center justify-between">
-                                          <div className="text-xs text-gray-800">Appt #{a.id} — {formatISTTime(new Date(a.date))}</div>
+                                          <div className="text-xs text-gray-800 truncate">Appt #{a.id} — {formatISTTime(new Date(a.date))}</div>
                                           <div className="flex items-center gap-2">
                                             <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Confirm</button>
                                             <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded">Complete</button>

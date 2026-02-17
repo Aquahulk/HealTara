@@ -362,22 +362,46 @@ export default function HomePage() {
                         const raw = e.target.value;
                         setSearchQuery(raw);
                         const q = raw.trim();
-                        if (!q) { setSuggestions([]); setShowSuggestions(false); return; }
+                        const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
+                        const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
+                        const nextSpace = raw.indexOf(' ', caret);
+                        const end = nextSpace === -1 ? raw.length : nextSpace;
+                        const active = raw.substring(start, end).trim();
+
+                        if (!q) {
+                          const seeds = apiClient.getSeedSuggestions();
+                          setSuggestions(seeds);
+                          setShowSuggestions(seeds.length > 0);
+                          return;
+                        }
+
+                        // Instant suggestions based on active token (cursor-focused)
+                        let quick: string[] = [];
+                        if (active) {
+                          const cachedTok = apiClient.peekCachedSearch(active);
+                          if (cachedTok && Array.isArray(cachedTok.suggestions)) {
+                            quick = cachedTok.suggestions.slice(0, 8);
+                          } else {
+                            quick = apiClient.getLocalSuggestions(active).slice(0, 8);
+                          }
+                        } else {
+                          quick = apiClient.getSeedSuggestions().slice(0, 8);
+                        }
+                        setSuggestions(quick);
+                        setShowSuggestions(quick.length > 0);
+
                         try {
                           const resp = await apiClient.searchDoctors(q);
                           const combined = resp.suggestions.slice(0, 8);
                           setSuggestions(combined);
                           setShowSuggestions(combined.length > 0);
-                          // Track search to teach new words → specialties
                           apiClient.trackSearchDebounced(q, {
                             matchedSpecialties: resp.matchedSpecialties,
                             matchedConditions: resp.matchedConditions,
                             topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id),
                           });
                         } catch {
-                          setSuggestions([]);
-                          setShowSuggestions(false);
-                          // Still send minimal analytics to learn tokens
+                          // Keep quick suggestions; still record minimal analytics
                           apiClient.trackSearchDebounced(q);
                         }
                       }}
@@ -385,8 +409,21 @@ export default function HomePage() {
                       onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          const q = searchQuery.trim();
-                          if (q) { setShowSuggestions(false); router.push(`/doctors?search=${encodeURIComponent(q)}`); }
+                          const raw = searchQuery;
+                          const q = raw.trim();
+                          const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
+                          const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
+                          const nextSpace = raw.indexOf(' ', caret);
+                          const end = nextSpace === -1 ? raw.length : nextSpace;
+                          const active = raw.substring(start, end).trim();
+                          if (q) {
+                            if (active && suggestions.length === 0 && active.length >= 3) {
+                              apiClient.addLocalSuggestion(active, active);
+                            }
+                            apiClient.trackSearch(q, { source: 'enter' });
+                            setShowSuggestions(false);
+                            router.push(`/doctors?search=${encodeURIComponent(q)}`);
+                          }
                         }
                       }}
                       className="w-full pl-16 pr-6 py-3 bg-white border-2 border-gray-200 rounded-2xl text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
@@ -397,13 +434,22 @@ export default function HomePage() {
                           <button
                             key={i}
                             className="w-full text-left px-4 py-2 text-gray-900 hover:bg-gray-50"
-                            onMouseDown={() => {
-                              const q = s.replace(/ \((specialization)\)$/i, '');
-                              setSearchQuery(q);
+                            onMouseDown={(ev) => {
+                              const raw = searchQuery;
+                              const inputEl = ev.currentTarget.ownerDocument.querySelector('input[type="text"]') as HTMLInputElement | null;
+                              const caret = inputEl?.selectionStart ?? raw.length;
+                              const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, (caret ?? raw.length) - 1)) + 1);
+                              const nextSpace = raw.indexOf(' ', caret ?? raw.length);
+                              const end = nextSpace === -1 ? raw.length : nextSpace;
+                              const active = raw.substring(start, end).trim();
+                              const picked = s.replace(/ \((specialization)\)$/i, '');
+                              const newRaw = raw.slice(0, start) + picked + (end < raw.length ? raw.slice(end) : '');
+                              const newQ = newRaw.trim();
+                              setSearchQuery(newRaw);
                               setShowSuggestions(false);
-                              // Track suggestion selection to reinforce learning
-                              apiClient.trackSearch(q);
-                              router.push(`/doctors?search=${encodeURIComponent(q)}`);
+                              if (active) apiClient.addLocalSuggestion(active, picked);
+                              apiClient.trackSearch(newQ, { source: 'suggestion_click', selectedSuggestion: picked });
+                              router.push(`/doctors?search=${encodeURIComponent(newQ)}`);
                             }}
                           >
                             {s}
@@ -1284,11 +1330,11 @@ export default function HomePage() {
                 });
                 setShowAppointmentModal(false);
                 setSelectedDoctor(null);
-                alert('Appointment booked successfully!');
+                // Success handled by global status bar (no blocking alert)
               }
             } catch (error) {
               console.error('Error booking appointment:', error);
-              alert('Failed to book appointment. Please try again.');
+              // Failure handled by global status bar (no blocking alert)
             }
           }}
           patientLoggedIn={!!user}

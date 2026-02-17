@@ -10,6 +10,7 @@
 // ============================================================================
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';  // Web framework for building APIs
 import { PrismaClient } from '@prisma/client';                      // Database ORM for easy database operations
 import bcrypt from 'bcryptjs';                                      // Password hashing for security
@@ -22,6 +23,28 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { mapQueryToSpecialties, suggestFromDoctors } from './conditionSpecialtyMap';
 import { incrementTokenSpecialty, getAllWeights } from './learningStore';
+import { seedSuggestions, mapQueryToSeedSpecialties } from './suggestionSeeds';
+
+// Fast in-memory caches to reduce latency on frequent searches
+const DOCTORS_CACHE_MS = 60 * 1000; // refresh doctor list every 60s
+let cachedDoctors: any[] = [];
+let lastDoctorsFetch = 0;
+async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
+  const now = Date.now();
+  if (cachedDoctors.length && (now - lastDoctorsFetch) < DOCTORS_CACHE_MS) {
+    return cachedDoctors;
+  }
+  const doctors = await prismaClient.user.findMany({
+    where: { role: 'DOCTOR' },
+    include: { doctorProfile: true },
+  });
+  cachedDoctors = doctors.filter((d: any) => !!d.doctorProfile);
+  lastDoctorsFetch = now;
+  return cachedDoctors;
+}
+
+const SEARCH_CACHE_MS = 10 * 1000; // cache identical queries for 10s
+const searchCache = new Map<string, { ts: number; result: any }>();
 
 // ============================================================================
 // 🔐 TYPE DEFINITIONS - Extending Express Request to include user data
@@ -539,11 +562,14 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
   const qRaw = String(req.query.q ?? '');
   const { normalizedQuery, conditions, specialties } = mapQueryToSpecialties(qRaw);
   try {
-    const doctors = await prisma.user.findMany({
-      where: { role: 'DOCTOR' },
-      include: { doctorProfile: true },
-    });
-    const candidates = doctors.filter((d: any) => !!d.doctorProfile);
+    // Short-circuit identical queries for a few seconds
+    const cacheKey = normalizedQuery;
+    const cached = cacheKey ? searchCache.get(cacheKey) : undefined;
+    const now = Date.now();
+    if (cached && (now - cached.ts) < SEARCH_CACHE_MS) {
+      return res.status(200).json(cached.result);
+    }
+    const candidates = await getDoctorCandidates(prisma);
 
     const matchedSpecs = new Set(specialties.map(s => s.toLowerCase()));
     const scored = candidates.map((d: any) => {
@@ -561,7 +587,9 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
 
     const mappedSuggestions = specialties.map(s => `${s} (specialization)`);
     const doctorSuggestions = suggestFromDoctors(normalizedQuery, candidates);
-    const suggestions = Array.from(new Set([...mappedSuggestions, ...doctorSuggestions])).slice(0, 10);
+    const seedSpecs = mapQueryToSeedSpecialties(normalizedQuery);
+    const seedMappedSuggestions = seedSuggestions(normalizedQuery);
+    const suggestions = Array.from(new Set([...mappedSuggestions, ...seedMappedSuggestions, ...doctorSuggestions])).slice(0, 10);
 
     const finalDoctors = specialties.length > 0 ? ranked : candidates.filter((d: any) => {
       const profile = d.doctorProfile || {};
@@ -570,15 +598,21 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
       return normalizedQuery ? (spec.includes(normalizedQuery) || handle.includes(normalizedQuery)) : true;
     });
 
-    res.status(200).json({
+    const payload = {
       query: qRaw,
       normalizedQuery,
       matchedConditions: conditions,
-      matchedSpecialties: specialties,
+      matchedSpecialties: Array.from(new Set([...specialties, ...seedSpecs])),
       doctors: finalDoctors,
       suggestions,
-      meta: { strategy: specialties.length ? 'condition-specialty' : 'text-fallback' }
-    });
+      meta: { strategy: (specialties.length || seedSpecs.length) ? 'seed+condition-specialty' : 'text-fallback' }
+    };
+
+    const cacheKey2 = normalizedQuery;
+    if (cacheKey2) {
+      searchCache.set(cacheKey2, { ts: Date.now(), result: payload });
+    }
+    res.status(200).json(payload);
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).json({ message: 'Search failed' });
@@ -1594,6 +1628,35 @@ app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware
   }
 });
 
+// --- Admin: Delete a hospital ---
+app.delete('/api/admin/hospitals/:hospitalId', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+  try {
+    // Remove doctor memberships to avoid foreign key constraint issues
+    await prisma.hospitalDoctor.deleteMany({ where: { hospitalId } });
+
+    // Delete the hospital record
+    await prisma.hospital.delete({ where: { id: hospitalId } });
+
+    // Audit log (best-effort)
+    const adminId = req.user!.userId;
+    await prisma.adminAuditLog.create({
+      data: { adminId, action: 'HOSPITAL_DELETE', entityType: 'HOSPITAL', entityId: hospitalId }
+    }).catch(() => {});
+
+    return res.status(200).json({ ok: true });
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+    console.error(error);
+    return res.status(500).json({ message: 'Failed to delete hospital' });
+  }
+});
+
 // --- Admin: Delete a user ---
 app.delete('/api/admin/users/:userId', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   const userId = Number(req.params.userId);
@@ -1613,8 +1676,722 @@ app.delete('/api/admin/users/:userId', authMiddleware, adminMiddleware, async (r
   }
 });
 
+// --- Admin: Bulk import hospitals and doctors ---
+app.post('/api/admin/import', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const body = req.body || {};
+  const hospitals = Array.isArray(body.hospitals) ? body.hospitals : [];
+  const doctors = Array.isArray(body.doctors) ? body.doctors : [];
+  const adminId = req.user!.userId;
+
+  const results: { hospitals: any[]; doctors: any[] } = { hospitals: [], doctors: [] };
+
+  // Import hospitals
+  for (const h of hospitals) {
+    try {
+      const data: any = { name: String(h.name || '').trim() };
+      if (!data.name) throw new Error('hospital.name is required');
+      if (h.address) data.address = String(h.address);
+      if (h.city) data.city = String(h.city);
+      if (h.state) data.state = String(h.state);
+      if (h.phone) data.phone = String(h.phone);
+      if (h.profile) data.profile = h.profile;
+
+      if (h.adminEmail) {
+        const adminUser = await prisma.user.findUnique({ where: { email: String(h.adminEmail) } });
+        if (!adminUser) throw new Error(`adminEmail not found: ${h.adminEmail}`);
+        data.admin = { connect: { id: adminUser.id } };
+      }
+
+      // try to find by name + optional city to avoid dupes
+      let existing = null as any;
+      if (data.city) {
+        existing = await prisma.hospital.findFirst({ where: { name: data.name, city: data.city } });
+      } else {
+        existing = await prisma.hospital.findFirst({ where: { name: data.name } });
+      }
+
+      let hospital: any;
+      if (existing) {
+        hospital = await prisma.hospital.update({ where: { id: existing.id }, data });
+        results.hospitals.push({ id: hospital.id, name: hospital.name, action: 'updated' });
+      } else {
+        hospital = await prisma.hospital.create({ data });
+        results.hospitals.push({ id: hospital.id, name: hospital.name, action: 'created' });
+      }
+
+      await prisma.adminAuditLog.create({
+        data: { adminId, action: 'IMPORT_HOSPITAL', entityType: 'HOSPITAL', entityId: hospital.id, details: hospital.name }
+      }).catch(() => {});
+    } catch (err: any) {
+      results.hospitals.push({ error: err?.message || String(err), input: h });
+    }
+  }
+
+  // Import doctors (users + optional profiles + optional hospital membership)
+  for (const d of doctors) {
+    try {
+      const email = String(d.email || '').trim();
+      if (!email) throw new Error('doctor.email is required');
+      let user = await prisma.user.findUnique({ where: { email } });
+      let createdUser = false;
+      if (!user) {
+        const rawPassword = d.password || `${email}-Temp123!`;
+        const hashedPassword = await bcrypt.hash(String(rawPassword), 10);
+        const role = d.role && typeof d.role === 'string' ? d.role : 'DOCTOR';
+        user = await prisma.user.create({ data: { email, password: hashedPassword, role } });
+        createdUser = true;
+      } else if (d.role && typeof d.role === 'string' && user.role !== d.role) {
+        user = await prisma.user.update({ where: { id: user.id }, data: { role: d.role } });
+      }
+
+      // Optional doctor profile creation
+      if (d.profile) {
+        const p = d.profile;
+        const required = ['specialization', 'clinicAddress', 'phone', 'consultationFee'] as const;
+        for (const key of required) {
+          if (!p[key]) throw new Error(`doctor.profile.${key} is required`);
+        }
+        const existingProfile = await prisma.doctorProfile.findUnique({ where: { userId: user.id } });
+        if (!existingProfile) {
+          const slugify = (s: string) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          const base = String(p.slug || p.clinicName || email);
+          let slug = slugify(base);
+          let suffix = 0;
+          while (true) {
+            const exists = await prisma.doctorProfile.findUnique({ where: { slug }, select: { id: true } });
+            if (!exists) break;
+            suffix++;
+            slug = `${slugify(base)}-${suffix}`;
+          }
+          await prisma.doctorProfile.create({
+            data: {
+              specialization: String(p.specialization),
+              qualifications: p.qualifications ? String(p.qualifications) : undefined,
+              experience: Number.isFinite(Number(p.experience)) ? Number(p.experience) : undefined,
+              clinicName: p.clinicName ? String(p.clinicName) : undefined,
+              clinicAddress: String(p.clinicAddress),
+              city: p.city ? String(p.city) : undefined,
+              state: p.state ? String(p.state) : undefined,
+              phone: String(p.phone),
+              consultationFee: Number(p.consultationFee),
+              slug,
+              user: { connect: { id: user.id } },
+            }
+          });
+        }
+      }
+
+      // Optional hospital membership
+      let hospitalId = d.hospitalId;
+      if (!hospitalId && d.hospitalName) {
+        const found = await prisma.hospital.findFirst({ where: { name: String(d.hospitalName) } });
+        hospitalId = found?.id;
+      }
+      if (hospitalId && Number.isFinite(Number(hospitalId))) {
+        const hid = Number(hospitalId);
+        const membership = await prisma.hospitalDoctor.findFirst({ where: { hospitalId: hid, doctorId: user.id }, select: { id: true } });
+        if (!membership) {
+          await prisma.hospitalDoctor.create({ data: { hospitalId: hid, doctorId: user.id } });
+        }
+      }
+
+      await prisma.adminAuditLog.create({
+        data: { adminId, action: 'IMPORT_DOCTOR', entityType: 'USER', entityId: user.id, details: email }
+      }).catch(() => {});
+
+      results.doctors.push({ id: user.id, email, action: createdUser ? 'created' : 'updated' });
+    } catch (err: any) {
+      results.doctors.push({ error: err?.message || String(err), input: d });
+    }
+  }
+
+  return res.status(200).json(results);
+});
+
+// ============================================================================
+// 🕒 SLOT ADMIN API ENDPOINTS - For slot admin panel functionality
+// ============================================================================
+
+// Middleware to verify slot admin role
+const slotAdminMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const user = req.user!;
+  if (!['SLOT_ADMIN', 'ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Slot admin access required' });
+  }
+  next();
+};
+
+// Get slot admin context (doctor and hospital info)
+app.get('/api/slot-admin/context', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  try {
+    let doctor = null;
+    let hospital = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      // Find the doctor this slot admin manages
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: {
+          managedDoctorProfile: {
+            include: {
+              user: { select: { id: true, email: true } }
+            }
+          }
+        }
+      });
+
+      if (slotAdmin?.managedDoctorProfile) {
+        doctor = {
+          id: slotAdmin.managedDoctorProfile.user.id,
+          email: slotAdmin.managedDoctorProfile.user.email,
+          doctorProfileId: slotAdmin.managedDoctorProfile.id
+        };
+
+        // Find hospital this doctor belongs to
+        const hospitalDoctor = await prisma.hospitalDoctor.findFirst({
+          where: { doctorId: doctor.id },
+          include: { hospital: { select: { id: true, name: true } } }
+        });
+
+        if (hospitalDoctor) {
+          hospital = hospitalDoctor.hospital;
+        }
+      }
+    }
+
+    res.status(200).json({ doctor, hospital });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to load context' });
+  }
+});
+
+// Get appointments for slot admin
+app.get('/api/slot-admin/appointments', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      // Find the doctor this slot admin manages
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    if (!doctorId) {
+      return res.status(404).json({ message: 'No managed doctor found' });
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where: { doctorId },
+      include: {
+        doctor: { select: { id: true, email: true } },
+        patient: { select: { id: true, email: true } }
+      },
+      orderBy: { date: 'asc' }
+    });
+
+    res.status(200).json(appointments);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to load appointments' });
+  }
+});
+
+// Get slots for slot admin
+app.get('/api/slot-admin/slots', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    if (!doctorId) {
+      return res.status(404).json({ message: 'No managed doctor found' });
+    }
+
+    const slots = await prisma.slot.findMany({
+      where: { doctorId },
+      orderBy: { date: 'asc' }
+    });
+
+    res.status(200).json({ slots });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to load slots' });
+  }
+});
+
+// Get working hours for slot admin
+app.get('/api/slot-admin/working-hours', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    const queryDoctorId = req.query.doctorId ? Number(req.query.doctorId) : doctorId;
+
+    if (!queryDoctorId) {
+      return res.status(400).json({ message: 'Doctor ID required' });
+    }
+
+    // For now, return default working hours since we don't have a working hours table
+    const defaultWorkingHours = [
+      { dayOfWeek: 0, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 2, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 3, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 4, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 5, startTime: '10:00', endTime: '14:00' },
+      { dayOfWeek: 6, startTime: null, endTime: null }
+    ];
+
+    res.status(200).json(defaultWorkingHours);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to load working hours' });
+  }
+});
+
+// Get slot period for slot admin
+app.get('/api/slot-admin/slot-period', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    const queryDoctorId = req.query.doctorId ? Number(req.query.doctorId) : doctorId;
+
+    if (!queryDoctorId) {
+      return res.status(400).json({ message: 'Doctor ID required' });
+    }
+
+    // Check if doctor has a custom slot period
+    const doctorProfile = await prisma.doctorProfile.findFirst({
+      where: { userId: queryDoctorId },
+      select: { slotPeriodMinutes: true }
+    });
+
+    const slotPeriodMinutes = doctorProfile?.slotPeriodMinutes || 15;
+    res.status(200).json({ slotPeriodMinutes });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to load slot period' });
+  }
+});
+
+// Get time-off for slot admin
+app.get('/api/slot-admin/time-off', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  try {
+    let doctorProfileId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { id: true } } }
+      });
+      doctorProfileId = slotAdmin?.managedDoctorProfile?.id;
+    }
+
+    const queryDoctorProfileId = req.query.doctorProfileId ? Number(req.query.doctorProfileId) : doctorProfileId;
+
+    if (!queryDoctorProfileId) {
+      return res.status(400).json({ message: 'Doctor profile ID required' });
+    }
+
+    // For now, return empty time-off since we don't have a time-off table
+    res.status(200).json([]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to load time-off' });
+  }
+});
+
+// Cancel slot
+app.patch('/api/slot-admin/slots/:slotId/cancel', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const slotId = Number(req.params.slotId);
+  const { reason } = req.body;
+
+  if (!Number.isFinite(slotId)) {
+    return res.status(400).json({ message: 'Invalid slot ID' });
+  }
+
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    if (!doctorId) {
+      return res.status(404).json({ message: 'No managed doctor found' });
+    }
+
+    // Verify slot belongs to managed doctor
+    const slot = await prisma.slot.findFirst({
+      where: { id: slotId, doctorId }
+    });
+
+    if (!slot) {
+      return res.status(404).json({ message: 'Slot not found or not authorized' });
+    }
+
+    // Update slot status to cancelled
+    await prisma.slot.update({
+      where: { id: slotId },
+      data: { 
+        status: 'CANCELLED',
+        // Add reason to notes if available
+        ...(reason && { notes: reason })
+      }
+    });
+
+    res.status(200).json({ message: 'Slot cancelled successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to cancel slot' });
+  }
+});
+
+// Update appointment status
+app.patch('/api/slot-admin/appointments/:appointmentId/status', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const appointmentId = Number(req.params.appointmentId);
+  const { status } = req.body;
+
+  if (!Number.isFinite(appointmentId)) {
+    return res.status(400).json({ message: 'Invalid appointment ID' });
+  }
+
+  if (!['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status' });
+  }
+
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    if (!doctorId) {
+      return res.status(404).json({ message: 'No managed doctor found' });
+    }
+
+    // Verify appointment belongs to managed doctor
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: appointmentId, doctorId }
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found or not authorized' });
+    }
+
+    // Update appointment status
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status },
+      include: {
+        doctor: { select: { id: true, email: true } },
+        patient: { select: { id: true, email: true } }
+      }
+    });
+
+    // Broadcast real-time update
+    broadcastDoctorEvent(doctorId, 'appointment-updated', { appointment: updatedAppointment });
+    if (appointment.patientId) {
+      broadcastPatientEvent(appointment.patientId, 'appointment-updated', { appointment: updatedAppointment });
+    }
+
+    res.status(200).json(updatedAppointment);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update appointment status' });
+  }
+});
+
+// Cancel appointment
+app.patch('/api/slot-admin/appointments/:appointmentId/cancel', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const appointmentId = Number(req.params.appointmentId);
+  const { reason } = req.body;
+
+  if (!Number.isFinite(appointmentId)) {
+    return res.status(400).json({ message: 'Invalid appointment ID' });
+  }
+
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    if (!doctorId) {
+      return res.status(404).json({ message: 'No managed doctor found' });
+    }
+
+    // Verify appointment belongs to managed doctor
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: appointmentId, doctorId }
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found or not authorized' });
+    }
+
+    // Update appointment status to cancelled
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { 
+        status: 'CANCELLED',
+        ...(reason && { reason })
+      },
+      include: {
+        doctor: { select: { id: true, email: true } },
+        patient: { select: { id: true, email: true } }
+      }
+    });
+
+    // Broadcast real-time update
+    broadcastDoctorEvent(doctorId, 'appointment-cancelled', { appointment: updatedAppointment });
+    if (appointment.patientId) {
+      broadcastPatientEvent(appointment.patientId, 'appointment-cancelled', { appointment: updatedAppointment });
+    }
+
+    res.status(200).json(updatedAppointment);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to cancel appointment' });
+  }
+});
+
+// Update appointment (for allotting pending appointments)
+app.patch('/api/slot-admin/appointments/:appointmentId', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const appointmentId = Number(req.params.appointmentId);
+  const { date, time, status } = req.body;
+
+  if (!Number.isFinite(appointmentId)) {
+    return res.status(400).json({ message: 'Invalid appointment ID' });
+  }
+
+  try {
+    let doctorId = null;
+
+    if (user.role === 'SLOT_ADMIN') {
+      const slotAdmin = await prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { managedDoctorProfile: { select: { userId: true } } }
+      });
+      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+    }
+
+    if (!doctorId) {
+      return res.status(404).json({ message: 'No managed doctor found' });
+    }
+
+    // Verify appointment belongs to managed doctor
+    const appointment = await prisma.appointment.findFirst({
+      where: { id: appointmentId, doctorId }
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found or not authorized' });
+    }
+
+    // Prepare update data
+    const updateData: any = {};
+    if (date) updateData.date = new Date(date);
+    if (time) updateData.time = time;
+    if (status) updateData.status = status;
+
+    // Update appointment
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: updateData,
+      include: {
+        doctor: { select: { id: true, email: true } },
+        patient: { select: { id: true, email: true } }
+      }
+    });
+
+    // Broadcast real-time update
+    broadcastDoctorEvent(doctorId, 'appointment-updated', { appointment: updatedAppointment });
+    if (appointment.patientId) {
+      broadcastPatientEvent(appointment.patientId, 'appointment-updated', { appointment: updatedAppointment });
+    }
+
+    res.status(200).json({ appointment: updatedAppointment });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update appointment' });
+  }
+});
+
 server.listen(port, () => {
   console.log(`[server]: API Server running at http://localhost:${port}`);
+});
+
+// --- Doctor Slot Admin Endpoints ---
+// Get current slot admin for the logged-in doctor
+app.get('/api/doctor/slot-admin', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only doctors can manage slot admin.' });
+  }
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found' });
+    const admin = await prisma.user.findFirst({ where: { managedDoctorProfileId: profile.id, role: 'SLOT_ADMIN' }, select: { email: true } });
+    if (!admin) return res.status(200).json({ slotAdmin: null });
+    return res.status(200).json({ slotAdmin: { email: admin.email } });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while fetching slot admin.' });
+  }
+});
+
+// Create or update slot admin for the logged-in doctor
+app.post('/api/doctor/slot-admin', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only doctors can manage slot admin.' });
+  }
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found' });
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    // Find existing slot admin for this doctor
+    const existing = await prisma.user.findFirst({ where: { managedDoctorProfileId: profile.id, role: 'SLOT_ADMIN' } });
+    if (existing) {
+      // Update existing admin credentials
+      const updated = await prisma.user.update({
+        where: { id: existing.id },
+        data: { email, password: hashed, role: 'SLOT_ADMIN', canLogin: true },
+        select: { email: true }
+      });
+      return res.status(200).json({ slotAdmin: { email: updated.email } });
+    }
+
+    // If an account with the target email exists, repurpose as slot admin
+    const byEmail = await prisma.user.findUnique({ where: { email } });
+    if (byEmail) {
+      const updated = await prisma.user.update({
+        where: { id: byEmail.id },
+        data: { password: hashed, role: 'SLOT_ADMIN', managedDoctorProfileId: profile.id, canLogin: true },
+        select: { email: true }
+      });
+      return res.status(200).json({ slotAdmin: { email: updated.email } });
+    }
+
+    // Otherwise create a fresh slot admin user
+    const created = await prisma.user.create({
+      data: { email, password: hashed, role: 'SLOT_ADMIN', managedDoctorProfileId: profile.id, canLogin: true },
+      select: { email: true }
+    });
+    return res.status(201).json({ slotAdmin: { email: created.email } });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while upserting slot admin.' });
+  }
+});
+
+// --- Me: Hospital for current admin ---
+app.get('/api/me/hospital', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (!['ADMIN', 'HOSPITAL_ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Hospital admin access required' });
+  }
+  try {
+    let hospital = await prisma.hospital.findFirst({ where: { adminId: user.userId } });
+    if (!hospital) {
+      const me = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedHospitalId: true } });
+      if (me?.managedHospitalId) {
+        hospital = await prisma.hospital.findUnique({ where: { id: me.managedHospitalId } });
+      }
+    }
+    if (!hospital) {
+      return res.status(404).json({ message: 'No hospital found for this admin.' });
+    }
+    return res.status(200).json({
+      id: hospital.id,
+      name: hospital.name,
+      address: hospital.address ?? undefined,
+      city: hospital.city ?? undefined,
+      state: hospital.state ?? undefined,
+      phone: hospital.phone ?? undefined,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while fetching hospital.' });
+  }
+});
+
+// Create a hospital and link to current admin
+app.post('/api/hospitals', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (!['ADMIN', 'HOSPITAL_ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Hospital admin access required' });
+  }
+  const { name, address, city, state, phone } = (req.body || {}) as { name?: string; address?: string; city?: string; state?: string; phone?: string };
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ message: 'Hospital name is required.' });
+  }
+  try {
+    const created = await prisma.hospital.create({
+      data: { name: name.trim(), address, city, state, phone, adminId: user.userId },
+      select: { id: true }
+    });
+    // Audit log for traceability
+    await prisma.adminAuditLog.create({ data: { adminId: user.userId, action: 'CREATE_HOSPITAL', entityType: 'Hospital', entityId: created.id } });
+    return res.status(201).json({ id: created.id });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while creating hospital.' });
+  }
 });
 
 // --- Hospital Endpoints (Public) ---
@@ -1894,6 +2671,61 @@ app.get('/api/hospitals/:hospitalId/profile', async (req: Request, res: Response
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while fetching hospital profile.' });
+  }
+});
+
+// Update hospital profile (authorized: ADMIN or owning HOSPITAL_ADMIN)
+app.put('/api/hospitals/:hospitalId/profile', authMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  const updates = req.body || {};
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+  try {
+    const user = req.user!;
+    let authorized = false;
+
+    if (user.role === 'ADMIN') {
+      authorized = true;
+    } else if (user.role === 'HOSPITAL_ADMIN') {
+      const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId }, select: { adminId: true } });
+      if (hospital?.adminId === user.userId) {
+        authorized = true;
+      } else {
+        const me = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedHospitalId: true } });
+        if (me?.managedHospitalId === hospitalId) authorized = true;
+      }
+    }
+
+    if (!authorized) {
+      return res.status(403).json({ message: 'Forbidden: You are not allowed to update this hospital profile.' });
+    }
+
+    const current = await prisma.hospital.findUnique({ where: { id: hospitalId }, select: { profile: true } });
+    if (!current) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+    const currentProfile = (current.profile as any) ?? {};
+    const updatedProfile = { ...currentProfile, ...updates };
+
+    await prisma.hospital.update({ where: { id: hospitalId }, data: { profile: updatedProfile } });
+
+    // Best-effort audit log entry
+    const adminId = user.userId;
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId,
+        action: 'HOSPITAL_PROFILE_UPDATE',
+        entityType: 'HOSPITAL',
+        entityId: hospitalId,
+        details: JSON.stringify(Object.keys(updates))
+      }
+    }).catch(() => {});
+
+    res.status(200).json({ profile: updatedProfile });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred while updating hospital profile.' });
   }
 });
 
