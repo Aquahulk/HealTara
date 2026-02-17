@@ -139,7 +139,7 @@ export default function BookAppointmentModal({
                             doctorId: effectiveDoctorId,
                             doctorName: effectiveDoctorName,
                             date: dateOnly,
-                            time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                            time: (time || selectedDateTime.toTimeString().slice(0,5)),
                             reason: reason || undefined,
                         },
                     });
@@ -157,7 +157,7 @@ export default function BookAppointmentModal({
                             doctorId: effectiveDoctorId,
                             doctorName: effectiveDoctorName,
                             date: dateOnly,
-                            time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                            time: (time || selectedDateTime.toTimeString().slice(0,5)),
                             reason: reason || undefined,
                         },
                     });
@@ -175,7 +175,7 @@ export default function BookAppointmentModal({
                                 payload: {
                                     doctorId: effectiveDoctorId,
                                     date: dateOnly,
-                                    time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                                    time: (time || selectedDateTime.toTimeString().slice(0,5)),
                                     reason: reason || undefined,
                                 },
                             });
@@ -189,7 +189,7 @@ export default function BookAppointmentModal({
                                 payload: {
                                     doctorId: effectiveDoctorId,
                                     date: dateOnly,
-                                    time: (time || timeHM || selectedDate.toTimeString().slice(0,5)),
+                                    time: (time || selectedDateTime.toTimeString().slice(0,5)),
                                     reason: reason || undefined,
                                 },
                             });

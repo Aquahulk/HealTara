@@ -277,7 +277,7 @@ class ApiClient {
     if (cached && (Date.now() - cached.at) < this._searchCacheTTL) {
       return Promise.resolve(cached.payload);
     }
-    const resp = await this.request(`/api/search/doctors?${query}`);
+    const resp = await this.request<SearchDoctorsResponse>(`/api/search/doctors?${query}`);
     // Store in micro-cache
     this._searchCache.set(key, { at: Date.now(), payload: resp });
     return resp;

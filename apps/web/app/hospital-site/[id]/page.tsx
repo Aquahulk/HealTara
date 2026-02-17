@@ -877,4 +877,3 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
     </div>
   );
 }
-
