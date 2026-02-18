@@ -52,6 +52,7 @@ export default function BookAppointmentModal({
     });
     const fetchSeqRef = useRef(0);
     const bcRef = useRef<BroadcastChannel | null>(null);
+    const socketRef = useRef<any>(null);
     useEffect(() => {
         const bc = new BroadcastChannel('appointments-updates');
         bcRef.current = bc;
@@ -63,6 +64,73 @@ export default function BookAppointmentModal({
     const isOpen = open ?? Boolean(effectiveDoctorId);
 
     if (!isOpen) return null;
+
+    // Lightweight realtime: listen for bookings and refresh availability
+    useEffect(() => {
+        if (!effectiveDoctorId || !date) return;
+        const refresh = async () => {
+            try {
+                const [dateOnly] = date.includes('T') ? date.split('T') : [date];
+                const key = `${effectiveDoctorId}:${dateOnly}`;
+                const [combined, insights] = await Promise.all([
+                    apiClient.getSlotsAndAvailability({ doctorId: effectiveDoctorId, date: dateOnly }).catch(() => null),
+                    apiClient.getSlotInsights({ doctorId: effectiveDoctorId, date: dateOnly }).catch(() => null),
+                ]);
+                const slots = Array.isArray((combined as any).slots) ? (combined as any).slots : [];
+                const times = slots
+                    .filter((s: any) => s.status === 'AVAILABLE')
+                    .map((s: any) => String(s.time).slice(0,5));
+                cacheRef.current.slots.set(key, slots);
+                const avail = (insights as any)?.availability || (combined as any)?.availability;
+                if (avail) cacheRef.current.availability.set(key, avail);
+                setAvailableTimes(Array.from(new Set(times)).sort());
+                setHourAvailability(avail as any);
+            } catch {}
+        };
+
+        const bc = bcRef.current;
+        const onMsg = (ev: MessageEvent) => {
+            try {
+                const msg: any = ev.data;
+                const t = msg?.type;
+                const did = Number(msg?.payload?.doctorId);
+                const dt = String(msg?.payload?.date || '');
+                if (!did || did !== effectiveDoctorId) return;
+                const [dateOnly] = date.includes('T') ? date.split('T') : [date];
+                if (dt && dt !== dateOnly) return;
+                refresh();
+            } catch {}
+        };
+        bc?.addEventListener('message', onMsg as any);
+
+        // Socket.io for cross-client realtime
+        try {
+            const { io } = require('socket.io-client');
+            const socket = io(process.env.NEXT_PUBLIC_API_URL || undefined, { transports: ['websocket'] });
+            socketRef.current = socket;
+            socket.on('connect', () => {
+                try { socket.emit('join-doctor', effectiveDoctorId); } catch {}
+            });
+            const onAny = (payload: any) => {
+                try {
+                    const did = Number(payload?.doctorId ?? payload?.appointment?.doctorId ?? payload?.appointment?.doctor?.id);
+                    // Some events send nested appointment
+                    const appt = (payload?.appointment || payload) as any;
+                    const dt = appt?.date;
+                    const [dateOnly] = date.includes('T') ? date.split('T') : [date];
+                    if (did === effectiveDoctorId && (!dt || dt === dateOnly)) refresh();
+                } catch {}
+            };
+            socket.on('appointment-booked', onAny);
+            socket.on('appointment-updated', onAny);
+            socket.on('appointment-cancelled', onAny);
+        } catch {}
+
+        return () => {
+            try { bc?.removeEventListener('message', onMsg as any); } catch {}
+            try { socketRef.current?.disconnect?.(); socketRef.current = null; } catch {}
+        };
+    }, [effectiveDoctorId, date]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -144,6 +212,12 @@ export default function BookAppointmentModal({
                         },
                     });
                 } catch {}
+                try {
+                    const key = `${effectiveDoctorId}:${dateOnly}`;
+                    const localStorageKey = `slots_${key}`;
+                    localStorage.removeItem(localStorageKey);
+                    localStorage.removeItem(`${localStorageKey}_timestamp`);
+                } catch {}
                 // Removed inline success text; close quickly after broadcast
                 setDate("");
                 setReason("");
@@ -179,6 +253,12 @@ export default function BookAppointmentModal({
                                     reason: reason || undefined,
                                 },
                             });
+                        } catch {}
+                        try {
+                            const key = `${effectiveDoctorId}:${dateOnly}`;
+                            const localStorageKey = `slots_${key}`;
+                            localStorage.removeItem(localStorageKey);
+                            localStorage.removeItem(`${localStorageKey}_timestamp`);
                         } catch {}
                     })
                     .catch((err: any) => {
@@ -241,8 +321,7 @@ export default function BookAppointmentModal({
                     if (parsedData.availability) {
                         setHourAvailability(parsedData.availability);
                     }
-                    setLoadingAvail(false);
-                    return; // Use cached data, skip API call
+                    // Show cached instantly, but continue to fetch fresh in background
                 } catch (e) {
                     console.warn('Invalid cached slot data, fetching fresh');
                 }
@@ -283,10 +362,10 @@ export default function BookAppointmentModal({
                 for (let attempt = 0; attempt <= retries; attempt++) {
                     try {
                         const combinedData = await Promise.race([
-                            apiClient.getSlotsAndAvailability({ 
-                                doctorId: effectiveDoctorId, 
-                                date: dateOnly 
-                            }),
+                            Promise.all([
+                                apiClient.getSlotsAndAvailability({ doctorId: effectiveDoctorId, date: dateOnly }).catch(() => null),
+                                apiClient.getSlotInsights({ doctorId: effectiveDoctorId, date: dateOnly }).catch(() => null),
+                            ]).then(([avail, insights]) => ({ avail, insights })),
                             new Promise((_, reject) => 
                                 setTimeout(() => reject(new Error('Request timeout')), 3000) // 3 seconds timeout
                             )
@@ -306,13 +385,15 @@ export default function BookAppointmentModal({
                 if (mySeq !== fetchSeqRef.current) return; // ignore stale responses
                 
                 // Cache the data in memory
-                cacheRef.current.slots.set(key, Array.isArray(combinedData.slots) ? combinedData.slots : []);
-                cacheRef.current.availability.set(key, combinedData.availability as HourAvailabilityData);
+                const slotsArr = Array.isArray(combinedData?.avail?.slots) ? combinedData.avail.slots : [];
+                cacheRef.current.slots.set(key, slotsArr);
+                const availToUse: HourAvailabilityData | null = (combinedData?.insights?.availability) || (combinedData?.avail?.availability) || null;
+                if (availToUse) cacheRef.current.availability.set(key, availToUse);
                 
                 // Cache in localStorage for persistence
                 const cacheData = {
-                    slots: Array.isArray(combinedData.slots) ? combinedData.slots : [],
-                    availability: combinedData.availability
+                    slots: slotsArr,
+                    availability: availToUse
                 };
                 localStorage.setItem(localStorageKey, JSON.stringify(cacheData));
                 localStorage.setItem(`${localStorageKey}_timestamp`, Date.now().toString());
@@ -330,7 +411,7 @@ export default function BookAppointmentModal({
                 setWorkingHoursForDay(whForDay);
 
                 // Set data and apply timing filter when available
-                const rawTimes = combinedData.availableTimes || [];
+                const rawTimes = (combinedData?.avail?.availableTimes) || [];
                 const filterByWH = (times: string[]) => {
                     if (!whForDay) return times;
                     const toMin = (t: string) => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm; };
@@ -354,9 +435,11 @@ export default function BookAppointmentModal({
                         return hourStartMin >= whStart && hourEndMin <= whEnd;
                     });
                 };
-                const av = combinedData.availability as HourAvailabilityData;
-                const filteredHours = filterHoursByWH(av.hours);
-                setHourAvailability({ periodMinutes: av.periodMinutes, hours: filteredHours });
+                const av = availToUse as HourAvailabilityData | null;
+                if (av) {
+                  const filteredHours = filterHoursByWH(av.hours);
+                  setHourAvailability({ periodMinutes: av.periodMinutes, hours: filteredHours });
+                }
             } catch (e: any) {
                 console.error('Failed to load slots/availability', e);
                 if (mySeq === fetchSeqRef.current) {

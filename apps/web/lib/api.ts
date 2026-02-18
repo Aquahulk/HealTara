@@ -334,6 +334,11 @@ class ApiClient {
     return this.request('/api/my-appointments');
   }
 
+  async getMyPatients(): Promise<Array<{ patientId: number; email: string; count: number; lastDate: string }>> {
+    const resp = await this.request<{ items: Array<{ patientId: number; email: string; count: number; lastDate: string }> }>('/api/doctor/patients');
+    return resp.items || [];
+  }
+
   async updateDoctorAppointment(
     appointmentId: number,
     update: { status?: string; date?: string; time?: string }
@@ -371,6 +376,14 @@ class ApiClient {
       date: params.date,
     }).toString();
     return this.request(`/api/slots/availability?${query}`);
+  }
+
+  async getSlotInsights(params: { doctorId: number; date: string }): Promise<{ availability: { periodMinutes: number; hours: Array<{ hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }> } }> {
+    const query = new URLSearchParams({
+      doctorId: String(params.doctorId),
+      date: params.date,
+    }).toString();
+    return this.request(`/api/slots/insights?${query}`);
   }
 
   async getSlotAdminWorkingHours(params: { doctorId: number }): Promise<Array<{ dayOfWeek: number; startTime: string; endTime: string }>> {
@@ -450,7 +463,7 @@ class ApiClient {
     });
   }
 
-  async getHospitalByDoctorId(doctorId: number): Promise<{ hospitalId: number; hospital?: { name?: string } }> {
+  async getHospitalByDoctorId(doctorId: number): Promise<{ id: number; name?: string; address?: string; city?: string; state?: string; phone?: string }> {
     return this.request(`/api/hospitals/by-doctor/${doctorId}`);
   }
 

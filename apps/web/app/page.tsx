@@ -86,7 +86,17 @@ export default function HomePage() {
           setHospitals(hospitalsData.value || []);
         }
         if (doctorsData.status === 'fulfilled') {
-          setDoctors(doctorsData.value || []);
+          const list = doctorsData.value || [];
+          setDoctors(list);
+          try { sessionStorage.setItem('last_doctors', JSON.stringify(list)); } catch {}
+        } else {
+          try {
+            const raw = sessionStorage.getItem('last_doctors');
+            if (raw) {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list) && list.length) setDoctors(list);
+            }
+          } catch {}
         }
 
         const duration = PerformanceMonitor.endTiming('homepage-data-load');
@@ -94,6 +104,14 @@ export default function HomePage() {
 
       } catch (error) {
         console.error('Error loading data:', error);
+        // Final fallback: try last session doctors to avoid empty UI
+        try {
+          const raw = sessionStorage.getItem('last_doctors');
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list) && list.length) setDoctors(list);
+          }
+        } catch {}
       } finally {
         setLoading(false);
       }
@@ -725,18 +743,19 @@ export default function HomePage() {
                                 apiClient
                                   .getHospitalByDoctorId(doctor.id)
                                   .then((resp) => {
-                                    const name = resp?.hospital?.name || '';
-                                    if (name) {
+                                    const hName = (resp as any)?.name || '';
+                                    const hId = (resp as any)?.id ?? (resp as any)?.hospitalId;
+                                    if (hName) {
                                       if (shouldUseSubdomainNav()) {
-                                        window.location.href = hospitalMicrositeUrl(name);
+                                        window.location.href = hospitalMicrositeUrl(hName);
                                       } else {
-                                        router.push(`/hospital-site/${slugifyName(name)}`);
+                                        router.push(`/hospital-site/${slugifyName(hName)}`);
                                       }
-                                    } else {
+                                    } else if (Number.isFinite(hId)) {
                                       if (shouldUseSubdomainNav()) {
-                                        window.location.href = hospitalIdMicrositeUrl(resp.hospitalId);
+                                        window.location.href = hospitalIdMicrositeUrl(hId);
                                       } else {
-                                        router.push(`/hospital-site/${String(resp.hospitalId)}`);
+                                        router.push(`/hospital-site/${String(hId)}`);
                                       }
                                     }
                                   })

@@ -46,6 +46,32 @@ async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
 const SEARCH_CACHE_MS = 10 * 1000; // cache identical queries for 10s
 const searchCache = new Map<string, { ts: number; result: any }>();
 
+function dayWindowUtc(dateStr: string) {
+  const start = new Date(`${dateStr}T00:00:00.000Z`);
+  const end = new Date(`${dateStr}T23:59:59.999Z`);
+  return { start, end };
+}
+
+async function resolveDoctorCapacity(prismaClient: PrismaClient, doctorId: number) {
+  const profile = await prismaClient.doctorProfile.findUnique({ where: { userId: doctorId }, select: { slotPeriodMinutes: true } });
+  const periodMinutes = profile?.slotPeriodMinutes ?? 15;
+  const capacity = Math.max(1, Math.floor(60 / periodMinutes));
+  return { periodMinutes, capacity };
+}
+
+async function countBookedPerHour(prismaClient: PrismaClient, doctorId: number, start: Date, end: Date) {
+  const appts = await prismaClient.appointment.findMany({
+    where: { doctorId, status: { not: 'CANCELLED' }, date: { gte: start, lte: end } },
+    select: { time: true },
+  });
+  const counts: Record<number, number> = {};
+  for (const a of appts) {
+    const h = Number(String(a.time).slice(0, 2));
+    if (Number.isFinite(h)) counts[h] = (counts[h] || 0) + 1;
+  }
+  return counts;
+}
+
 // ============================================================================
 // 🔐 TYPE DEFINITIONS - Extending Express Request to include user data
 // ============================================================================
@@ -805,10 +831,8 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
     const capacity = Math.max(1, Math.floor(60 / periodMinutes));
 
     // Count existing bookings in the same hour for the given date (excluding cancelled)
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
     const existingCount = await prisma.appointment.count({
       where: {
@@ -1342,9 +1366,6 @@ app.patch('/api/appointments/:appointmentId/status', authMiddleware, async (req:
 app.patch('/api/appointments/:appointmentId', authMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;
   const appointmentId = Number(req.params.appointmentId);
-  if (user.role !== 'DOCTOR') {
-    return res.status(403).json({ message: 'Forbidden: Only doctors can reschedule appointments.' });
-  }
   if (!Number.isFinite(appointmentId)) {
     return res.status(400).json({ message: 'Invalid appointmentId' });
   }
@@ -1353,8 +1374,11 @@ app.patch('/api/appointments/:appointmentId', authMiddleware, async (req: Reques
       where: { id: appointmentId },
       include: { patient: { select: { id: true } } }
     });
-    if (!appointment || appointment.doctorId !== user.userId) {
-      return res.status(404).json({ message: 'Appointment not found or you do not have permission to update it.' });
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found.' });
+    }
+    if (appointment.doctorId !== user.userId) {
+      return res.status(403).json({ message: 'Forbidden: Only the owning doctor can reschedule this appointment.' });
     }
     const { date, time, status } = req.body as { date?: string; time?: string; status?: string };
 
@@ -2785,34 +2809,9 @@ app.get('/api/slots/availability', async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'doctorId and date (YYYY-MM-DD) are required.' });
   }
   try {
-    const profile = await prisma.doctorProfile.findUnique({
-      where: { userId: doctorId },
-      select: { slotPeriodMinutes: true },
-    });
-    const periodMinutes = profile?.slotPeriodMinutes ?? 15;
-    const capacity = Math.max(1, Math.floor(60 / periodMinutes));
-
-    const dayStart = new Date(dateStr);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dateStr);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    // Fetch appointments for doctor on that date (excluding cancelled)
-    const appointments = await prisma.appointment.findMany({
-      where: {
-        doctorId,
-        status: { not: 'CANCELLED' },
-        date: { gte: dayStart, lte: dayEnd },
-      },
-      select: { time: true },
-    });
-
-    // Group by hour
-    const counts: Record<number, number> = {};
-    for (const a of appointments) {
-      const h = Number(String(a.time).slice(0, 2));
-      counts[h] = (counts[h] || 0) + 1;
-    }
+    const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId);
+    const { start: dayStart, end: dayEnd } = dayWindowUtc(dateStr);
+    const counts = await countBookedPerHour(prisma, doctorId, dayStart, dayEnd);
 
     // Default working hours: 10 to 18
     const startHour = 10;
@@ -2839,15 +2838,75 @@ app.get('/api/slots/availability', async (req: Request, res: Response) => {
       });
     }
 
-    return res.status(200).json({
-      slots: [],
-      availability: {
-        periodMinutes,
-        hours,
-      },
-    });
+    return res.status(200).json({ slots: [], availability: { periodMinutes, hours } });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'An error occurred while fetching availability.' });
+  }
+});
+
+app.get('/api/slots/insights', async (req: Request, res: Response) => {
+  const doctorIdParam = req.query.doctorId;
+  const dateStr = String(req.query.date || '');
+  const doctorId = Number(doctorIdParam);
+  if (!Number.isFinite(doctorId) || !dateStr) {
+    return res.status(400).json({ message: 'doctorId and date (YYYY-MM-DD) are required.' });
+  }
+  try {
+    const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId);
+    const { start: dayStart, end: dayEnd } = dayWindowUtc(dateStr);
+    const counts = await countBookedPerHour(prisma, doctorId, dayStart, dayEnd);
+
+    const startHour = 10;
+    const endHour = 18;
+    const hours: any[] = [];
+    for (let h = startHour; h < endHour; h++) {
+      const bookedCount = counts[h] || 0;
+      hours.push({
+        hour: String(h).padStart(2, '0'),
+        labelFrom: `${String(h).padStart(2, '0')}:00`,
+        labelTo: `${String(h + 1).padStart(2, '0')}:00`,
+        capacity,
+        bookedCount,
+        isFull: bookedCount >= capacity,
+      });
+    }
+
+    return res.status(200).json({ availability: { periodMinutes, hours } });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while fetching insights.' });
+  }
+});
+
+app.get('/api/doctor/patients', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  try {
+    const appts = await prisma.appointment.findMany({
+      where: { doctorId: user.userId, status: { not: 'CANCELLED' } },
+      select: { patientId: true, date: true, patient: { select: { id: true, email: true } } },
+    });
+    const m = new Map<number, { patientId: number; email: string; count: number; lastDate: string }>();
+    for (const a of appts) {
+      const pid = Number(a.patientId);
+      if (!Number.isFinite(pid)) continue;
+      const email = (a as any).patient?.email || '';
+      const d = a.date instanceof Date ? a.date : new Date(a.date as any);
+      const iso = d.toISOString();
+      const prev = m.get(pid);
+      if (!prev) m.set(pid, { patientId: pid, email, count: 1, lastDate: iso });
+      else {
+        prev.count += 1;
+        if (iso > prev.lastDate) prev.lastDate = iso;
+      }
+    }
+    const items = Array.from(m.values()).sort((a, b) => b.count - a.count || b.lastDate.localeCompare(a.lastDate));
+    return res.status(200).json({ items });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ message: 'An error occurred while fetching patients.' });
   }
 });

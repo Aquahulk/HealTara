@@ -141,6 +141,8 @@ export default function DashboardPage() {
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'|'EMERGENCY'>('ALL'); // Doctor-only filter
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
+  const [patients, setPatients] = useState<Array<{ patientId: number; email: string; count: number; lastDate: string }>>([]);
+  const [patientsLoading, setPatientsLoading] = useState(false);
   const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any }>>([]); // Linked doctors
   const [hospitalDoctorSearch, setHospitalDoctorSearch] = useState('');
   const deferredHospitalDoctorSearch = useDeferredValue(hospitalDoctorSearch);
@@ -157,6 +159,25 @@ export default function DashboardPage() {
       return words.every((w) => tokens.some((t) => t.includes(w)));
     });
   }, [hospitalDoctors, deferredHospitalDoctorSearch]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (activeTab !== 'patients') return;
+      if (!(user?.role === 'DOCTOR')) return;
+      setPatientsLoading(true);
+      try {
+        const list = await apiClient.getMyPatients();
+        if (!cancelled) setPatients(list);
+      } catch (_) {
+        if (!cancelled) setPatients([]);
+      } finally {
+        if (!cancelled) setPatientsLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [activeTab, user?.role]);
 
   const highlightDoctorLabel = (label: string) => {
     const q = deferredHospitalDoctorSearch.trim();
@@ -593,11 +614,17 @@ const [socketReady, setSocketReady] = useState(false);
     let hid = hospitalProfile?.id as number | undefined;
     if (!hid && user?.role === 'DOCTOR') {
       const byDoctor = await apiClient.getHospitalByDoctorId(did).catch(() => null);
-      hid = byDoctor?.hospitalId ?? hid;
+      const maybeId = (byDoctor as any)?.id ?? (byDoctor as any)?.hospitalId;
+      hid = Number.isFinite(maybeId) ? Number(maybeId) : hid;
     }
     if (!hid) {
       const myHospital = await apiClient.getMyHospital().catch(() => null);
       hid = myHospital?.id ?? hid;
+    }
+
+    // If no hospital context and not a doctor, avoid hitting doctor-only endpoint
+    if (!hid && user?.role !== 'DOCTOR') {
+      throw new Error('You do not have permission to perform this action.');
     }
 
     const doUpdate = () =>
@@ -2742,10 +2769,42 @@ useEffect(() => {
         {activeTab === 'patients' && isDoctorLike && (
           <div className="bg-white shadow-lg rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Patient Management</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Patients</h3>
             </div>
             <div className="p-6">
-              <p className="text-gray-500 text-center py-8">Patient management features coming soon...</p>
+              {patientsLoading ? (
+                <div className="text-center py-8 text-gray-600">Loading patients…</div>
+              ) : patients.length === 0 ? (
+                <div className="text-center py-8 text-gray-600">No patients yet</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Visits</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {patients.map((p) => {
+                        const name = p.email ? p.email.split('@')[0] : p.patientId;
+                        const dt = new Date(p.lastDate);
+                        const last = isNaN(dt.getTime()) ? '' : new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', hour12: false }).format(dt);
+                        return (
+                          <tr key={p.patientId}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{String(name)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{p.email || '-'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{p.count}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{last}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
