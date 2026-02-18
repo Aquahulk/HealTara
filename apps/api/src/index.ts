@@ -543,11 +543,27 @@ app.get('/api/users', async (req: Request, res: Response) => {
 });
 
 // --- Get All Doctors Endpoint (Public) ---
+// --- Get All Doctors Endpoint (Public) ---
 app.get('/api/doctors', async (req: Request, res: Response) => {
   try {
+    const page = parseInt(String(req.query.page ?? '1'), 10);
+    const pageSize = parseInt(String(req.query.pageSize ?? '30'), 10);
+    const sort = String(req.query.sort ?? 'default');
+    const skip = (page - 1) * pageSize;
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (sort === 'trending') {
+      orderBy = { updatedAt: 'desc' };
+    } else if (sort === 'recent') {
+      orderBy = { createdAt: 'desc' };
+    }
+
     const doctors = await prisma.user.findMany({
       where: { role: 'DOCTOR' },
       include: { doctorProfile: true },
+      skip,
+      take: pageSize,
+      orderBy,
     });
     const doctorsWithProfiles = doctors.filter((doctor: any) => !!doctor.doctorProfile);
     res.status(200).json(doctorsWithProfiles);
