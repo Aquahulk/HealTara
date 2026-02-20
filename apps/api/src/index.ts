@@ -2582,8 +2582,8 @@ function slugifyHospitalName(input: string): string {
 app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response) => {
   const slug = String(req.params.slug || '').toLowerCase();
   try {
-    const items = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
-    const match = items.find((h) => slugifyHospitalName(h.name) === slug);
+    const items: Array<{ id: number; name: string; profile: any | null }> = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
+    const match = items.find((h: { id: number; name: string; profile: any | null }) => slugifyHospitalName(h.name) === slug);
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
     return res.status(200).json({ hospitalId: match.id, name: match.name, profile: match.profile ?? null });
   } catch (error) {
@@ -2595,8 +2595,8 @@ app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response)
 app.get('/api/hospitals/slug/:slug', async (req: Request, res: Response) => {
   const slug = String(req.params.slug || '').toLowerCase();
   try {
-    const items = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
-    const match = items.find((h) => slugifyHospitalName(h.name) === slug);
+    const items: Array<{ id: number; name: string; profile: any | null }> = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
+    const match = items.find((h: { id: number; name: string; profile: any | null }) => slugifyHospitalName(h.name) === slug);
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
     const hospitalId = match.id;
     const hospital = { id: hospitalId, name: match.name, profile: match.profile } as { id: number; name: string; profile: any | null };
