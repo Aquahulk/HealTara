@@ -6,10 +6,12 @@
 
 export function slugifyName(input: string): string {
   const s = (input || "").toLowerCase().trim();
+  // Handle spaces and special characters properly
   return s
-    .replace(/[^a-z0-9\s-]/g, "") // remove non-alphanumerics
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
+    .replace(/\s+/g, '-') // Replace spaces with single hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
 }
 
 function getPrimaryDomain(): string {

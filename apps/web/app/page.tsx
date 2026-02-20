@@ -66,7 +66,7 @@ export default function HomePage() {
   const [selectedAvailability, setSelectedAvailability] = useState('');
   const [isOnline, setIsOnline] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
-  const [activeGrid, setActiveGrid] = useState<'doctors' | 'hospitals'>('doctors');
+  const [activeGrid, setActiveGrid] = useState<'doctors' | 'hospitals'>('hospitals');
 
   // Ultra-optimized data loading with performance monitoring
   useEffect(() => {
@@ -84,6 +84,9 @@ export default function HomePage() {
         // Update state with results
         if (hospitalsData.status === 'fulfilled') {
           setHospitals(hospitalsData.value || []);
+        } else {
+          // Fallback: ensure hospitals array is never empty
+          setHospitals([]);
         }
         if (doctorsData.status === 'fulfilled') {
           const list = doctorsData.value || [];

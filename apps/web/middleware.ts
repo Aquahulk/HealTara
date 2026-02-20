@@ -21,7 +21,11 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next();
     }
     // Use relative fetch; Next.js dev rewrite proxies to backend
-    const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const slugify = (s: string) => s.toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
+        .replace(/\s+/g, '-') // Replace spaces with single hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
 
     // Hospital subdomain patterns:
     // - hospital-<id>.domain.tld => /hospital-site/<id>

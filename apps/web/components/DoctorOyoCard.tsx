@@ -26,10 +26,15 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
   const city = profile?.city;
   const state = profile?.state;
   const slug = profile?.slug;
-  const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const toSlug = (s: string) => s.toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
+        .replace(/\s+/g, '-') // Replace spaces with single hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
 
   // Prefer a human-friendly name derived from slug; fall back to email handle
-  const toTitle = (s: string) => s.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+  const toTitle = (s: string) => s.replace(/[-_]+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase()).trim();
   const displayName = slug ? toTitle(slug) : emailName;
 
   const location = city && state ? `${city}, ${state}` : city || state || "";

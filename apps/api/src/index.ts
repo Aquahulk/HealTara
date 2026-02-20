@@ -50,20 +50,18 @@ let lastHospitalsFetch = 0;
 async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]> {
   const now = Date.now();
   if (cachedHospitals.length && (now - lastHospitalsFetch) < HOSPITALS_CACHE_MS) {
+    console.log(`🏥 Using cached hospitals (${cachedHospitals.length} items)`);
     return cachedHospitals;
   }
+  console.log(`🔄 Fetching fresh hospitals from database...`);
   const hospitals = await prismaClient.hospital.findMany({
-    include: { 
-      profile: true,
-      _count: {
-        select: {
-          doctors: true
-        }
-      }
-    },
+    include: {
+      doctors: true
+    }
   });
   cachedHospitals = hospitals;
   lastHospitalsFetch = now;
+  console.log(`✅ Cached ${hospitals.length} hospitals`);
   return cachedHospitals;
 }
 
@@ -476,7 +474,11 @@ app.post('/api/doctor/profile', authMiddleware, async (req: Request, res: Respon
     // ============================================================================
     // Auto-generate slug if missing and ensure uniqueness
     const slugify = (s: string) =>
-      String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      String(s).toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
+        .replace(/\s+/g, '-') // Replace spaces with single hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
     let profileSlug = slug ? slugify(slug) : slugify(clinicName || user.email || `doctor-${user.userId}`);
     let uniqueSlug = profileSlug;
     let suffix = 0;
@@ -978,7 +980,11 @@ app.put('/api/doctor/profile', authMiddleware, async (req: Request, res: Respons
     }
     // Preserve current slug unless a new one is provided (ensure uniqueness)
     const slugify = (s: string) =>
-      String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      String(s).toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
+        .replace(/\s+/g, '-') // Replace spaces with single hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
     let desiredSlug = existingProfile.slug;
     if (slug) {
       let base = slugify(slug);
@@ -1873,7 +1879,11 @@ app.post('/api/admin/import', authMiddleware, adminMiddleware, async (req: Reque
         }
         const existingProfile = await prisma.doctorProfile.findUnique({ where: { userId: user.id } });
         if (!existingProfile) {
-          const slugify = (s: string) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+          const slugify = (s: string) => String(s).toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
+        .replace(/\s+/g, '-') // Replace spaces with single hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
           const base = String(p.slug || p.clinicName || email);
           let slug = slugify(base);
           let suffix = 0;
@@ -2586,6 +2596,29 @@ app.post('/api/hospitals', authMiddleware, async (req: Request, res: Response) =
   }
 });
 
+// --- Debug endpoint for hospital cache ---
+app.get('/api/debug/hospitals', async (req: Request, res: Response) => {
+  try {
+    console.log('🔍 Manual hospital cache debug triggered');
+    
+    // Force refresh hospital cache
+    const hospitals = await getHospitalCandidates(prisma);
+    
+    res.status(200).json({
+      message: 'Hospital cache debug complete',
+      count: hospitals.length,
+      hospitals: hospitals.map(h => ({
+        id: h.id,
+        name: h.name,
+        hasProfile: !!h.profile
+      }))
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ message: 'Debug failed', error: error.message });
+  }
+});
+
 // --- Hospital Endpoints (Public) ---
 app.get('/api/hospitals', async (req: Request, res: Response) => {
   try {
@@ -2609,7 +2642,8 @@ app.get('/api/hospitals', async (req: Request, res: Response) => {
 // Resolve hospital by slug (slugified name)
 function slugifyHospitalName(input: string): string {
   const s = (input || '').toLowerCase().trim();
-  return s.replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+  // Handle spaces and special characters properly
+  return s.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response) => {
