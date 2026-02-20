@@ -808,7 +808,7 @@ export default function HomePage() {
             {/* Vertical Hospital Cards - One per row */}
             <div className="space-y-6">
               {hospitals.slice(0, 6).map((hospital, index) => {
-                const name = hospital.name || 'Hospital Name';
+                const name = hospital.name || '';
                 const location = hospital.address ? `${hospital.city || ''}, ${hospital.state || ''}`.trim() : 'Location';
                 
                 return (
@@ -869,9 +869,11 @@ export default function HomePage() {
                               try {
                                 if (shouldUseSubdomainNav()) {
                                   const nm = String(name || '').trim();
+                                  e.preventDefault();
                                   if (nm) {
-                                    e.preventDefault();
                                     window.location.href = hospitalMicrositeUrl(nm);
+                                  } else {
+                                    window.location.href = hospitalIdMicrositeUrl(hospital.id);
                                   }
                                 }
                               } catch {}
