@@ -123,20 +123,11 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                           apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
                         }
                         if (resp && resp.id) {
-                          // Prefer hospital microsite if doctor is hospital-linked
-                          const name = resp?.name || '';
-                          if (name) {
-                            if (shouldUseSubdomainNav()) {
-                              window.location.href = hospitalMicrositeUrl(name);
-                            } else {
-                              router.push(`/hospital-site/${slugifyName(name)}`);
-                            }
+                          const hId = resp.id;
+                          if (shouldUseSubdomainNav()) {
+                            window.location.href = hospitalIdMicrositeUrl(hId);
                           } else {
-                            if (shouldUseSubdomainNav()) {
-                              window.location.href = hospitalIdMicrositeUrl(resp.id);
-                            } else {
-                              router.push(`/hospital-site/${String(resp.id)}`);
-                            }
+                            router.push(`/hospital-site/${String(hId)}`);
                           }
                         } else {
                           if (shouldUseSubdomainNav()) {
@@ -169,12 +160,10 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                   import("@/lib/api").then(({ apiClient }) => {
                     apiClient
                       .getHospitalByDoctorId(doctor.id)
-                      .then((resp) => {
-                        const name = resp?.name || '';
-                        if (name) {
-                          window.location.href = hospitalMicrositeUrl(name);
-                        } else {
-                          window.location.href = hospitalIdMicrositeUrl(resp.id);
+                  .then((resp) => {
+                        const hId = resp?.id;
+                        if (hId != null) {
+                          window.location.href = hospitalIdMicrositeUrl(hId);
                         }
                       })
                       .catch(() => {

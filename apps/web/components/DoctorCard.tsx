@@ -89,18 +89,12 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
                                 apiClient
                                     .getHospitalByDoctorId(doctor.id)
                                     .then((resp) => {
-                                        const name = resp?.name || '';
-                                        if (name) {
+                                        const hId = resp?.id;
+                                        if (hId != null) {
                                             if (shouldUseSubdomainNav()) {
-                                                window.location.href = hospitalMicrositeUrl(name);
+                                                window.location.href = hospitalIdMicrositeUrl(hId);
                                             } else {
-                                                router.push(`/hospital-site/${slugifyName(name)}`);
-                                            }
-                                        } else {
-                                            if (shouldUseSubdomainNav()) {
-                                                window.location.href = hospitalIdMicrositeUrl(resp.id);
-                                            } else {
-                                                router.push(`/hospital-site/${String(resp.id)}`);
+                                                router.push(`/hospital-site/${String(hId)}`);
                                             }
                                         }
                                     })

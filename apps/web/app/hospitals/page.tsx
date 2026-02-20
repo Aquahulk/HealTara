@@ -94,10 +94,9 @@ export default function HospitalsPage() {
                         className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
                         onClick={(e) => {
                           try {
-                            const nm = String(name || '').trim();
-                            if (nm && shouldUseSubdomainNav()) {
+                            if (shouldUseSubdomainNav()) {
                               e.preventDefault();
-                              window.location.href = hospitalMicrositeUrl(nm);
+                              window.location.href = hospitalIdMicrositeUrl(h.id);
                             }
                           } catch {}
                         }}

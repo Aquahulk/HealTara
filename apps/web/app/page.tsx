@@ -868,13 +868,8 @@ export default function HomePage() {
                             onClick={(e) => {
                               try {
                                 if (shouldUseSubdomainNav()) {
-                                  const nm = String(name || '').trim();
                                   e.preventDefault();
-                                  if (nm) {
-                                    window.location.href = hospitalMicrositeUrl(nm);
-                                  } else {
-                                    window.location.href = hospitalIdMicrositeUrl(hospital.id);
-                                  }
+                                  window.location.href = hospitalIdMicrositeUrl(hospital.id);
                                 }
                               } catch {}
                             }}
