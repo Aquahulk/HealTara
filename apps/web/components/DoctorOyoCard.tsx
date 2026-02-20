@@ -101,7 +101,7 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
           <div className="mt-3 flex gap-2">
             {slug ? (
               <Link
-                href={`/site/${slug}`}
+                href={`/doctor-site/${slug}`}
                 className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
                 onClick={(e) => {
                   // Conditionally use name-only subdomain navigation
@@ -117,9 +117,9 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                         if (searchQuery) {
                           apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
                         }
-                        if (resp && resp.hospitalId) {
+                        if (resp && resp.id) {
                           // Prefer hospital microsite if doctor is hospital-linked
-                          const name = resp?.hospital?.name || '';
+                          const name = resp?.name || '';
                           if (name) {
                             if (shouldUseSubdomainNav()) {
                               window.location.href = hospitalMicrositeUrl(name);
@@ -128,15 +128,15 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                             }
                           } else {
                             if (shouldUseSubdomainNav()) {
-                              window.location.href = hospitalIdMicrositeUrl(resp.hospitalId);
+                              window.location.href = hospitalIdMicrositeUrl(resp.id);
                             } else {
-                              router.push(`/hospital-site/${String(resp.hospitalId)}`);
+                              router.push(`/hospital-site/${String(resp.id)}`);
                             }
                           }
                         } else {
                           if (shouldUseSubdomainNav()) {
                             window.location.href = doctorMicrositeUrl(slug);
-                          } // otherwise let Link navigate to /site/[slug]
+                          } // otherwise let Link navigate to /doctor-site/[slug]
                         }
                       })
                       .catch(() => {
@@ -144,7 +144,7 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                         if (shouldUseSubdomainNav()) {
                           window.location.href = doctorMicrositeUrl(slug);
                         } else {
-                          router.push(`/site/${slug}`);
+                          router.push(`/doctor-site/${slug}`);
                         }
                         // Track microsite click (fallback)
                         apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
@@ -165,11 +165,11 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                     apiClient
                       .getHospitalByDoctorId(doctor.id)
                       .then((resp) => {
-                        const name = resp?.hospital?.name || '';
+                        const name = resp?.name || '';
                         if (name) {
                           window.location.href = hospitalMicrositeUrl(name);
                         } else {
-                          window.location.href = hospitalIdMicrositeUrl(resp.hospitalId);
+                          window.location.href = hospitalIdMicrositeUrl(resp.id);
                         }
                       })
                       .catch(() => {

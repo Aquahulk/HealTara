@@ -17,6 +17,9 @@ export async function middleware(req: NextRequest) {
   // Apply subdomain routing only when explicitly enabled and not on Vercel-hosted domains
   if (!isLocalhost && !isVercelHost && subdomainRoutingEnabled && hasSubdomain) {
     const sub = hostParts[0];
+    if (sub === 'www') {
+      return NextResponse.next();
+    }
     // Use relative fetch; Next.js dev rewrite proxies to backend
     const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
@@ -30,26 +33,24 @@ export async function middleware(req: NextRequest) {
       return NextResponse.rewrite(new URL(target, req.url));
     }
 
-    // Name-only hospital subdomains: match subdomain against hospital names
     try {
-      // In middleware (edge/server), use explicit API host if provided; else fallback to current origin
       const apiHost = process.env.NEXT_PUBLIC_API_URL || req.nextUrl.origin;
-      const res = await fetch(`${apiHost}/api/hospitals`, { cache: 'no-store' });
-      if (res.ok) {
-        const hospitals: Array<{ id: number; name: string }> = await res.json();
-        const match = hospitals.find(h => slugify(h.name) === sub.toLowerCase());
-        if (match) {
-          const target = `/hospital-site/${slugify(match.name)}${url.pathname}`;
-          console.log(`Rewriting hospital (name) subdomain: "${sub}" -> "${target}"`);
-          return NextResponse.rewrite(new URL(target, req.url));
-        }
+      const resp = await fetch(`${apiHost}/api/hospitals/slug/${sub}`, { cache: 'no-store' });
+      if (resp.ok) {
+        const target = `/site/${sub}${url.pathname}`;
+        console.log(`Rewriting hospital (name) subdomain: "${sub}" -> "${target}"`);
+        return NextResponse.rewrite(new URL(target, req.url));
       }
-    } catch (e) {
-      // If lookup fails, fall through to doctor slug behavior
-    }
+      const dresp = await fetch(`${apiHost}/api/doctors/slug/${sub}`, { cache: 'no-store' });
+      if (dresp.ok) {
+        const target2 = `/doctor-site/${sub}${url.pathname}`;
+        console.log(`Rewriting doctor subdomain: "${sub}" -> "${target2}"`);
+        return NextResponse.rewrite(new URL(target2, req.url));
+      }
+    } catch (e) {}
 
-    // Default: treat subdomain as a doctor slug for /site/[slug]
-    const target = `/site/${sub}${url.pathname}`;
+    // Default: treat subdomain as a doctor slug for /doctor-site/[slug]
+    const target = `/doctor-site/${sub}${url.pathname}`;
     console.log(`Rewriting doctor subdomain: "${sub}" -> "${target}"`);
     return NextResponse.rewrite(new URL(target, req.url));
   }

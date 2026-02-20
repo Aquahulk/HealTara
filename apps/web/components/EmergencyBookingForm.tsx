@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
 import { apiClient, Doctor } from "@/lib/api";
 
 export default function EmergencyBookingForm({ doctors }: { doctors: Array<{ id: number; email: string; doctor?: Doctor }>} ) {
-  const { user } = useAuth();
   const [doctorId, setDoctorId] = useState<number | null>(doctors[0]?.id || null);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -16,8 +14,8 @@ export default function EmergencyBookingForm({ doctors }: { doctors: Array<{ id:
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    if (!user) { setError("Please login to book an emergency appointment."); return; }
-    if (user.role !== "PATIENT") { setError("Only patients can book emergency appointments."); return; }
+    const token = apiClient.getToken();
+    if (!token) { setError("Please login to book an emergency appointment."); return; }
     if (!doctorId) { setError("Please select a doctor."); return; }
     try {
       setSubmitting(true);

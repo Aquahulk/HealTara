@@ -63,16 +63,13 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
 			<div className="p-4 border-t border-gray-200 flex gap-3">
                 {slug ? (
                     <Link
-                        href={`/site/${slug}`}
+                        href={`/doctor-site/${slug}`}
                         className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
                         onClick={(e) => {
                             if (shouldUseSubdomainNav()) {
                                 // Navigate via name-only subdomain for doctor microsite
                                 e.preventDefault();
                                 window.location.href = doctorMicrositeUrl(slug);
-                            } else {
-                                // Use internal route on localhost/dev to avoid lvh.me blocks
-                                // Let the default Link navigation proceed
                             }
                             import("@/lib/api").then(({ apiClient }) => {
                                 apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
@@ -92,7 +89,7 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
                                 apiClient
                                     .getHospitalByDoctorId(doctor.id)
                                     .then((resp) => {
-                                        const name = resp?.hospital?.name || '';
+                                        const name = resp?.name || '';
                                         if (name) {
                                             if (shouldUseSubdomainNav()) {
                                                 window.location.href = hospitalMicrositeUrl(name);
@@ -101,9 +98,9 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
                                             }
                                         } else {
                                             if (shouldUseSubdomainNav()) {
-                                                window.location.href = hospitalIdMicrositeUrl(resp.hospitalId);
+                                                window.location.href = hospitalIdMicrositeUrl(resp.id);
                                             } else {
-                                                router.push(`/hospital-site/${String(resp.hospitalId)}`);
+                                                router.push(`/hospital-site/${String(resp.id)}`);
                                             }
                                         }
                                     })

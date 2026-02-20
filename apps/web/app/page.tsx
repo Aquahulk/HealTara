@@ -78,7 +78,7 @@ export default function HomePage() {
         // Load data with intelligent caching
         const [hospitalsData, doctorsData] = await Promise.allSettled([
           loadWithCache('homepage_hospitals', () => apiClient.getHospitals()),
-          loadWithCache('homepage_doctors', () => apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 6 }))
+          loadWithCache('homepage_doctors_v2', () => apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 12 }))
         ]);
 
         // Update state with results
@@ -721,7 +721,7 @@ export default function HomePage() {
                       <div className="ml-8 flex items-center gap-3">
                         {doctor.doctorProfile?.slug ? (
                           <Link
-                            href={`/site/${doctor.doctorProfile.slug}`}
+                            href={`/doctor-site/${doctor.doctorProfile.slug}`}
                             className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
                             onClick={(e) => {
                               if (shouldUseSubdomainNav()) {
@@ -735,7 +735,7 @@ export default function HomePage() {
                           >
                             Visit Website
                           </Link>
-                        ) : (
+                        ) : doctor.managedHospitalId != null ? (
                           <button
                             className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
                             onClick={() => {
@@ -767,7 +767,7 @@ export default function HomePage() {
                           >
                             Visit Hospital
                           </button>
-                        )}
+                        ) : null}
                         <button 
                           onClick={() => handleBookAppointment(doctor)}
                           className="btn-brand font-bold py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
@@ -862,6 +862,17 @@ export default function HomePage() {
                           <a
                             href={`/hospital-site/${hospital.id}`}
                             className="btn-brand font-bold py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg block text-center min-w-[160px] text-base"
+                            onClick={(e) => {
+                              try {
+                                if (shouldUseSubdomainNav()) {
+                                  const nm = String(name || '').trim();
+                                  if (nm) {
+                                    e.preventDefault();
+                                    window.location.href = hospitalMicrositeUrl(nm);
+                                  }
+                                }
+                              } catch {}
+                            }}
                           >
                             Visit Hospital
                           </a>

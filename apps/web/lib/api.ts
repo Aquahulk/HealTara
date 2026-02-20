@@ -225,8 +225,26 @@ class ApiClient {
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Request failed');
+        let message = 'Request failed';
+        try {
+          const txt = await response.text();
+          if (txt) {
+            try {
+              const obj = JSON.parse(txt);
+              message = obj?.message || txt;
+            } catch {
+              message = txt;
+            }
+          }
+        } catch {}
+        if (response.status === 401) {
+          const m = String(message || '').toLowerCase();
+          if (m.includes('invalid token') || m.includes('token has expired') || m.includes('authorization token is required')) {
+            this.clearToken();
+            message = 'Your session has expired. Please log in again.';
+          }
+        }
+        throw new Error(message);
       }
 
       // Parse JSON response if possible
@@ -403,14 +421,13 @@ class ApiClient {
   }
 
   async getHospitalDoctorSlotPeriod(hospitalId: number, doctorId: number): Promise<{ slotPeriodMinutes: number }> {
-    const query = new URLSearchParams({ hospitalId: String(hospitalId), doctorId: String(doctorId) }).toString();
-    return this.request(`/api/hospital/slot-period?${query}`);
+    return this.request(`/api/hospitals/${hospitalId}/doctors/${doctorId}/slot-period`);
   }
 
   async setHospitalDoctorSlotPeriod(hospitalId: number, doctorId: number, minutes: number): Promise<any> {
-    return this.request('/api/hospital/slot-period', {
+    return this.request(`/api/hospitals/${hospitalId}/doctors/${doctorId}/slot-period`, {
       method: 'PATCH',
-      body: JSON.stringify({ hospitalId, doctorId, minutes }),
+      body: JSON.stringify({ minutes }),
     });
   }
 
@@ -422,7 +439,7 @@ class ApiClient {
     return this.request(`/api/hospitals/${hospitalId}`);
   }
 
-  async getHospitalProfile(hospitalId: number): Promise<{ profile: any }> {
+  async getHospitalProfile(hospitalId: number): Promise<any> {
     return this.request(`/api/hospitals/${hospitalId}/profile`);
   }
 
@@ -449,16 +466,30 @@ class ApiClient {
   }
 
   async uploadHospitalLogo(hospitalId: number, file: File): Promise<{ url: string }> {
-    return this.uploadFile(`/api/admin/hospitals/${hospitalId}/logo`, file, 'logo');
+    return this.uploadFile(`/api/hospitals/${hospitalId}/logo`, file, 'logo');
   }
 
   async uploadDoctorPhoto(file: File): Promise<{ url: string }> {
     return this.uploadFile('/api/admin/doctor/photo', file, 'photo');
   }
 
-  async createHospitalDoctor(hospitalId: number, payload: { name: string; primarySpecialty?: string; subSpecialty?: string }): Promise<{ doctor: { id: number; email?: string } }> {
+  async createHospitalDoctor(
+    hospitalId: number,
+    payload: { name: string; primarySpecialty?: string; subSpecialty?: string; departmentId?: number; departmentName?: string }
+  ): Promise<{ doctor: { id: number; email?: string }, departmentId?: number }> {
     return this.request(`/api/hospitals/${hospitalId}/doctors`, {
       method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateHospitalDoctorDepartment(
+    hospitalId: number,
+    doctorId: number,
+    payload: { departmentId?: number; departmentName?: string }
+  ): Promise<{ ok: boolean; membership: any }> {
+    return this.request(`/api/hospitals/${hospitalId}/doctors/${doctorId}/department`, {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
   }

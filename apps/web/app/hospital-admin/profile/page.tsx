@@ -94,8 +94,14 @@ export default function HospitalAdminProfilePage() {
   const [aboutExpanded, setAboutExpanded] = useState(true);
   const [generalExpanded, setGeneralExpanded] = useState(true);
   const [doctorAdmins, setDoctorAdmins] = useState<Record<number, { currentEmail?: string; email: string; password: string; saving: boolean; loading: boolean }>>({});
+  const [linkedDoctors, setLinkedDoctors] = useState<Array<{ doctor: { id: number; email: string; doctorProfile?: any }, department?: { id: number; name: string } | null }>>([]);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'departments' | 'doctors'>('departments');
+  const [departmentsTab, setDepartmentsTab] = useState<'new' | 'existing'>('new');
+  const [doctorsTab, setDoctorsTab] = useState<'new' | 'existing'>('new');
+  const [newDepartment, setNewDepartment] = useState<{ name: string; description?: string }>({ name: '', description: '' });
+  const [newDoctor, setNewDoctor] = useState<{ name: string; primarySpecialty?: string; subSpecialty?: string; departmentName?: string }>({ name: '', primarySpecialty: '', subSpecialty: '', departmentName: '' });
   const isHospitalAdmin = user?.role === "HOSPITAL_ADMIN";
 
   useEffect(() => {
@@ -112,8 +118,12 @@ export default function HospitalAdminProfilePage() {
           return;
         }
         setHospitalId(mine.id);
-        const profRes = await apiClient.getHospitalProfile(mine.id);
-        if (profRes?.profile) setProfile(profRes.profile as HospitalProfile);
+        const [profRes, details] = await Promise.all([
+          apiClient.getHospitalProfile(mine.id),
+          apiClient.getHospitalDetails(mine.id)
+        ]);
+        if (profRes) setProfile(profRes as HospitalProfile);
+        if (details?.doctors) setLinkedDoctors(details.doctors || []);
       } catch (e: any) {
         setMessage(e?.message || "Failed to load hospital profile.");
       }
@@ -195,10 +205,14 @@ export default function HospitalAdminProfilePage() {
   };
 
   const addDoctor = () => {
-    setProfile((prev) => ({
-      ...prev,
-      doctors: [...(prev.doctors || []), { name: "", primarySpecialty: "", subSpecialty: "", departments: [] }],
-    }));
+    setProfile((prev) => {
+      const firstDept = (prev.departments && prev.departments[0] && prev.departments[0].name) ? String(prev.departments[0].name) : "";
+      const preset = firstDept ? [firstDept] : [];
+      return {
+        ...prev,
+        doctors: [...(prev.doctors || []), { name: "", primarySpecialty: "", subSpecialty: "", departments: preset }],
+      } as HospitalProfile;
+    });
   };
 
   const updateDoctor = (idx: number, field: string, value: any) => {
@@ -216,10 +230,12 @@ export default function HospitalAdminProfilePage() {
       const myHospital = await apiClient.getMyHospital();
       if (!myHospital?.id) throw new Error('Hospital not found for admin');
       const d = (profile.doctors || [])[idx];
+      const selectedDept = Array.isArray(d?.departments) && d.departments.length > 0 ? String(d.departments[0]) : (profile.departments?.[0]?.name || undefined);
       const payload = {
         name: d?.name || '',
         primarySpecialty: d?.primarySpecialty || undefined,
         subSpecialty: d?.subSpecialty || undefined,
+        departmentName: selectedDept,
       };
       const result = await apiClient.createHospitalDoctor(myHospital.id, payload);
       // Link created doctor to hospital profile and persist immediately
@@ -231,6 +247,9 @@ export default function HospitalAdminProfilePage() {
         const newProfile = { ...profile, doctors: list } as HospitalProfile;
         setProfile(newProfile);
         await apiClient.updateHospitalProfile(myHospital.id, newProfile);
+        if (selectedDept) {
+          try { await apiClient.updateHospitalDoctorDepartment(myHospital.id, result.doctor.id, { departmentName: selectedDept }); } catch {}
+        }
       }
       alert(`Doctor made bookable: ${result?.doctor?.email || 'created'}`);
     } catch (e: any) {
@@ -304,17 +323,117 @@ export default function HospitalAdminProfilePage() {
     });
   };
 
+  const syncDoctorDepartment = async (idx: number) => {
+    try {
+      const myHospital = await apiClient.getMyHospital();
+      if (!myHospital?.id) throw new Error('Hospital not found for admin');
+      const d = (profile.doctors || [])[idx] as any;
+      if (!d?.doctorId) throw new Error('Link this doctor first using Make Bookable');
+      const deptName = Array.isArray(d?.departments) && d.departments[0] ? String(d.departments[0]) : '';
+      if (!deptName) throw new Error('Select a department before syncing');
+      await apiClient.updateHospitalDoctorDepartment(myHospital.id, d.doctorId, { departmentName: deptName });
+      setMessage(`Doctor linked to department: ${deptName}`);
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to sync doctor department');
+    }
+  };
+
   const saveProfile = async () => {
     if (!hospitalId) return;
     setSaving(true);
     setMessage("");
     try {
       await apiClient.updateHospitalProfile(hospitalId, profile);
-      setMessage("Profile saved successfully.");
+      // Silent bulk sync of doctor departments after saving
+      let count = 0;
+      try {
+        const hId = hospitalId;
+        for (let i = 0; i < (profile.doctors || []).length; i++) {
+          const d: any = (profile.doctors || [])[i];
+          if (!d?.doctorId) continue;
+          const deptName = Array.isArray(d?.departments) && d.departments[0] ? String(d.departments[0]) : '';
+          if (!deptName) continue;
+          try {
+            await apiClient.updateHospitalDoctorDepartment(hId, d.doctorId, { departmentName: deptName });
+            count++;
+          } catch {}
+        }
+      } catch {}
+      setMessage(`Profile saved successfully.${count > 0 ? ` Synced departments for ${count} doctors.` : ''}`);
     } catch (e: any) {
       setMessage(e?.message || "Failed to save profile.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveDepartments = async () => {
+    try {
+      if (!hospitalId) return;
+      setSaving(true);
+      setMessage("");
+      await apiClient.updateHospitalProfile(hospitalId, { departments: profile.departments || [] });
+      setMessage("Departments saved.");
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to save departments');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveDoctorsOnly = async () => {
+    try {
+      if (!hospitalId) return;
+      setSaving(true);
+      setMessage("");
+      await apiClient.updateHospitalProfile(hospitalId, { doctors: profile.doctors || [] });
+      let count = 0;
+      // After saving, auto-sync department for each linked doctor with selected department
+      for (const d of (profile.doctors || [])) {
+        const did = (d as any)?.doctorId;
+        const deptName = Array.isArray((d as any)?.departments) && (d as any).departments[0] ? String((d as any).departments[0]) : '';
+        if (!did || !deptName) continue;
+        try {
+          await apiClient.updateHospitalDoctorDepartment(hospitalId, did, { departmentName: deptName });
+          count++;
+        } catch {}
+      }
+      // Refresh linked doctors list
+      try {
+        const details = await apiClient.getHospitalDetails(hospitalId);
+        if (details?.doctors) setLinkedDoctors(details.doctors || []);
+      } catch {}
+      setMessage(`Doctors saved.${count > 0 ? ` Synced departments for ${count} doctors.` : ''}`);
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to save doctors');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const syncAllDoctorDepartments = async () => {
+    try {
+      if (!hospitalId) {
+        const myHospital = await apiClient.getMyHospital();
+        if (!myHospital?.id) throw new Error('Hospital not found for admin');
+        setHospitalId(myHospital.id);
+      }
+      const hId = hospitalId || (await apiClient.getMyHospital())?.id;
+      if (!hId) throw new Error('Hospital not found for admin');
+      let count = 0;
+      for (let i = 0; i < (profile.doctors || []).length; i++) {
+        const d: any = (profile.doctors || [])[i];
+        if (!d?.doctorId) continue;
+        const deptName = Array.isArray(d?.departments) && d.departments[0] ? String(d.departments[0]) : '';
+        if (!deptName) continue;
+        try {
+          await apiClient.updateHospitalDoctorDepartment(hId, d.doctorId, { departmentName: deptName });
+          count++;
+        } catch {}
+      }
+      if (count > 0) setMessage(`Synced departments for ${count} doctors.`);
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to sync departments');
     }
   };
 
@@ -501,6 +620,21 @@ export default function HospitalAdminProfilePage() {
         )}
       </section>
 
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          className={`px-3 py-2 rounded ${activeTab === 'departments' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
+          onClick={() => setActiveTab('departments')}
+        >
+          Departments
+        </button>
+        <button
+          className={`px-3 py-2 rounded ${activeTab === 'doctors' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
+          onClick={() => setActiveTab('doctors')}
+        >
+          Doctors
+        </button>
+      </div>
+
       {/* About Us */}
       <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
         <button className="w-full text-left" onClick={() => setAboutExpanded(!aboutExpanded)}>
@@ -520,194 +654,387 @@ export default function HospitalAdminProfilePage() {
       </section>
 
       {/* Departments & Specialties */}
+      {activeTab === 'departments' && (
       <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-        <button className="w-full text-left" onClick={() => setDepartmentsExpanded(!departmentsExpanded)}>
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Medical Departments & Specialties</h2>
-            <span>{departmentsExpanded ? "▾" : "▸"}</span>
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            className={`px-3 py-2 rounded ${departmentsTab === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
+            onClick={() => setDepartmentsTab('new')}
+          >
+            New Department
+          </button>
+          <button
+            className={`px-3 py-2 rounded ${departmentsTab === 'existing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
+            onClick={() => setDepartmentsTab('existing')}
+          >
+            Existing Departments
+          </button>
+        </div>
+
+        {departmentsTab === 'new' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <input
+                className="border rounded p-2"
+                placeholder="Department Name"
+                value={newDepartment.name}
+                onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
+              />
+              <input
+                className="border rounded p-2 md:col-span-2"
+                placeholder="Description (optional)"
+                value={newDepartment.description || ''}
+                onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                onClick={() => {
+                  const name = (newDepartment.name || '').trim();
+                  if (!name) { setMessage('Please enter Department Name'); return; }
+                  setProfile((prev) => ({
+                    ...prev,
+                    departments: [...(prev.departments || []), { name, description: (newDepartment.description || '').trim(), services: [], conditions: [], equipment: [], photos: [], videos: [], associatedDoctorIds: [] }],
+                  }));
+                  setNewDepartment({ name: '', description: '' });
+                  setDepartmentsTab('existing');
+                }}
+              >
+                Add Department
+              </button>
+              <button
+                className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50"
+                onClick={saveDepartments}
+                disabled={saving || !hospitalId}
+              >
+                Save Departments
+              </button>
+            </div>
           </div>
-        </button>
-        {departmentsExpanded && (
-          <div className="space-y-4 mt-4">
-            <button className="px-3 py-2 bg-blue-600 text-white rounded" onClick={addDepartment}>Add Department</button>
-            {(profile.departments || []).map((dept, idx) => (
-              <div key={idx} className="border rounded p-3">
+        )}
+
+        {departmentsTab === 'existing' && (
+          <div>
+            <button className="w-full text-left" onClick={() => setDepartmentsExpanded(!departmentsExpanded)}>
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold">Medical Departments & Specialties</h2>
+                <span>{departmentsExpanded ? "▾" : "▸"}</span>
+              </div>
+            </button>
+            {departmentsExpanded && (
+              <div className="space-y-4 mt-4">
                 <div className="flex gap-2">
-                  <input className="border rounded p-2 flex-1" placeholder="Department Name" value={dept.name} onChange={(e) => updateDepartment(idx, "name", e.target.value)} />
-                  <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDepartment(idx)}>Remove</button>
+                  <button className="px-3 py-2 bg-blue-600 text-white rounded" onClick={() => setDepartmentsTab('new')}>Add Department</button>
+                  <button className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50" onClick={saveDepartments} disabled={saving || !hospitalId}>Save Departments</button>
                 </div>
-                <textarea className="border rounded p-2 w-full mt-2" placeholder="Description" value={dept.description || ""} onChange={(e) => updateDepartment(idx, "description", e.target.value)} />
+                {(profile.departments || []).map((dept, idx) => (
+                  <div key={idx} className="border rounded p-3">
+                    <div className="flex gap-2">
+                      <input className="border rounded p-2 flex-1" placeholder="Department Name" value={dept.name} onChange={(e) => updateDepartment(idx, "name", e.target.value)} />
+                      <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDepartment(idx)}>Remove</button>
+                    </div>
+                    <textarea className="border rounded p-2 w-full mt-2" placeholder="Description" value={dept.description || ""} onChange={(e) => updateDepartment(idx, "description", e.target.value)} />
 
-                {/* Services */}
-                <div className="mt-2">
-                  <h3 className="font-semibold">Services</h3>
-                  <div className="flex gap-2 mt-1">
-                    <input id={`service-${idx}`} className="border rounded p-2 flex-1" placeholder="Add a service" />
-                    <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
-                      const input = document.getElementById(`service-${idx}`) as HTMLInputElement;
-                      if (input?.value) { addListItem(idx, "services", input.value); input.value = ""; }
-                    }}>Add</button>
+                    {/* Services */}
+                    <div className="mt-2">
+                      <h3 className="font-semibold">Services</h3>
+                      <div className="flex gap-2 mt-1">
+                        <input id={`service-${idx}`} className="border rounded p-2 flex-1" placeholder="Add a service" />
+                        <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
+                          const input = document.getElementById(`service-${idx}`) as HTMLInputElement;
+                          if (input?.value) { addListItem(idx, "services", input.value); input.value = ""; }
+                        }}>Add</button>
+                      </div>
+                      <ul className="list-disc ml-6 mt-2">
+                        {(dept.services || []).map((s, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span>{s}</span>
+                            <button className="text-red-600" onClick={() => removeListItem(idx, "services", i)}>Remove</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Conditions */}
+                    <div className="mt-2">
+                      <h3 className="font-semibold">Conditions Treated</h3>
+                      <div className="flex gap-2 mt-1">
+                        <input id={`condition-${idx}`} className="border rounded p-2 flex-1" placeholder="Add a condition" />
+                        <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
+                          const input = document.getElementById(`condition-${idx}`) as HTMLInputElement;
+                          if (input?.value) { addListItem(idx, "conditions", input.value); input.value = ""; }
+                        }}>Add</button>
+                      </div>
+                      <ul className="list-disc ml-6 mt-2">
+                        {(dept.conditions || []).map((s, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span>{s}</span>
+                            <button className="text-red-600" onClick={() => removeListItem(idx, "conditions", i)}>Remove</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Equipment */}
+                    <div className="mt-2">
+                      <h3 className="font-semibold">Key Technology & Equipment</h3>
+                      <div className="flex gap-2 mt-1">
+                        <input id={`equipment-${idx}`} className="border rounded p-2 flex-1" placeholder="Add equipment" />
+                        <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
+                          const input = document.getElementById(`equipment-${idx}`) as HTMLInputElement;
+                          if (input?.value) { addListItem(idx, "equipment", input.value); input.value = ""; }
+                        }}>Add</button>
+                      </div>
+                      <ul className="list-disc ml-6 mt-2">
+                        {(dept.equipment || []).map((s, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span>{s}</span>
+                            <button className="text-red-600" onClick={() => removeListItem(idx, "equipment", i)}>Remove</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                  <ul className="list-disc ml-6 mt-2">
-                    {(dept.services || []).map((s, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <span>{s}</span>
-                        <button className="text-red-600" onClick={() => removeListItem(idx, "services", i)}>Remove</button>
-                      </li>
-                    ))}
-                  </ul>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+      )}
+
+      {/* Doctors */}
+      {activeTab === 'doctors' && (
+      <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            className={`px-3 py-2 rounded ${doctorsTab === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
+            onClick={() => setDoctorsTab('new')}
+          >
+            New Doctor
+          </button>
+          <button
+            className={`px-3 py-2 rounded ${doctorsTab === 'existing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
+            onClick={() => setDoctorsTab('existing')}
+          >
+            Existing Doctors
+          </button>
+        </div>
+        {doctorsTab === 'new' ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input className="border rounded p-2" placeholder="Doctor Name" value={newDoctor.name} onChange={(e) => setNewDoctor({ ...newDoctor, name: e.target.value })} />
+              <input className="border rounded p-2" placeholder="Primary Specialty" value={newDoctor.primarySpecialty || ''} onChange={(e) => setNewDoctor({ ...newDoctor, primarySpecialty: e.target.value })} />
+              <input className="border rounded p-2" placeholder="Sub-Specialty" value={newDoctor.subSpecialty || ''} onChange={(e) => setNewDoctor({ ...newDoctor, subSpecialty: e.target.value })} />
+            </div>
+            {(profile.departments || []).length > 0 && (
+              <div>
+                <h3 className="font-semibold">Associate with Department</h3>
+                <select
+                  className="border rounded p-2 w-full mt-2"
+                  value={newDoctor.departmentName || ''}
+                  onChange={(e) => setNewDoctor({ ...newDoctor, departmentName: e.target.value })}
+                >
+                  <option value="">Select a department (optional)</option>
+                  {(profile.departments || []).map((d, i) => (
+                    <option key={i} value={d.name}>{d.name || `Dept ${i+1}`}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                onClick={() => {
+                  const name = (newDoctor.name || '').trim();
+                  if (!name) { setMessage('Please enter Doctor Name'); return; }
+                  const deptName = (newDoctor.departmentName || '').trim();
+                  setProfile((prev) => ({
+                    ...prev,
+                    doctors: [...(prev.doctors || []), { name, primarySpecialty: (newDoctor.primarySpecialty || '').trim(), subSpecialty: (newDoctor.subSpecialty || '').trim(), departments: deptName ? [deptName] : [] }],
+                  } as HospitalProfile));
+                  setNewDoctor({ name: '', primarySpecialty: '', subSpecialty: '', departmentName: '' });
+                  setDoctorsTab('existing');
+                }}
+              >
+                Add Doctor
+              </button>
+              <button
+                className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50"
+                onClick={saveDoctorsOnly}
+                disabled={saving || !hospitalId}
+              >
+                Save Doctors
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Doctors</h2>
+              <div className="flex gap-2">
+                <button className="px-3 py-2 bg-blue-600 text-white rounded" onClick={() => setDoctorsTab('new')}>Add Doctor</button>
+                <button className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50" onClick={saveDoctorsOnly} disabled={saving || !hospitalId}>Save Doctors</button>
+              </div>
+            </div>
+            <div className="space-y-4 mt-4">
+              {(profile.doctors || []).map((doc, idx) => (
+                <div key={idx} className="border rounded p-3 space-y-3">
+                  <div className="flex gap-2">
+                    <input className="border rounded p-2 flex-1" placeholder="Doctor Name" value={doc.name || ""} onChange={(e) => updateDoctor(idx, "name", e.target.value)} />
+                    <input className="border rounded p-2 flex-1" placeholder="Primary Specialty" value={doc.primarySpecialty || ""} onChange={(e) => updateDoctor(idx, "primarySpecialty", e.target.value)} />
+                    <input className="border rounded p-2 flex-1" placeholder="Sub-Specialty" value={doc.subSpecialty || ""} onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)} />
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-700">Bookable</span>
+                      <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={Boolean((profile.doctors || [])[idx]?.doctorId)}
+                          onChange={() => toggleDoctorBookable(idx)}
+                          disabled={saving}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-green-600 transition-colors relative">
+                          <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                        </div>
+                        <span className="ml-2 text-sm text-gray-800">{Boolean((profile.doctors || [])[idx]?.doctorId) ? 'ON' : 'OFF'}</span>
+                      </label>
+                    </div>
+                    <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDoctor(idx)}>Remove</button>
+                  </div>
+
+                  {/* Doctor-scoped Slot Admin */}
+                  <div className="mt-2 border rounded p-3 bg-gray-50">
+                    <h3 className="font-semibold">Doctor Slot Admin</h3>
+                    {!doc.doctorId && (
+                      <div className="text-sm text-gray-700 mt-1">
+                        Link this doctor to a real account first by clicking <span className="font-semibold">Make Bookable</span>.
+                      </div>
+                    )}
+                    {doc.doctorId && (
+                      <div className="space-y-2 mt-2">
+                        <div className="text-sm text-gray-700">
+                          Current Slot Admin: {doctorAdmins[doc.doctorId]?.currentEmail ? (
+                            <span className="font-mono">{doctorAdmins[doc.doctorId]?.currentEmail}</span>
+                          ) : (
+                            <span className="text-gray-500">None</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <input
+                            type="email"
+                            className="border rounded p-2"
+                            placeholder="Slot Admin Email"
+                            value={doctorAdmins[doc.doctorId]?.email || ""}
+                            onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], email: e.target.value } }))}
+                            disabled={doctorAdmins[doc.doctorId]?.loading}
+                          />
+                          <input
+                            type="password"
+                            className="border rounded p-2"
+                            placeholder="New Password"
+                            value={doctorAdmins[doc.doctorId]?.password || ""}
+                            onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], password: e.target.value } }))}
+                            disabled={doctorAdmins[doc.doctorId]?.loading}
+                          />
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+                            onClick={() => saveDoctorSlotAdmin(doc.doctorId)}
+                            disabled={doctorAdmins[doc.doctorId]?.saving || doctorAdmins[doc.doctorId]?.loading}
+                          >
+                            {doctorAdmins[doc.doctorId]?.saving ? 'Saving...' : (doctorAdmins[doc.doctorId]?.currentEmail ? 'Update Slot Admin' : 'Create Slot Admin')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Associate with Departments */}
+                  {(profile.departments || []).length > 0 && (
+                    <div>
+                      <h3 className="font-semibold">Associate with Departments</h3>
+                      <div className="mt-2">
+                        <select
+                          className="border rounded p-2 w-full"
+                          value={(doc.departments && doc.departments[0]) || ""}
+                          onChange={(e) => setDoctorDepartment(idx, e.target.value)}
+                        >
+                          <option value="" disabled>Select a department</option>
+                          {(profile.departments || []).map((d, i) => (
+                            <option key={i} value={d.name}>{d.name || `Dept ${i+1}`}</option>
+                          ))}
+                        </select>
+                        {doc.doctorId && (
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() => syncDoctorDepartment(idx)}
+                              className="px-3 py-2 bg-emerald-600 text-white rounded"
+                            >
+                              Sync Department
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+      )}
 
-                {/* Conditions */}
-                <div className="mt-2">
-                  <h3 className="font-semibold">Conditions Treated</h3>
-                  <div className="flex gap-2 mt-1">
-                    <input id={`condition-${idx}`} className="border rounded p-2 flex-1" placeholder="Add a condition" />
-                    <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
-                      const input = document.getElementById(`condition-${idx}`) as HTMLInputElement;
-                      if (input?.value) { addListItem(idx, "conditions", input.value); input.value = ""; }
-                    }}>Add</button>
-                  </div>
-                  <ul className="list-disc ml-6 mt-2">
-                    {(dept.conditions || []).map((s, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <span>{s}</span>
-                        <button className="text-red-600" onClick={() => removeListItem(idx, "conditions", i)}>Remove</button>
-                      </li>
-                    ))}
-                  </ul>
+      {activeTab === 'doctors' && doctorsTab === 'existing' && linkedDoctors.length > 0 && (
+        <section className="border rounded-lg p-4 bg-white shadow text-gray-900 mt-6">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-semibold">Linked Doctors (Real Accounts)</h2>
+          </div>
+          <div className="space-y-3">
+            {linkedDoctors.map((link, i) => (
+              <div key={i} className="border rounded p-3 flex items-center justify-between">
+                <div>
+                  <div className="font-mono">{link.doctor.email}</div>
+                  <div className="text-xs text-gray-600">Current: {link.department?.name || 'None'}</div>
                 </div>
-
-                {/* Equipment */}
-                <div className="mt-2">
-                  <h3 className="font-semibold">Key Technology & Equipment</h3>
-                  <div className="flex gap-2 mt-1">
-                    <input id={`equipment-${idx}`} className="border rounded p-2 flex-1" placeholder="Add equipment" />
-                    <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
-                      const input = document.getElementById(`equipment-${idx}`) as HTMLInputElement;
-                      if (input?.value) { addListItem(idx, "equipment", input.value); input.value = ""; }
-                    }}>Add</button>
-                  </div>
-                  <ul className="list-disc ml-6 mt-2">
-                    {(dept.equipment || []).map((s, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <span>{s}</span>
-                        <button className="text-red-600" onClick={() => removeListItem(idx, "equipment", i)}>Remove</button>
-                      </li>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="border rounded p-2"
+                    value={link.department?.name || ''}
+                    onChange={async (e) => {
+                      const name = e.target.value;
+                      try {
+                        if (!hospitalId) return;
+                        await apiClient.updateHospitalDoctorDepartment(hospitalId, link.doctor.id, { departmentName: name || undefined });
+                        const details = await apiClient.getHospitalDetails(hospitalId);
+                        setLinkedDoctors(details?.doctors || []);
+                        setMessage(`Updated ${link.doctor.email} → ${name || 'None'}`);
+                      } catch (err: any) {
+                        setMessage(err?.message || 'Failed to update department');
+                      }
+                    }}
+                  >
+                    <option value="">Select department</option>
+                    {(profile.departments || []).map((d, di) => (
+                      <option key={di} value={d.name}>{d.name}</option>
                     ))}
-                  </ul>
+                  </select>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      {/* Doctors */}
-      <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Doctors</h2>
-          <button className="px-3 py-2 bg-blue-600 text-white rounded" onClick={addDoctor}>Add Doctor</button>
-        </div>
-        <div className="space-y-4 mt-4">
-          {(profile.doctors || []).map((doc, idx) => (
-            <div key={idx} className="border rounded p-3 space-y-3">
-              <div className="flex gap-2">
-                <input className="border rounded p-2 flex-1" placeholder="Doctor Name" value={doc.name || ""} onChange={(e) => updateDoctor(idx, "name", e.target.value)} />
-                <input className="border rounded p-2 flex-1" placeholder="Primary Specialty" value={doc.primarySpecialty || ""} onChange={(e) => updateDoctor(idx, "primarySpecialty", e.target.value)} />
-                <input className="border rounded p-2 flex-1" placeholder="Sub-Specialty" value={doc.subSpecialty || ""} onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)} />
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-700">Bookable</span>
-            <label className="inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={Boolean((profile.doctors || [])[idx]?.doctorId)}
-                onChange={() => toggleDoctorBookable(idx)}
-                disabled={saving}
-              />
-              <div className="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-green-600 transition-colors relative">
-                <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
-              </div>
-              <span className="ml-2 text-sm text-gray-800">{Boolean((profile.doctors || [])[idx]?.doctorId) ? 'ON' : 'OFF'}</span>
-            </label>
-          </div>
-                <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDoctor(idx)}>Remove</button>
-              </div>
-
-              {/* Doctor-scoped Slot Admin */}
-              <div className="mt-2 border rounded p-3 bg-gray-50">
-                <h3 className="font-semibold">Doctor Slot Admin</h3>
-                {!doc.doctorId && (
-                  <div className="text-sm text-gray-700 mt-1">
-                    Link this doctor to a real account first by clicking <span className="font-semibold">Make Bookable</span>.
-                  </div>
-                )}
-                {doc.doctorId && (
-                  <div className="space-y-2 mt-2">
-                    <div className="text-sm text-gray-700">
-                      Current Slot Admin: {doctorAdmins[doc.doctorId]?.currentEmail ? (
-                        <span className="font-mono">{doctorAdmins[doc.doctorId]?.currentEmail}</span>
-                      ) : (
-                        <span className="text-gray-500">None</span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <input
-                        type="email"
-                        className="border rounded p-2"
-                        placeholder="Slot Admin Email"
-                        value={doctorAdmins[doc.doctorId]?.email || ""}
-                        onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], email: e.target.value } }))}
-                        disabled={doctorAdmins[doc.doctorId]?.loading}
-                      />
-                      <input
-                        type="password"
-                        className="border rounded p-2"
-                        placeholder="New Password"
-                        value={doctorAdmins[doc.doctorId]?.password || ""}
-                        onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], password: e.target.value } }))}
-                        disabled={doctorAdmins[doc.doctorId]?.loading}
-                      />
-                    </div>
-                    <div>
-                      <button
-                        type="button"
-                        className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-                        onClick={() => saveDoctorSlotAdmin(doc.doctorId)}
-                        disabled={doctorAdmins[doc.doctorId]?.saving || doctorAdmins[doc.doctorId]?.loading}
-                      >
-                        {doctorAdmins[doc.doctorId]?.saving ? 'Saving...' : (doctorAdmins[doc.doctorId]?.currentEmail ? 'Update Slot Admin' : 'Create Slot Admin')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Associate with Departments */}
-              {(profile.departments || []).length > 0 && (
-                <div>
-                  <h3 className="font-semibold">Associate with Departments</h3>
-                  <div className="mt-2">
-                    <select
-                      className="border rounded p-2 w-full"
-                      value={(doc.departments && doc.departments[0]) || ""}
-                      onChange={(e) => setDoctorDepartment(idx, e.target.value)}
-                    >
-                      <option value="" disabled>Select a department</option>
-                      {(profile.departments || []).map((d, i) => (
-                        <option key={i} value={d.name}>{d.name || `Dept ${i+1}`}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="flex justify-end">
+      <div className="flex justify-between">
+        <button onClick={syncAllDoctorDepartments} disabled={saving || !profile.doctors || profile.doctors.length === 0} className="px-4 py-2 bg-emerald-600 text-white rounded disabled:opacity-50">
+          Sync All Doctor Departments
+        </button>
         <button onClick={saveProfile} disabled={saving || !hospitalId} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
           {saving ? "Saving..." : "Save Profile"}
         </button>

@@ -9,6 +9,8 @@
 import DoctorBookingCTA from '@/components/DoctorBookingCTA';
 import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
 import EmergencyBookingForm from '@/components/EmergencyBookingForm';
+import HospitalDepartments from '@/components/HospitalDepartments';
+import HospitalDoctorsByDepartment from '@/components/HospitalDoctorsByDepartment';
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -267,10 +269,25 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
   const logoUrl = general.logoUrl;
   const contacts = general.contacts || {};
   const social = general.social || {};
-  const departments = (profile?.departments && profile?.departments.length > 0) ? profile.departments : ((details as HospitalDetailsResponse)?.departments || []);
+  let departments = (profile?.departments && profile?.departments.length > 0) ? profile.departments : ((details as HospitalDetailsResponse)?.departments || []);
   const about = profile?.about || {};
   // Use doctors explicitly linked to this hospital; do not fall back to global list
   const doctorsToShow = (details as HospitalDetailsResponse)?.doctors || [];
+  // Ensure departments include any department referenced by doctor links
+  try {
+    const presentNames = new Set<string>((departments || []).map((d: any) => String(d?.name || '').trim().toLowerCase()).filter(Boolean));
+    const toAdd: any[] = [];
+    for (const link of doctorsToShow) {
+      const nm = String(link?.department?.name || '').trim();
+      if (nm && !presentNames.has(nm.toLowerCase())) {
+        presentNames.add(nm.toLowerCase());
+        toAdd.push({ name: nm });
+      }
+    }
+    if (toAdd.length > 0) {
+      departments = [...(departments || []), ...toAdd] as any;
+    }
+  } catch {}
   const profileDoctors = Array.isArray(profile?.doctors) ? profile!.doctors! : [];
   const featuredServices = Array.from(new Set((departments || []).flatMap((d: any) => d.services || []))).slice(0, 12);
 
@@ -456,42 +473,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               <h2 className="text-5xl font-bold text-gray-900 mb-6">Our Departments</h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">Specialized medical departments providing comprehensive healthcare services.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {departments.map((dept: any, index: number) => (
-                <div key={index} className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
-                  <div className="text-center mb-6">
-                    <div className="text-6xl mb-4">{index % 6 === 0 ? '🫀' : index % 6 === 1 ? '🧠' : index % 6 === 2 ? '🦴' : index % 6 === 3 ? '👁️' : index % 6 === 4 ? '🦷' : '👶'}</div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{dept.name}</h3>
-                  </div>
-                  {dept.description && (<p className="text-gray-600 mb-6 leading-relaxed">{dept.description}</p>)}
-                  {dept.services && dept.services.length > 0 && (
-                    <div className="mb-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Key Services:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {dept.services.slice(0,4).map((service: any, i: number) => (
-                          <span key={i} className="inline-block bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">{service}</span>
-                        ))}
-                        {dept.services.length > 4 && (<span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">+{dept.services.length - 4} more</span>)}
-                      </div>
-                    </div>
-                  )}
-                  {dept.conditions && dept.conditions.length > 0 && (
-                    <div className="mb-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Conditions Treated:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {dept.conditions.slice(0,3).map((condition: any, i: number) => (
-                          <span key={i} className="inline-block bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full">{condition}</span>
-                        ))}
-                        {dept.conditions.length > 3 && (<span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">+{dept.conditions.length - 3} more</span>)}
-                      </div>
-                    </div>
-                  )}
-                  <div className="text-center">
-                    <button className="btn-brand text-white font-semibold px-6 py-3 rounded-xl">Learn More</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <HospitalDepartments departments={departments as any} doctors={doctorsToShow as any} hospitalName={name} />
           </section>
         )}
 
@@ -520,54 +502,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               <h2 className="text-5xl font-bold text-gray-900 mb-6">Our Medical Team</h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">Meet our experienced and dedicated healthcare professionals.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {doctorsToShow.map((link: any, index: number) => {
-                const doctor = link.doctor;
-                const profile = doctor.doctorProfile;
-                if (!profile) return null;
-                return (
-                  <div key={index} className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100">
-                    <div className="text-center mb-6">
-                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
-                        {profile.profileImage ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={profile.profileImage} alt={doctor.email.split('@')[0]} className="w-20 h-20 rounded-full object-cover" />
-                        ) : (
-                          <span className="text-4xl">👨‍⚕️</span>
-                        )}
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-2">Dr. {doctor.email.split('@')[0]}</h3>
-                      <p className="text-lg text-blue-600 font-semibold mb-3">{profile.specialization}</p>
-                      {profile.qualifications && (<p className="text-gray-600 text-sm mb-4">{profile.qualifications}</p>)}
-                    </div>
-                    <div className="space-y-4 mb-6">
-                      {profile.experience && (
-                        <div className="flex items-center justify-center"><span className="text-blue-600 mr-2">⏰</span><span className="text-gray-700">{profile.experience}+ Years Experience</span></div>
-                      )}
-                      {profile.consultationFee && (
-                        <div className="flex items-center justify-center"><span className="text-green-600 mr-2">💰</span><span className="text-gray-700">₹{profile.consultationFee} Consultation</span></div>
-                      )}
-                      {link.department && (
-                        <div className="flex items-center justify-center"><span className="text-purple-600 mr-2">🏥</span><span className="text-gray-700">{link.department.name}</span></div>
-                      )}
-                    </div>
-                    {profile.about && (<p className="text-gray-600 text-sm mb-6 leading-relaxed line-clamp-3">{profile.about}</p>)}
-                    {profile.services && profile.services.length > 0 && (
-                      <div className="mb-6">
-                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Specializations:</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {profile.services.slice(0,3).map((service: any, i: number) => (<span key={i} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{service}</span>))}
-                          {profile.services.length > 3 && (<span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">+{profile.services.length - 3}</span>)}
-                        </div>
-                      </div>
-                    )}
-                    <div className="text-center">
-                      <DoctorBookingCTA doctorId={doctor.id} clinicName={profile.clinicName || name} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <HospitalDoctorsByDepartment doctors={doctorsToShow as any} hospitalName={name} />
           </section>
         )}
 

@@ -83,7 +83,7 @@ export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery 
       <div className="p-4 border-t border-gray-200 flex gap-3">
         {slug ? (
           <Link
-            href={`/site/${slug}`}
+            href={`/doctor-site/${slug}`}
             className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
             onClick={(e) => {
               if (shouldUseSubdomainNav()) {
@@ -108,7 +108,7 @@ export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery 
                 apiClient
                   .getHospitalByDoctorId(doctor.id)
                   .then((resp) => {
-                    const name = resp?.hospital?.name || '';
+                    const name = resp?.name || '';
                     if (name) {
                       if (shouldUseSubdomainNav()) {
                         window.location.href = hospitalMicrositeUrl(name);
@@ -117,9 +117,9 @@ export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery 
                       }
                     } else {
                       if (shouldUseSubdomainNav()) {
-                        window.location.href = hospitalIdMicrositeUrl(resp.hospitalId);
+                        window.location.href = hospitalIdMicrositeUrl(resp.id);
                       } else {
-                        router.push(`/hospital-site/${String(resp.hospitalId)}`);
+                        router.push(`/hospital-site/${String(resp.id)}`);
                       }
                     }
                   })

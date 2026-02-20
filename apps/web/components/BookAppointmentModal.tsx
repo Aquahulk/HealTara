@@ -83,7 +83,7 @@ export default function BookAppointmentModal({
                 cacheRef.current.slots.set(key, slots);
                 const avail = (insights as any)?.availability || (combined as any)?.availability;
                 if (avail) cacheRef.current.availability.set(key, avail);
-                setAvailableTimes(Array.from(new Set(times)).sort());
+                setAvailableTimes(Array.from(new Set(times as string[])).sort((a: string, b: string) => a.localeCompare(b)));
                 setHourAvailability(avail as any);
             } catch {}
         };
@@ -277,21 +277,27 @@ export default function BookAppointmentModal({
                     });
             } else {
                 const raw = outcome?.err?.message || "Failed to book appointment";
-                const friendly = raw === 'You do not have permission to perform this action.'
-                    ? 'This doctor’s scheduling is managed by hospital staff. Please contact the hospital or choose a different doctor.'
-                    : raw;
+                let friendly = raw;
+                if (raw === 'You do not have permission to perform this action.') {
+                    friendly = 'This doctor’s scheduling is managed by hospital staff. Please contact the hospital or choose a different doctor.';
+                } else if (/invalid token|token has expired|authorization token is required/i.test(raw)) {
+                    friendly = 'Your session has expired. Please log in again.';
+                }
                 setError(friendly);
             }
         } catch (err: any) {
             const raw = err?.message || "Failed to book appointment";
-            const friendly = raw === 'You do not have permission to perform this action.'
-                ? 'This doctor’s scheduling is managed by hospital staff. Please contact the hospital or choose a different doctor.'
-                : raw;
+            let friendly = raw;
+            if (raw === 'You do not have permission to perform this action.') {
+                friendly = 'This doctor’s scheduling is managed by hospital staff. Please contact the hospital or choose a different doctor.';
+            } else if (/invalid token|token has expired|authorization token is required/i.test(raw)) {
+                friendly = 'Your session has expired. Please log in again.';
+            }
             setError(friendly);
         } finally {
             setSubmitting(false);
         }
-    };
+        };
 
     // Optimized time slot loading with aggressive caching and parallel requests
     useEffect(() => {

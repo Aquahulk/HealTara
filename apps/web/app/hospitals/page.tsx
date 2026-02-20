@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
+import { hospitalMicrositeUrl, shouldUseSubdomainNav, slugifyName } from '@/lib/subdomain';
 import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import { apiClient } from '@/lib/api';
 
@@ -91,6 +92,15 @@ export default function HospitalsPage() {
                       <a
                         href={`/hospital-site/${h.id}`}
                         className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
+                        onClick={(e) => {
+                          try {
+                            const nm = String(name || '').trim();
+                            if (nm && shouldUseSubdomainNav()) {
+                              e.preventDefault();
+                              window.location.href = hospitalMicrositeUrl(nm);
+                            }
+                          } catch {}
+                        }}
                       >
                         Visit Website
                       </a>

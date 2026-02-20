@@ -12,7 +12,9 @@
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
 // ============================================================================
 import DoctorBookingCTA from "@/components/DoctorBookingCTA";
+import HospitalDoctorsByDepartment from "@/components/HospitalDoctorsByDepartment";
 import EmergencyBookingForm from "@/components/EmergencyBookingForm";
+import HospitalDepartments from "@/components/HospitalDepartments";
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -210,11 +212,23 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
   const logoUrl = general.logoUrl;
   const contacts = general.contacts || {};
   const social = general.social || {};
-  const departments = (profile.departments && profile.departments.length > 0) ? profile.departments : (details.departments || []);
+  let departments = (profile.departments && profile.departments.length > 0) ? profile.departments : (details.departments || []);
   const about = profile.about || {};
   const doctorsToShow = details.doctors || [];
   const profileDoctors = Array.isArray(profile.doctors) ? profile.doctors : [];
-  const featuredServices = Array.from(new Set((departments || []).flatMap(d => d.services || []))).slice(0, 12);
+  try {
+    const present = new Set<string>((departments || []).map((d: any) => String(d?.name || '').trim().toLowerCase()).filter(Boolean));
+    const extra: any[] = [];
+    for (const link of (doctorsToShow || [])) {
+      const nm = String(link?.department?.name || '').trim();
+      if (nm && !present.has(nm.toLowerCase())) {
+        present.add(nm.toLowerCase());
+        extra.push({ name: nm });
+      }
+    }
+    if (extra.length > 0) departments = [...(departments || []), ...extra] as any;
+  } catch {}
+  const featuredServices = Array.from(new Set((departments || []).flatMap((d: any) => d.services || []))).slice(0, 12);
 
   // ============================================================================
   // 🎯 MAIN RENDER - Display the modern hospital website
@@ -591,66 +605,8 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                 Specialized medical departments providing comprehensive healthcare services with state-of-the-art facilities.
               </p>
-          </div>
-            
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {departments.map((dept, index) => (
-                <div key={index} className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
-                  <div className="text-center mb-6">
-                    <div className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-300">
-                      {index % 6 === 0 ? '🫀' : index % 6 === 1 ? '🧠' : index % 6 === 2 ? '🦴' : index % 6 === 3 ? '👁️' : index % 6 === 4 ? '🦷' : '👶'}
-                </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{dept.name}</h3>
-                </div>
-                  
-                  {dept.description && (
-                    <p className="text-gray-600 mb-6 leading-relaxed">{dept.description}</p>
-                  )}
-                  
-                  {dept.services && dept.services.length > 0 && (
-                    <div className="mb-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Key Services:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {dept.services.slice(0, 4).map((service, serviceIndex) => (
-                          <span key={serviceIndex} className="inline-block bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
-                            {service}
-                          </span>
-                        ))}
-                        {dept.services.length > 4 && (
-                          <span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
-                            +{dept.services.length - 4} more
-                          </span>
-                        )}
-                </div>
-                </div>
-                  )}
-                  
-                  {dept.conditions && dept.conditions.length > 0 && (
-                    <div className="mb-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Conditions Treated:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {dept.conditions.slice(0, 3).map((condition, conditionIndex) => (
-                          <span key={conditionIndex} className="inline-block bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full">
-                            {condition}
-                          </span>
-                        ))}
-                        {dept.conditions.length > 3 && (
-                          <span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
-                            +{dept.conditions.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="text-center">
-                    <button className="btn-brand text-white font-semibold px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl">
-                      Learn More
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
+            <HospitalDepartments departments={departments as any} doctors={doctorsToShow as any} hospitalName={name} />
           </section>
         )}
         
@@ -675,9 +631,6 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         </section>
         )}
 
-        {/* ============================================================================
-            👩‍⚕️ DOCTORS SECTION - Our medical team
-            ============================================================================ */}
         {doctorsToShow.length > 0 && (
           <section className="relative">
             <div className="text-center mb-16">
@@ -686,93 +639,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                 Meet our experienced and dedicated healthcare professionals committed to providing exceptional patient care.
               </p>
             </div>
-            
-            {/* Client-side roster with booking actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {doctorsToShow.map((link, index) => {
-                const doctor = link.doctor;
-                const profile = doctor.doctorProfile;
-                
-                if (!profile) return null;
-                
-                return (
-                  <div key={index} className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-300 group">
-                    <div className="text-center mb-6">
-                      <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        {profile.profileImage ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img 
-                            src={profile.profileImage} 
-                            alt={doctor.email.split('@')[0]} 
-                            className="w-20 h-20 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-4xl">👨‍⚕️</span>
-                        )}
-                      </div>
-                      <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                        Dr. {doctor.email.split('@')[0]}
-                      </h3>
-                      <p className="text-lg text-blue-600 font-semibold mb-3">{profile.specialization}</p>
-                      {profile.qualifications && (
-                        <p className="text-gray-600 text-sm mb-4">{profile.qualifications}</p>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-4 mb-6">
-                      {profile.experience && (
-                        <div className="flex items-center justify-center">
-                          <span className="text-blue-600 mr-2">⏰</span>
-                          <span className="text-gray-700">{profile.experience}+ Years Experience</span>
-                        </div>
-                      )}
-                      
-                      {profile.consultationFee && (
-                        <div className="flex items-center justify-center">
-                          <span className="text-green-600 mr-2">💰</span>
-                          <span className="text-gray-700">₹{profile.consultationFee} Consultation</span>
-                </div>
-                      )}
-                      
-                      {link.department && (
-                        <div className="flex items-center justify-center">
-                          <span className="text-purple-600 mr-2">🏥</span>
-                          <span className="text-gray-700">{link.department.name}</span>
-                </div>
-                      )}
-                </div>
-                    
-                    {profile.about && (
-                      <p className="text-gray-600 text-sm mb-6 leading-relaxed line-clamp-3">
-                        {profile.about}
-                      </p>
-                    )}
-                    
-                    {profile.services && profile.services.length > 0 && (
-                      <div className="mb-6">
-                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Specializations:</h4>
-                        <div className="flex flex-wrap gap-1">
-                          {profile.services.slice(0, 3).map((service, serviceIndex) => (
-                            <span key={serviceIndex} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                              {service}
-                            </span>
-                          ))}
-                          {profile.services.length > 3 && (
-                            <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
-                              +{profile.services.length - 3}
-                            </span>
-                          )}
-              </div>
-            </div>
-                    )}
-                    
-              <div className="text-center">
-                      <DoctorBookingCTA doctorId={doctor.id} clinicName={profile.clinicName || name} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <HospitalDoctorsByDepartment doctors={doctorsToShow as any} hospitalName={name} />
           </section>
         )}
         

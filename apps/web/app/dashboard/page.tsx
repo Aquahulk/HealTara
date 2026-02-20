@@ -143,8 +143,11 @@ export default function DashboardPage() {
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
   const [patients, setPatients] = useState<Array<{ patientId: number; email: string; count: number; lastDate: string }>>([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
-  const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any }>>([]); // Linked doctors
+  const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any; departmentId?: number | null; departmentName?: string | null }>>([]);
   const [hospitalDoctorSearch, setHospitalDoctorSearch] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState<string>('All');
+  const [deptCollapsed, setDeptCollapsed] = useState<Record<string, boolean>>({});
+  const [deptSortMode, setDeptSortMode] = useState<'alpha' | 'activity'>('alpha');
   const deferredHospitalDoctorSearch = useDeferredValue(hospitalDoctorSearch);
   const filteredHospitalDoctors = useMemo(() => {
     const q = deferredHospitalDoctorSearch.trim().toLowerCase();
@@ -214,6 +217,8 @@ export default function DashboardPage() {
   const [loadingHospitalBookings, setLoadingHospitalBookings] = useState(false); // Loading flag for hospital bookings
   const [hospitalDoctorSlotsMap, setHospitalDoctorSlotsMap] = useState<Record<number, Slot[]>>({}); // Slots per doctor (hospital admin)
   const [hospitalDoctorPeriodMap, setHospitalDoctorPeriodMap] = useState<Record<number, number>>({}); // Slot period per doctor (hospital admin)
+  const [hospitalDoctorAvailabilityMap, setHospitalDoctorAvailabilityMap] = useState<Record<number, Record<string, { periodMinutes: number; hours: Array<{ hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }> }>>>({});
+  const [hospitalDoctorErrorMap, setHospitalDoctorErrorMap] = useState<Record<number, string>>({});
   // Hour-level availability per date for doctor (capacity/booked)
   const [availabilityByDate, setAvailabilityByDate] = useState<Record<string, { periodMinutes: number; hours: Array<{ hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }> }>>({});
   const [selectedDoctorForTiming, setSelectedDoctorForTiming] = useState<number | null>(null);
@@ -230,6 +235,7 @@ export default function DashboardPage() {
     5: { start: "10:00", end: "14:00" },
     6: { start: "", end: "" },
   });
+  const [selectedHospitalDate, setSelectedHospitalDate] = useState<string>('');
   const isDoctorLike = !!(user && (user.role === 'DOCTOR' || user.role === 'HOSPITAL_ADMIN'));
 const [socketReady, setSocketReady] = useState(false);
 
@@ -275,6 +281,12 @@ const [socketReady, setSocketReady] = useState(false);
     const timePart = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
     return istDateTimeFromDateAndTime(datePart, timePart);
   };
+  useEffect(() => {
+    if (!selectedHospitalDate) {
+      const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+      setSelectedHospitalDate(fmt.format(getISTNow()));
+    }
+  }, []);
 
   // ============================================================================
   // 🔄 TAB VALIDATION - Ensure non-doctors can't access doctor-specific tabs
@@ -446,28 +458,42 @@ const [socketReady, setSocketReady] = useState(false);
         // Fetch detailed hospital info to get linked doctors
         const details = await apiClient.getHospitalDetails(hospitalProfile.id);
         const links = ((details?.doctors || []) as Array<any>)
-          .map((l) => l?.doctor)
+          .map((l) => {
+            const d = l?.doctor || {};
+            return { ...d, departmentId: l?.department?.id ?? null, departmentName: l?.department?.name ?? null };
+          })
           .filter((d) => d && typeof d.id === 'number');
         setHospitalDoctors(links);
 
         const perDoctor: Record<number, Appointment[]> = {};
         const perDoctorSlots: Record<number, Slot[]> = {};
         const perDoctorPeriod: Record<number, number> = {};
+        const availMapNext: Record<number, Record<string, { periodMinutes: number; hours: Array<{ hour: string; capacity: number; bookedCount: number; isFull: boolean; labelFrom: string; labelTo: string }> }>> = {};
+        const errorMapNext: Record<number, string> = {};
         await Promise.all(
           links.map(async (d) => {
             try {
-              const [items, s, p] = await Promise.all([
+              const dateStr = selectedHospitalDate;
+              const results = await Promise.allSettled([
                 apiClient.getHospitalDoctorAppointments(hospitalProfile.id, d.id),
-                apiClient.getSlots({ doctorId: d.id }),
+                apiClient.getSlotInsights({ doctorId: d.id, date: dateStr }).catch(() => null),
                 apiClient.getHospitalDoctorSlotPeriod(hospitalProfile.id, d.id),
               ]);
+              const items = results[0].status === 'fulfilled' ? (results[0].value as any) : [];
+              const insights = results[1].status === 'fulfilled' ? (results[1].value as any) : null;
+              const p = results[2].status === 'fulfilled' ? (results[2].value as any) : undefined;
               perDoctor[d.id] = Array.isArray(items) ? items : [];
-              perDoctorSlots[d.id] = Array.isArray(s) ? s : [];
+              perDoctorSlots[d.id] = [];
               const prev = hospitalDoctorPeriodMap[d.id];
               const pval = (p && typeof (p as any).slotPeriodMinutes === 'number') ? Number((p as any).slotPeriodMinutes) : undefined;
               const profileVal = (d?.doctorProfile && typeof d.doctorProfile.slotPeriodMinutes === 'number') ? Number(d.doctorProfile.slotPeriodMinutes) : undefined;
               perDoctorPeriod[d.id] = pval ?? prev ?? profileVal ?? 15;
-            } catch {
+              if (insights && (insights as any).availability) {
+                const byDate = availMapNext[d.id] || {};
+                byDate[dateStr] = (insights as any).availability;
+                availMapNext[d.id] = byDate;
+              }
+            } catch (e: any) {
               if (!perDoctor[d.id]) perDoctor[d.id] = [];
               if (!perDoctorSlots[d.id]) perDoctorSlots[d.id] = [];
               if (perDoctorPeriod[d.id] === undefined) {
@@ -475,12 +501,16 @@ const [socketReady, setSocketReady] = useState(false);
                 const profileVal = (d?.doctorProfile && typeof d.doctorProfile.slotPeriodMinutes === 'number') ? Number(d.doctorProfile.slotPeriodMinutes) : undefined;
                 perDoctorPeriod[d.id] = prev ?? profileVal ?? 15;
               }
+              const msg = (e && e.message) ? String(e.message) : '';
+              if (msg) errorMapNext[d.id] = msg;
             }
           })
         );
         setDoctorAppointmentsMap(perDoctor);
         setHospitalDoctorSlotsMap(perDoctorSlots);
         setHospitalDoctorPeriodMap(perDoctorPeriod);
+        setHospitalDoctorAvailabilityMap(availMapNext);
+        setHospitalDoctorErrorMap(errorMapNext);
       } catch (e) {
         console.warn('Failed to load hospital doctor bookings:', e);
       } finally {
@@ -489,7 +519,56 @@ const [socketReady, setSocketReady] = useState(false);
     };
 
     loadHospitalBookings();
-  }, [user, hospitalProfile]);
+  }, [user, hospitalProfile, selectedHospitalDate]);
+
+  useEffect(() => {
+    let timer: any = null;
+    let stopped = false;
+    const run = async () => {
+      if (!user || user.role !== 'HOSPITAL_ADMIN' || !hospitalProfile?.id) return;
+      const links = hospitalDoctors && hospitalDoctors.length > 0 ? hospitalDoctors : [];
+      if (links.length === 0) return;
+      try {
+        const perDoctor: Record<number, Appointment[]> = {};
+        const perDoctorSlots: Record<number, Slot[]> = {};
+        await Promise.all(
+          links.map(async (d: any) => {
+            try {
+              const items = await apiClient.getHospitalDoctorAppointments(hospitalProfile.id, d.id);
+              perDoctor[d.id] = Array.isArray(items) ? items : [];
+              perDoctorSlots[d.id] = [];
+            } catch {
+              if (!perDoctor[d.id]) perDoctor[d.id] = [];
+              if (!perDoctorSlots[d.id]) perDoctorSlots[d.id] = [];
+            }
+          })
+        );
+        if (stopped) return;
+        setDoctorAppointmentsMap((prev) => ({ ...prev, ...perDoctor }));
+        setHospitalDoctorSlotsMap((prev) => ({ ...prev, ...perDoctorSlots }));
+      } catch {}
+    };
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(run, 10000);
+    };
+    if (activeTab === 'appointments') {
+      run();
+      start();
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'visible' && activeTab === 'appointments') run();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      stopped = true;
+      if (timer) {
+        try { clearInterval(timer); } catch {}
+        timer = null;
+      }
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [user?.role, hospitalProfile?.id, activeTab, hospitalDoctors]);
 
   // Update appointment status (hospital admin -> per doctor)
   const updateDoctorAppointmentStatus = async (doctorId: number, appointmentId: number, newStatus: string) => {
@@ -765,17 +844,10 @@ const [socketReady, setSocketReady] = useState(false);
 
         const refreshForHospital = async (hid: number) => {
           try {
-            const [items, slots] = await Promise.all([
-              apiClient.getHospitalDoctorAppointments(hid, did),
-              apiClient.getSlots({ doctorId: did }),
-            ]);
+            const items = await apiClient.getHospitalDoctorAppointments(hid, did);
             setDoctorAppointmentsMap((prev) => ({
               ...prev,
               [did]: Array.isArray(items) ? items : [],
-            }));
-            setHospitalDoctorSlotsMap((prev) => ({
-              ...prev,
-              [did]: Array.isArray(slots) ? slots : [],
             }));
           } catch (e) {
             // keep UI graceful
@@ -857,28 +929,21 @@ useEffect(() => {
   socket.on('appointment-cancelled', onCancel);
 
   // On patient booking, refresh that doctor's appointments and slots
-  const onBooked = async (msg: any) => {
-    try {
-      const payload = msg?.payload || {};
-      const did = Number(payload?.doctorId);
-      if (!did) return;
+    const onBooked = async (msg: any) => {
+      try {
+        const payload = msg?.payload || {};
+        const did = Number(payload?.doctorId);
+        if (!did) return;
 
-      const refreshForHospital = async (hid: number) => {
-        try {
-          const [items, slots] = await Promise.all([
-            apiClient.getHospitalDoctorAppointments(hid, did),
-            apiClient.getSlots({ doctorId: did }),
-          ]);
-          setDoctorAppointmentsMap((prev) => ({
-            ...prev,
-            [did]: Array.isArray(items) ? items : [],
-          }));
-          setHospitalDoctorSlotsMap((prev) => ({
-            ...prev,
-            [did]: Array.isArray(slots) ? slots : [],
-          }));
-        } catch {}
-      };
+        const refreshForHospital = async (hid: number) => {
+          try {
+            const items = await apiClient.getHospitalDoctorAppointments(hid, did);
+            setDoctorAppointmentsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(items) ? items : [],
+            }));
+          } catch {}
+        };
 
       if (hospitalProfile?.id) {
         await refreshForHospital(hospitalProfile.id);
@@ -963,17 +1028,10 @@ useEffect(() => {
         if (!did) return;
         const refreshForHospital = async (hid2: number) => {
           try {
-            const [items, slots] = await Promise.all([
-              apiClient.getHospitalDoctorAppointments(hid2, did),
-              apiClient.getSlots({ doctorId: did }),
-            ]);
+            const items = await apiClient.getHospitalDoctorAppointments(hid2, did);
             setDoctorAppointmentsMap((prev) => ({
               ...prev,
               [did]: Array.isArray(items) ? items : [],
-            }));
-            setHospitalDoctorSlotsMap((prev) => ({
-              ...prev,
-              [did]: Array.isArray(slots) ? slots : [],
             }));
           } catch {}
         };
@@ -1884,7 +1942,7 @@ useEffect(() => {
                   {(!loadingHospitalBookings && hospitalDoctors.length === 0) && (
                     <div className="text-center py-8 text-gray-600">No doctors linked to your hospital yet.</div>
                   )}
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                     <input
                       type="text"
                       value={hospitalDoctorSearch}
@@ -1895,8 +1953,201 @@ useEffect(() => {
                     {hospitalDoctorSearch && (
                       <button onClick={() => setHospitalDoctorSearch('')} className="ml-2 text-sm text-gray-600 hover:text-gray-800">Clear</button>
                     )}
+                    <div className="ml-auto flex items-center gap-2">
+                      <select
+                        value={departmentFilter}
+                        onChange={(e) => setDepartmentFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      >
+                        {(() => {
+                          const names = Array.from(new Set(hospitalDoctors.map((d) => (d as any).departmentName?.trim() || 'General / Unassigned'))).sort((a,b)=>a.localeCompare(b));
+                          const opts = ['All', ...names];
+                          return opts.map((n) => <option key={n} value={n}>{n === 'All' ? 'All Departments' : n}</option>);
+                        })()}
+                      </select>
+                      <button
+                        onClick={() => setDeptSortMode((m) => (m === 'alpha' ? 'activity' : 'alpha'))}
+                        className="text-sm px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                      >
+                        {deptSortMode === 'alpha' ? 'Sort: A–Z' : 'Sort: Activity'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const names = Array.from(new Set(hospitalDoctors.map((d) => (d as any).departmentName?.trim() || 'General / Unassigned')));
+                          const anyOpen = names.some((n) => !deptCollapsed[n || '']);
+                          const next: Record<string, boolean> = {};
+                          names.forEach((n) => { next[n || ''] = anyOpen; });
+                          setDeptCollapsed(next);
+                        }}
+                        className="text-sm px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                      >
+                        Toggle All
+                      </button>
+                      <label className="text-sm text-gray-700">Date</label>
+                      <input
+                        type="date"
+                        value={selectedHospitalDate}
+                        onChange={(e) => setSelectedHospitalDate(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {(() => {
+                    const groups = new Map<string, Array<any>>();
+                    let candidateDocs = [...filteredHospitalDoctors];
+                    if (departmentFilter && departmentFilter !== 'All') {
+                      candidateDocs = candidateDocs.filter((d) => ((d as any).departmentName?.trim() || 'General / Unassigned') === departmentFilter);
+                    }
+                    const orderedDocs = [...candidateDocs].sort((a, b) => {
+                      const da = (a as any).departmentName?.trim() || 'General / Unassigned';
+                      const db = (b as any).departmentName?.trim() || 'General / Unassigned';
+                      return da.localeCompare(db);
+                    });
+                    orderedDocs.forEach((doc) => {
+                      const key = (doc as any).departmentName?.trim() || 'General / Unassigned';
+                      const arr = groups.get(key) || [];
+                      arr.push(doc);
+                      groups.set(key, arr);
+                    });
+                    const entries = Array.from(groups.entries());
+                    const withScore = entries.map(([depName, docs]) => {
+                      const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                      const todayStr = fmt.format(getISTNow());
+                      let score = 0;
+                      docs.forEach((doc) => {
+                        const items = doctorAppointmentsMap[doc.id] || [];
+                        score += items.filter((a) => fmt.format(getAppointmentISTDate(a)) === todayStr).length;
+                      });
+                      return { depName, docs, score };
+                    });
+                    const orderedGroups = deptSortMode === 'activity'
+                      ? withScore.sort((a, b) => b.score - a.score || a.depName.localeCompare(b.depName))
+                      : withScore.sort((a, b) => a.depName.localeCompare(b.depName));
+                    return orderedGroups.map(({ depName, docs, score }) => (
+                      <div key={`group-${depName}`} className="mb-8 border border-gray-200 rounded-lg bg-white shadow-sm">
+                        <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => setDeptCollapsed((prev) => ({ ...prev, [depName]: !prev[depName] }))}
+                              className={`${deptCollapsed[depName]
+                                ? 'text-xs px-2 py-1 border border-emerald-300 text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100'
+                                : 'text-xs px-2 py-1 border border-blue-300 text-blue-700 bg-blue-50 rounded hover:bg-blue-100'}`}
+                              aria-pressed={!deptCollapsed[depName]}
+                            >
+                              {deptCollapsed[depName] ? 'Expand' : 'Collapse'}
+                            </button>
+                            <div className="text-base font-semibold text-gray-900">{depName}</div>
+                          </div>
+                          <div className="text-xs text-gray-600">{docs.length} doctor{docs.length !== 1 ? 's' : ''} • Today: {score}</div>
+                        </div>
+                        <div className={deptCollapsed[depName] ? 'hidden' : 'p-4'}>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {docs.map((doc) => {
+                            const items = doctorAppointmentsMap[doc.id] || [];
+                            return (
+                              <div key={doc.id} className="border rounded-lg overflow-hidden">
+                                <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+                                  <div>
+                                    <div className="font-semibold text-gray-900">Doctor: {highlightDoctorLabel(getDoctorLabel(doc))}</div>
+                                    {doc.doctorProfile?.clinicName && (
+                                      <div className="text-sm text-gray-600">{doc.doctorProfile.clinicName}</div>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => setHistoryVisibleDoctor((prev) => ({ ...prev, [doc.id]: !prev[doc.id] }))}
+                                    className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+                                  >
+                                    {historyVisibleDoctor[doc.id] ? 'Hide History' : 'Show History'}
+                                  </button>
+                                </div>
+                                <div className="p-4" onDragEnterCapture={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }} onDragOverCapture={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}>
+                                  {(() => {
+                                    const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                                    const todayStr = fmtDateIST.format(getISTNow());
+                                    const nowTs = getISTNow().getTime();
+                                    const pendingToday = items.filter((a) => {
+                                      const d = getAppointmentISTDate(a);
+                                      const isToday = fmtDateIST.format(d) === todayStr;
+                                      return isToday && d.getTime() < nowTs && a.status === 'PENDING';
+                                    });
+                                    if (pendingToday.length === 0) return null;
+                                    return (
+                                      <div className="bg-white border rounded-lg overflow-hidden mb-3">
+                                        <div className="px-4 py-2 border-b border-yellow-200 flex items-center justify-between">
+                                          <h4 className="text-sm font-semibold text-gray-900">Pending Bookings</h4>
+                                          <div className="text-xs text-gray-600">Time passed, awaiting action</div>
+                                        </div>
+                                        <div className="p-3 space-y-2">
+                                          {pendingToday.map((appointment) => (
+                                            <div key={appointment.id} className="border rounded px-3 py-2">
+                                              <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                              <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                  {(() => {
+                                    const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                                    const todayStr = fmtDateIST.format(getISTNow());
+                                    const nextDays = 14;
+                                    const todayTs = getISTNow().getTime();
+                                    const endTs = todayTs + nextDays * 24 * 60 * 60 * 1000;
+                                    const upcoming = items.filter((a) => {
+                                      const d = getAppointmentISTDate(a);
+                                      const ds = fmtDateIST.format(d);
+                                      return ds >= todayStr && d.getTime() <= endTs;
+                                    });
+                                    if (upcoming.length === 0) return null;
+                                    return (
+                                      <div className="bg-white border rounded-lg overflow-hidden mb-3">
+                                        <div className="px-4 py-2 border-b border-blue-200 flex items-center justify-between">
+                                          <h4 className="text-sm font-semibold text-gray-900">Upcoming Bookings</h4>
+                                          <div className="text-xs text-gray-600">Next {nextDays} days</div>
+                                        </div>
+                                        <div className="p-3 space-y-2">
+                                          {upcoming.map((appointment) => (
+                                            <div key={appointment.id} className="border rounded px-3 py-2">
+                                              <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                              <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                  {(() => {
+                                    const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                                    const apptsOnDate = items.filter((a) => fmtDateIST.format(getAppointmentISTDate(a)) === selectedHospitalDate);
+                                    if (apptsOnDate.length === 0) return null;
+                                    return (
+                                      <div className="mt-3 bg-white border rounded-lg overflow-hidden">
+                                        <div className="px-4 py-2 border-b border-blue-200 flex items-center justify-between">
+                                          <h4 className="text-sm font-semibold text-gray-900">Appointments on {selectedHospitalDate}</h4>
+                                          <div className="text-xs text-gray-600">{apptsOnDate.length} booked</div>
+                                        </div>
+                                        <div className="p-3 space-y-2">
+                                          {apptsOnDate.map((appointment) => (
+                                            <div key={appointment.id} className="border rounded px-3 py-2">
+                                              <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                              <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                  <div className="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
                     {filteredHospitalDoctors.map((doc) => {
                       const items = doctorAppointmentsMap[doc.id] || [];
                       return (
@@ -1916,8 +2167,8 @@ useEffect(() => {
                             </button>
                           </div>
                   <div className="p-4" onDragEnterCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOverCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
-                            {/* Pending Bookings (time has passed, today) */}
-                            {(() => {
+                          {/* Pending Bookings (time has passed, today) */}
+                          {(() => {
                               const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
                               const todayStr = fmtDateIST.format(getISTNow());
                               const nowTs = getISTNow().getTime();
@@ -1943,7 +2194,36 @@ useEffect(() => {
                                   </div>
                                 </div>
                               );
-                            })()}
+                          })()}
+                          {(() => {
+                            const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                            const todayStr = fmtDateIST.format(getISTNow());
+                            const nextDays = 14;
+                            const todayTs = getISTNow().getTime();
+                            const endTs = todayTs + nextDays * 24 * 60 * 60 * 1000;
+                            const upcoming = items.filter((a) => {
+                              const d = getAppointmentISTDate(a);
+                              const ds = fmtDateIST.format(d);
+                              return ds >= todayStr && d.getTime() <= endTs;
+                            });
+                            if (upcoming.length === 0) return null;
+                            return (
+                              <div className="bg-white border rounded-lg overflow-hidden mb-3">
+                                <div className="px-4 py-2 border-b border-blue-200 flex items-center justify-between">
+                                  <h4 className="text-sm font-semibold text-gray-900">Upcoming Bookings</h4>
+                                  <div className="text-xs text-gray-600">Next {nextDays} days</div>
+                                </div>
+                                <div className="p-3 space-y-2">
+                                  {upcoming.map((appointment) => (
+                                    <div key={appointment.id} className="border rounded px-3 py-2">
+                                      <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                      <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
                             {/* History of Bookings (previous days) */}
                             {historyVisibleDoctor[doc.id] && (() => {
                               const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -1968,7 +2248,57 @@ useEffect(() => {
                               );
                             })()}
                             {(items.length === 0 && (hospitalDoctorSlotsMap[doc.id] || []).length === 0) ? (
-                              <div className="text-sm text-gray-500">No bookings or slots found for this doctor.</div>
+                              (() => {
+                                const dateStr = selectedHospitalDate;
+                                const av = (hospitalDoctorAvailabilityMap[doc.id] || {})[dateStr];
+                                if (!av) {
+                                  const err = hospitalDoctorErrorMap[doc.id];
+                                  if (err) {
+                                    let text = 'No bookings or slots found for this doctor.';
+                                    try { const parsed = JSON.parse(err); if (parsed?.message) text = parsed.message; } catch {}
+                                    return <div className="text-sm text-gray-500">{text}</div>;
+                                  }
+                                  return <div className="text-sm text-gray-500">No bookings or slots found for this doctor.</div>;
+                                }
+                                const period = Number(hospitalDoctorPeriodMap[doc.id] ?? doc?.doctorProfile?.slotPeriodMinutes ?? 15);
+                                const countPerHour = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                                return (
+                                  <div className="space-y-2">
+                                    <div className="text-sm text-gray-700">Capacity view for {dateStr}</div>
+                                    <ul className="space-y-2">
+                                      {av.hours.map((h) => (
+                                        <li key={h.hour} className={`rounded ${getSlotBoxColors(h.bookedCount, new Date(), countPerHour)}`}>
+                                          <div className="px-3 py-2 flex items-center justify-between">
+                                            <div className="text-sm font-medium text-gray-900">{h.labelFrom} → {h.labelTo}</div>
+                                            <div className="text-xs text-gray-600">Users: {h.bookedCount} • Capacity: {countPerHour}</div>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    {(() => {
+                                      const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                                      const apptsOnDate = items.filter((a) => fmtDateIST.format(getAppointmentISTDate(a)) === dateStr);
+                                      if (apptsOnDate.length === 0) return null;
+                                      return (
+                                        <div className="mt-3 bg-white border rounded-lg overflow-hidden">
+                                          <div className="px-4 py-2 border-b border-blue-200 flex items-center justify-between">
+                                            <h4 className="text-sm font-semibold text-gray-900">Appointments on {dateStr}</h4>
+                                            <div className="text-xs text-gray-600">{apptsOnDate.length} booked</div>
+                                          </div>
+                                          <div className="p-3 space-y-2">
+                                            {apptsOnDate.map((appointment) => (
+                                              <div key={appointment.id} className="border rounded px-3 py-2">
+                                                <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                                <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                );
+                              })()
                             ) : (
                               <ul className="space-y-4" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
                                 {(() => {
@@ -1989,6 +2319,22 @@ useEffect(() => {
                                       const whEnd = toMin(wh.end);
                                       return startMin >= whStart && endMin <= whEnd;
                                     });
+                                  if (slots.length === 0) {
+                                    const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                                    const apptsOnDate = items.filter((a) => fmtDateIST.format(getAppointmentISTDate(a)) === selectedHospitalDate);
+                                    if (apptsOnDate.length === 0) return <li className="text-sm text-gray-500">No slots defined; showing appointments:</li>;
+                                    return (
+                                      <>
+                                        <li className="text-sm text-gray-700">Appointments on {selectedHospitalDate}</li>
+                                        {apptsOnDate.map((appointment) => (
+                                          <li key={appointment.id} className="border rounded px-3 py-2">
+                                            <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
+                                            <div className="text-xs text-gray-600">Patient: {getPatientLabel(appointment.patient as any, appointment.patientId)} • Status: {appointment.status}</div>
+                                          </li>
+                                        ))}
+                                      </>
+                                    );
+                                  }
                                   const children = slots.map((slot) => {
                                     const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0,5)}:00`);
                                     const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
@@ -2834,7 +3180,7 @@ useEffect(() => {
                           </div>
                           <div className="mt-4">
                             <Link 
-                              href={doctorProfile.slug ? `/site/${doctorProfile.slug}` : '#'}
+                              href={doctorProfile.slug ? `/doctor-site/${doctorProfile.slug}` : '#'}
                               target="_blank"
                               onClick={(e) => {
                                 if (doctorProfile.slug) {
