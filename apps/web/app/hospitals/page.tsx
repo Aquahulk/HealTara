@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
-import { hospitalMicrositeUrl, shouldUseSubdomainNav, slugifyName } from '@/lib/subdomain';
+import { hospitalMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName } from '@/lib/subdomain';
 import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import { apiClient } from '@/lib/api';
 
