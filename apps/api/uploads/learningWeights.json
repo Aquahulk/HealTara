@@ -1,228 +1,243 @@
 {
   "ortho": {
-    "Orthopedics": 11.467176,
+    "Orthopedics": 12.23783248,
+    "as": 6.647151999999999,
+    "asdf": 6.647151999999999,
+    "Aha": 6.647151999999999,
+    "Othopedics": 1.8823839999999998,
+    "Zedq1": 4.764768,
+    "sdj": 2
+  },
+  "bone": {
+    "Orthopedics": 15.12057696,
+    "as": 18.210759999999997,
+    "asdf": 18.210759999999997,
+    "Aha": 18.210759999999997,
+    "Zedq1": 18.210759999999997,
+    "Asd": 9.565584000000001,
+    "sdj": 3.96
+  },
+  "dr": {
+    "Orthopedics": 6.569520160000001,
+    "as": 3.7647679999999997,
+    "asdf": 3.7647679999999997,
+    "Aha": 3.7647679999999997,
+    "Zedq1": 3.7647679999999997
+  },
+  "pain": {
+    "Orthopedics": 3.6894726399999995
+  },
+  "arm": {
+    "Orthopedics": 2.7671044799999995,
+    "Othopedics": 2.8235759999999996
+  },
+  "arm pain": {
+    "Orthopedics": 2.7671044799999995
+  },
+  "broken": {
+    "Othopedics": 2.8235759999999996
+  },
+  "broken arm": {
+    "Othopedics": 2.8235759999999996
+  },
+  "a": {
+    "Russian": 5.725168,
+    "as": 11.410735999999998,
+    "ss": 4.725168,
+    "Chudai": 4.725168,
+    "Aha": 11.410735999999998,
+    "asdf": 6.685568,
+    "Asd": 6.685568,
+    "Dermatology": 1.9604,
+    "Obstetrics & Gynecology": 1.9604,
+    "Psychiatry": 1.9604,
+    "Gastroenterology": 1.9604,
+    "Urology": 1.9604,
+    "Cardiology": 2,
+    "sdj": 2,
+    "sdjdhd": 2
+  },
+  "am": {
+    "Chudai": 4.70596,
+    "Amit ko rand banaye rakhna": 4.70596,
+    "Aha": 4.70596,
+    "General Medicine": 4.70596
+  },
+  "ami": {
+    "Chudai": 4.70596,
+    "Amit ko rand banaye rakhna": 4.70596,
+    "Aha": 4.70596,
+    "General Medicine": 4.70596
+  },
+  "amit": {
+    "Chudai": 5.70596,
+    "Amit ko rand banaye rakhna": 5.70596,
+    "Aha": 5.70596,
+    "General Medicine": 5.70596,
+    "sdj": 2,
+    "sdjdhd": 2
+  },
+  "b": {
+    "Bachchodi": 15.28996,
+    "Amit ko rand banaye rakhna": 15.28996,
+    "as": 14.387184000000001,
+    "asdf": 14.387184000000001,
+    "Aha": 14.387184000000001,
+    "Pediatrics": 2.9008,
+    "Orthopedics": 2.9008,
+    "Asd": 1.9207999999999998,
+    "sdj": 1.96
+  },
+  "orthopedics": {
+    "Orthopedics": 7.704768,
+    "sdj": 9.86,
+    "sdjdhd": 2
+  },
+  "h": {
+    "ss": 2.882384,
+    "Chudai": 2.882384,
+    "Bachchodi": 2.882384,
+    "Amit ko rand banaye rakhna": 2.882384,
+    "Aha": 2.882384,
+    "Cardiology": 1,
+    "Neurology": 1,
+    "sdj": 2,
+    "sdjdhd": 2
+  },
+  "ha": {
+    "Aha": 1.8823839999999998
+  },
+  "o": {
+    "ss": 1.8823839999999998,
+    "Chudai": 1.8823839999999998,
+    "aa": 1.8823839999999998,
+    "Bachchodi": 1.8823839999999998,
+    "Amit ko rand banaye rakhna": 1.8823839999999998
+  },
+  "or": {
+    "Orthopedics": 1.8823839999999998,
+    "Othopedics": 1.8823839999999998
+  },
+  "dr ortho": {
+    "Orthopedics": 5.647151999999999,
+    "as": 3.7647679999999997,
+    "asdf": 3.7647679999999997,
+    "Aha": 3.7647679999999997,
+    "Zedq1": 3.7647679999999997
+  },
+  "ort": {
+    "Orthopedics": 1.8823839999999998,
+    "Othopedics": 1.8823839999999998
+  },
+  "orth": {
+    "Orthopedics": 1.8823839999999998,
+    "Othopedics": 1.8823839999999998
+  },
+  "ac": {
+    "Dermatology": 0.9603999999999999,
+    "Gastroenterology": 0.9603999999999999,
+    "Bachchodi": 1.9207999999999998
+  },
+  "l": {
+    "ss": 4.8020000000000005,
+    "Bachchodi": 4.8020000000000005,
+    "General Medicine": 4.8020000000000005
+  },
+  "leg": {
+    "Bachchodi": 2.8811999999999998,
+    "Amit ko rand banaye rakhna": 2.8811999999999998,
+    "as": 11.524799999999999,
+    "asdf": 11.524799999999999,
+    "Aha": 11.524799999999999,
+    "Pediatrics": 0.9603999999999999,
+    "Orthopedics": 3.8415999999999997,
+    "Asd": 7.683199999999999,
+    "Zedq1": 2.8811999999999998
+  },
+  "leg b": {
+    "Bachchodi": 0.9603999999999999,
+    "Amit ko rand banaye rakhna": 0.9603999999999999,
+    "as": 2.8811999999999998,
+    "asdf": 2.8811999999999998,
+    "Aha": 2.8811999999999998,
+    "Pediatrics": 0.9603999999999999,
+    "Orthopedics": 0.9603999999999999,
+    "Asd": 1.9207999999999998
+  },
+  "leg bone": {
+    "Orthopedics": 0.9603999999999999,
+    "as": 2.8811999999999998,
+    "asdf": 2.8811999999999998,
+    "Aha": 2.8811999999999998,
+    "Zedq1": 2.8811999999999998,
+    "Asd": 1.9207999999999998
+  },
+  "bon": {
+    "Bachchodi": 1.9207999999999998,
+    "Amit ko rand banaye rakhna": 0.9603999999999999,
     "as": 5.7623999999999995,
     "asdf": 5.7623999999999995,
     "Aha": 5.7623999999999995,
-    "Othopedics": 1.9207999999999998,
-    "Zedq1": 3.8415999999999997
+    "Orthopedics": 1.9207999999999998,
+    "Asd": 4.8020000000000005
   },
-  "bone": {
-    "Orthopedics": 14.408752,
-    "as": 17.561999999999998,
-    "asdf": 17.561999999999998,
-    "Aha": 17.561999999999998,
-    "Zedq1": 17.561999999999998,
-    "Asd": 9.760800000000001,
-    "sdj": 2
+  "leg bon": {
+    "Bachchodi": 0.9603999999999999,
+    "Amit ko rand banaye rakhna": 0.9603999999999999,
+    "as": 2.8811999999999998,
+    "asdf": 2.8811999999999998,
+    "Aha": 2.8811999999999998,
+    "Orthopedics": 0.9603999999999999,
+    "Asd": 1.9207999999999998
   },
-  "dr": {
-    "Orthopedics": 6.703592,
-    "as": 3.8415999999999997,
-    "asdf": 3.8415999999999997,
-    "Aha": 3.8415999999999997,
-    "Zedq1": 3.8415999999999997
-  },
-  "pain": {
-    "Orthopedics": 3.7647679999999997
-  },
-  "arm": {
-    "Orthopedics": 2.8235759999999996,
-    "Othopedics": 2.8811999999999998
-  },
-  "arm pain": {
-    "Orthopedics": 2.8235759999999996
-  },
-  "broken": {
-    "Othopedics": 2.8811999999999998
-  },
-  "broken arm": {
-    "Othopedics": 2.8811999999999998
-  },
-  "a": {
-    "Russian": 4.8216,
-    "as": 10.623199999999999,
-    "ss": 4.8216,
-    "Chudai": 4.8216,
-    "Aha": 10.623199999999999,
-    "asdf": 5.8016,
-    "Asd": 5.8016,
-    "Dermatology": 0.98,
-    "Obstetrics & Gynecology": 0.98,
-    "Psychiatry": 0.98,
-    "Gastroenterology": 0.98,
-    "Urology": 0.98
-  },
-  "am": {
-    "Chudai": 4.8020000000000005,
-    "Amit ko rand banaye rakhna": 4.8020000000000005,
-    "Aha": 4.8020000000000005,
-    "General Medicine": 4.8020000000000005
-  },
-  "ami": {
-    "Chudai": 4.8020000000000005,
-    "Amit ko rand banaye rakhna": 4.8020000000000005,
-    "Aha": 4.8020000000000005,
-    "General Medicine": 4.8020000000000005
-  },
-  "amit": {
-    "Chudai": 4.8020000000000005,
-    "Amit ko rand banaye rakhna": 4.8020000000000005,
-    "Aha": 4.8020000000000005,
-    "General Medicine": 4.8020000000000005
-  },
-  "b": {
-    "Bachchodi": 15.602,
-    "Amit ko rand banaye rakhna": 15.602,
-    "as": 14.680800000000001,
-    "asdf": 14.680800000000001,
-    "Aha": 14.680800000000001,
-    "Pediatrics": 2.96,
-    "Orthopedics": 2.96,
-    "Asd": 1.96,
-    "sdj": 2
-  },
-  "orthopedics": {
-    "Orthopedics": 6.8416,
-    "sdj": 7
-  },
-  "h": {
-    "ss": 1.9207999999999998,
-    "Chudai": 1.9207999999999998,
+  "bo": {
     "Bachchodi": 1.9207999999999998,
     "Amit ko rand banaye rakhna": 1.9207999999999998,
-    "Aha": 1.9207999999999998
-  },
-  "ha": {
-    "Aha": 1.9207999999999998
-  },
-  "o": {
-    "ss": 1.9207999999999998,
-    "Chudai": 1.9207999999999998,
-    "aa": 1.9207999999999998,
-    "Bachchodi": 1.9207999999999998,
-    "Amit ko rand banaye rakhna": 1.9207999999999998
-  },
-  "or": {
+    "as": 5.7623999999999995,
+    "asdf": 5.7623999999999995,
+    "Aha": 5.7623999999999995,
     "Orthopedics": 1.9207999999999998,
-    "Othopedics": 1.9207999999999998
+    "Asd": 3.8415999999999997
   },
-  "dr ortho": {
+  "leg bo": {
+    "Bachchodi": 0.9603999999999999,
+    "Amit ko rand banaye rakhna": 0.9603999999999999,
+    "as": 2.8811999999999998,
+    "asdf": 2.8811999999999998,
+    "Aha": 2.8811999999999998,
+    "Orthopedics": 0.9603999999999999,
+    "Asd": 1.9207999999999998
+  },
+  "frac": {
+    "Orthopedics": 1.9207999999999998
+  },
+  "fracture": {
     "Orthopedics": 5.7623999999999995,
     "as": 3.8415999999999997,
     "asdf": 3.8415999999999997,
     "Aha": 3.8415999999999997,
     "Zedq1": 3.8415999999999997
   },
-  "ort": {
-    "Orthopedics": 1.9207999999999998,
-    "Othopedics": 1.9207999999999998
-  },
-  "orth": {
-    "Orthopedics": 1.9207999999999998,
-    "Othopedics": 1.9207999999999998
-  },
-  "ac": {
-    "Dermatology": 0.98,
-    "Gastroenterology": 0.98,
-    "Bachchodi": 1.96
-  },
-  "l": {
-    "ss": 4.9,
-    "Bachchodi": 4.9,
-    "General Medicine": 4.9
-  },
-  "leg": {
-    "Bachchodi": 2.94,
-    "Amit ko rand banaye rakhna": 2.94,
-    "as": 11.76,
-    "asdf": 11.76,
-    "Aha": 11.76,
-    "Pediatrics": 0.98,
-    "Orthopedics": 3.92,
-    "Asd": 7.84,
-    "Zedq1": 2.94
-  },
-  "leg b": {
-    "Bachchodi": 0.98,
-    "Amit ko rand banaye rakhna": 0.98,
-    "as": 2.94,
-    "asdf": 2.94,
-    "Aha": 2.94,
-    "Pediatrics": 0.98,
-    "Orthopedics": 0.98,
-    "Asd": 1.96
-  },
-  "leg bone": {
-    "Orthopedics": 0.98,
-    "as": 2.94,
-    "asdf": 2.94,
-    "Aha": 2.94,
-    "Zedq1": 2.94,
-    "Asd": 1.96
-  },
-  "bon": {
-    "Bachchodi": 1.96,
-    "Amit ko rand banaye rakhna": 0.98,
-    "as": 5.88,
-    "asdf": 5.88,
-    "Aha": 5.88,
-    "Orthopedics": 1.96,
-    "Asd": 4.9
-  },
-  "leg bon": {
-    "Bachchodi": 0.98,
-    "Amit ko rand banaye rakhna": 0.98,
-    "as": 2.94,
-    "asdf": 2.94,
-    "Aha": 2.94,
-    "Orthopedics": 0.98,
-    "Asd": 1.96
-  },
-  "bo": {
-    "Bachchodi": 1.96,
-    "Amit ko rand banaye rakhna": 1.96,
-    "as": 5.88,
-    "asdf": 5.88,
-    "Aha": 5.88,
-    "Orthopedics": 1.96,
-    "Asd": 3.92
-  },
-  "leg bo": {
-    "Bachchodi": 0.98,
-    "Amit ko rand banaye rakhna": 0.98,
-    "as": 2.94,
-    "asdf": 2.94,
-    "Aha": 2.94,
-    "Orthopedics": 0.98,
-    "Asd": 1.96
-  },
-  "frac": {
-    "Orthopedics": 1.96
-  },
-  "fracture": {
-    "Orthopedics": 5.88,
-    "as": 3.92,
-    "asdf": 3.92,
-    "Aha": 3.92,
-    "Zedq1": 3.92
-  },
   "fractur": {
-    "Orthopedics": 0.98
+    "Orthopedics": 0.9603999999999999
   },
   "f": {
-    "General Medicine": 0.98,
-    "Orthopedics": 0.98,
-    "Obstetrics & Gynecology": 0.98,
-    "asdf": 1.96
+    "General Medicine": 0.9603999999999999,
+    "Orthopedics": 0.9603999999999999,
+    "Obstetrics & Gynecology": 0.9603999999999999,
+    "asdf": 1.9207999999999998
   },
   "s": {
-    "General Medicine": 1,
-    "ENT": 1,
-    "Dermatology": 1,
-    "Endocrinology": 1,
-    "Neurology": 1,
-    "Gastroenterology": 1,
-    "sdj": 2
+    "General Medicine": 0.98,
+    "ENT": 0.98,
+    "Dermatology": 0.98,
+    "Endocrinology": 0.98,
+    "Neurology": 0.98,
+    "Gastroenterology": 0.98,
+    "sdj": 1.96
+  },
+  "he": {
+    "Cardiology": 1,
+    "Neurology": 1
   }
 }

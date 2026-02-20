@@ -23,6 +23,8 @@ function DoctorsPageContent() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedSpecialization, setSelectedSpecialization] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [sortBy, setSortBy] = useState<'trending' | 'recent' | 'default'>('trending');
@@ -35,9 +37,14 @@ function DoctorsPageContent() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
     const loadDoctors = async () => {
       try {
-        if (searchQuery) { return; }
+        if (debouncedQuery) { return; }
         setLoading(true);
         if (initialQuery) {
           const resp = await apiClient.searchDoctors(initialQuery);
@@ -63,14 +70,14 @@ function DoctorsPageContent() {
     };
 
     loadDoctors();
-  }, [sortBy, page, pageSize, searchQuery, initialQuery]);
+  }, [sortBy, page, pageSize, debouncedQuery, initialQuery]);
 
   useEffect(() => {
     const fetchSearch = async () => {
-      const q = searchQuery.trim();
+      const q = debouncedQuery.trim();
       if (!q) return;
       try {
-        setLoading(true);
+        setIsSearching(true);
         // Instant cached suggestions if available
         const cached = apiClient.peekCachedSearch(q);
         if (cached) {
@@ -91,11 +98,11 @@ function DoctorsPageContent() {
       } catch (error) {
         console.error('Search load error:', error);
       } finally {
-        setLoading(false);
+        setIsSearching(false);
       }
     };
     fetchSearch();
-  }, [searchQuery]);
+  }, [debouncedQuery]);
 
   const handleBookAppointment = (doctor: any) => {
     setSelectedDoctor(doctor);
@@ -116,14 +123,6 @@ function DoctorsPageContent() {
     return matchesText && matchesSpecialization && matchesCity;
   });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -142,7 +141,52 @@ function DoctorsPageContent() {
                 type="text"
                 placeholder="Search by doctor name or specialization..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={async (e) => {
+                  const raw = e.target.value;
+                  setSearchQuery(raw);
+                  const q = raw.trim();
+                  const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
+                  const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
+                  const nextSpace = raw.indexOf(' ', caret);
+                  const end = nextSpace === -1 ? raw.length : nextSpace;
+                  const active = raw.substring(start, end).trim();
+
+                  if (!q) {
+                    const seeds = apiClient.getSeedSuggestions();
+                    setSuggestions(seeds);
+                    return;
+                  }
+
+                  let quick: string[] = [];
+                  if (active) {
+                    const cachedTok = apiClient.peekCachedSearch(active);
+                    if (cachedTok && Array.isArray(cachedTok.suggestions)) {
+                      quick = cachedTok.suggestions.slice(0, 6);
+                    } else {
+                      quick = apiClient.getLocalSuggestions(active).slice(0, 6);
+                    }
+                  } else {
+                    quick = apiClient.getSeedSuggestions().slice(0, 6);
+                  }
+                  setSuggestions(quick);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const raw = (e.target as HTMLInputElement).value;
+                    const q = raw.trim();
+                    const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
+                    const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
+                    const nextSpace = raw.indexOf(' ', caret);
+                    const end = nextSpace === -1 ? raw.length : nextSpace;
+                    const active = raw.substring(start, end).trim();
+                    if (q) {
+                      if (active && suggestions.length === 0 && active.length >= 3) {
+                        apiClient.addLocalSuggestion(active, active);
+                      }
+                      apiClient.trackSearch(q, { source: 'enter' });
+                    }
+                  }
+                }}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
               {suggestions && suggestions.length > 0 && (
@@ -152,9 +196,10 @@ function DoctorsPageContent() {
                       key={i}
                       className="text-sm px-3 py-1 rounded-full border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700"
                       onClick={() => {
-                        const q = s.replace(/ \((specialization)\)$/i, '');
-                        setSearchQuery(q);
-                        apiClient.trackSearch(q).catch(() => {});
+                        const picked = s.replace(/ \((specialization)\)$/i, '');
+                        setSearchQuery(picked);
+                        apiClient.addLocalSuggestion(picked, picked);
+                        apiClient.trackSearch(picked, { source: 'suggestion_click', selectedSuggestion: picked }).catch(() => {});
                       }}
                     >
                       {s}
@@ -226,6 +271,9 @@ function DoctorsPageContent() {
           <h2 className="text-xl font-semibold text-gray-900">
             {filteredDoctors.length} doctors found
           </h2>
+          {(loading || isSearching) && (
+            <div className="mt-2 text-sm text-gray-600">Loading…</div>
+          )}
         </div>
 
         {/* Doctors List - OYO style rows */}

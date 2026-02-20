@@ -32,8 +32,8 @@ async function getDoctorBySlug(slug: string): Promise<DoctorProfileResponse | nu
   }
 }
 
-export default async function DoctorSitePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+export default async function DoctorSitePage({ params }: { params: { slug: string } }) {
+  const { slug } = params;
   const data = await getDoctorBySlug(slug);
   if (!data) {
     return (
@@ -109,4 +109,3 @@ export default async function DoctorSitePage({ params }: { params: Promise<{ slu
     </div>
   );
 }
-

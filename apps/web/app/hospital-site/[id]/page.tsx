@@ -197,8 +197,8 @@ async function getHospitalDetailsById(id: string): Promise<HospitalDetailsRespon
 // Removed slug-to-ID resolution to avoid extra SSR fetches;
 // rely on middleware/path structure to pass the correct id.
 
-export default async function HospitalSitePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function HospitalSitePage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const resolvedId = id;
   
   // Early validation of ID

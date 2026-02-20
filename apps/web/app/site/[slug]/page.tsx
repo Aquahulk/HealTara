@@ -176,8 +176,8 @@ async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsRe
 // ============================================================================
 // 🏥 HOSPITAL WEBSITE COMPONENT - Main website component
 // ============================================================================
-export default async function HospitalSitePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+export default async function HospitalSitePage({ params }: { params: { slug: string } }) {
+  const { slug } = params;
   const [profileResponse, details] = await Promise.all([
     getHospitalProfileBySlug(slug),
     getHospitalDetailsBySlug(slug),
