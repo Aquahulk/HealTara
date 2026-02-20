@@ -189,7 +189,7 @@ class ApiClient {
   // ============================================================================
   // 🌐 HTTP REQUEST HANDLER - Core function for making API calls
   // ============================================================================
-  // This function handles all HTTP requests to the backend
+  // This function handles all HTTP requests to backend
   // It automatically includes authentication headers and handles common errors
   private async request<T>(
     endpoint: string,                                       // API endpoint (e.g., "/api/login")

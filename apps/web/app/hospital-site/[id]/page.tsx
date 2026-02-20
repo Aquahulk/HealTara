@@ -94,6 +94,13 @@ async function getHospitalProfileById(id: string): Promise<HospitalProfileRespon
       return null;
     }
 
+    // Additional validation: ensure ID is a valid number
+    const numId = Number(id);
+    if (!Number.isFinite(numId) || numId <= 0) {
+      console.warn('Hospital ID must be a positive number:', id);
+      return null;
+    }
+
     const apiHost = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const url = `${apiHost}/api/hospitals/${id}/profile`;
     
@@ -162,6 +169,13 @@ async function getHospitalDetailsById(id: string): Promise<HospitalDetailsRespon
       return null;
     }
 
+    // Additional validation: ensure ID is a valid number
+    const numId = Number(id);
+    if (!Number.isFinite(numId) || numId <= 0) {
+      console.warn('Hospital ID must be a positive number:', id);
+      return null;
+    }
+
     const apiHost = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const url = `${apiHost}/api/hospitals/${id}`;
     
@@ -197,8 +211,8 @@ async function getHospitalDetailsById(id: string): Promise<HospitalDetailsRespon
 // Removed slug-to-ID resolution to avoid extra SSR fetches;
 // rely on middleware/path structure to pass the correct id.
 
-export default async function HospitalSitePage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function HospitalSitePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const resolvedId = id;
   
   // Early validation of ID
@@ -209,6 +223,26 @@ export default async function HospitalSitePage({ params }: { params: { id: strin
           <div className="text-6xl mb-4">❌</div>
           <h1 className="text-4xl font-bold text-gray-800 mb-4">Invalid Hospital ID</h1>
           <p className="text-gray-600 mb-6">The hospital ID provided is invalid or missing.</p>
+          <a
+            href="/"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200"
+          >
+            Return to Homepage
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Additional numeric validation
+  const numId = Number(resolvedId);
+  if (!Number.isFinite(numId) || numId <= 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🔢</div>
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">Invalid Hospital ID</h1>
+          <p className="text-gray-600 mb-6">Hospital ID must be a positive number. Received: {resolvedId}</p>
           <a
             href="/"
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200"

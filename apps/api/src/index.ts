@@ -43,7 +43,31 @@ async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
   return cachedDoctors;
 }
 
-const SEARCH_CACHE_MS = 10 * 1000; // cache identical queries for 10s
+// Hospital caching for better performance
+const HOSPITALS_CACHE_MS = 120 * 1000; // refresh hospital list every 2 minutes
+let cachedHospitals: any[] = [];
+let lastHospitalsFetch = 0;
+async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]> {
+  const now = Date.now();
+  if (cachedHospitals.length && (now - lastHospitalsFetch) < HOSPITALS_CACHE_MS) {
+    return cachedHospitals;
+  }
+  const hospitals = await prismaClient.hospital.findMany({
+    include: { 
+      profile: true,
+      _count: {
+        select: {
+          doctors: true
+        }
+      }
+    },
+  });
+  cachedHospitals = hospitals;
+  lastHospitalsFetch = now;
+  return cachedHospitals;
+}
+
+const SEARCH_CACHE_MS = 30 * 1000; // cache identical queries for 30s (increased from 10s)
 const searchCache = new Map<string, { ts: number; result: any }>();
 
 function dayWindowUtc(dateStr: string) {
@@ -115,7 +139,8 @@ io.on('connection', (socket) => {
 // ⚙️ MIDDLEWARE SETUP - Functions that run before your routes
 // ============================================================================
 app.use(cors());                                           // Allow cross-origin requests (frontend ↔ backend)
-app.use(express.json());                                   // Parse JSON request bodies
+app.use(express.json({ limit: '50mb' }));                   // Parse JSON request bodies with increased limit
+app.use(express.urlencoded({ limit: '50mb', extended: true })); // Parse URL-encoded bodies with increased limit
 
 // Static file serving for uploads (logos, photos)
 const uploadsDir = path.resolve(__dirname, '../uploads');
@@ -290,7 +315,21 @@ const storage = multer.diskStorage({
   destination: (req: Request, file: any, cb: any) => cb(null, uploadsDir),
   filename: (req: Request, file: any, cb: any) => cb(null, `${Date.now()}-${file.originalname}`)
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fieldSize: 10 * 1024 * 1024, // 10MB limit for form fields
+  },
+  fileFilter: (req: Request, file: any, cb: any) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 // ============================================================================
 // 👤 USER REGISTRATION ENDPOINT - Creates new user accounts
@@ -2553,20 +2592,14 @@ app.get('/api/hospitals', async (req: Request, res: Response) => {
     const page = parseInt(String(req.query.page ?? '1'), 10);
     const limit = parseInt(String(req.query.limit ?? '12'), 10);
     const skip = (page - 1) * limit;
-    const hospitals = await prisma.hospital.findMany({
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        city: true,
-        state: true,
-        phone: true,
-      }
-    });
-    res.status(200).json(hospitals);
+
+    // Use cached hospital data for better performance
+    const allHospitals = await getHospitalCandidates(prisma);
+    
+    // Apply pagination to cached data
+    const paginatedHospitals = allHospitals.slice(skip, skip + limit);
+    
+    res.status(200).json(paginatedHospitals);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while fetching hospitals.' });
