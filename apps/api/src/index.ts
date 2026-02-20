@@ -56,8 +56,9 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
   console.log(`🔄 Fetching fresh hospitals from database...`);
   const hospitals = await prismaClient.hospital.findMany({
     include: {
-      doctors: true
-    }
+      doctors: true,
+    },
+    orderBy: { createdAt: 'desc' },
   });
   cachedHospitals = hospitals;
   lastHospitalsFetch = now;
@@ -2699,11 +2700,10 @@ app.patch('/api/hospitals/:hospitalId/subdomain', authMiddleware, async (req: Re
 app.get('/api/hospitals', async (req: Request, res: Response) => {
   try {
     const page = parseInt(String(req.query.page ?? '1'), 10);
-    const limit = parseInt(String(req.query.limit ?? '12'), 10);
-    const skip = (page - 1) * limit;
-
-    // Use cached hospital data for better performance
+    const limitParam = String(req.query.limit ?? '12');
     const allHospitals = await getHospitalCandidates(prisma);
+    const limit = limitParam.toLowerCase() === 'all' ? allHospitals.length : parseInt(limitParam, 10);
+    const skip = (page - 1) * limit;
     
     // Apply pagination to cached data
     const paginatedHospitals = allHospitals.slice(skip, skip + limit);
