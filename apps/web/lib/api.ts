@@ -256,7 +256,8 @@ class ApiClient {
       // ============================================================================
       // 🔗 URL CONSTRUCTION - Build the full URL for the request
       // ============================================================================
-      const url = `${this.baseURL}${endpoint}`;
+      const primaryUrl = `${this.baseURL}${endpoint}`;
+      const fallbackUrl = endpoint; // relative URL fallback to current origin
       
       // ============================================================================
       // 📨 HEADER PREPARATION - Set up request headers
@@ -276,10 +277,23 @@ class ApiClient {
       // ============================================================================
       // 🌐 HTTP REQUEST - Make the actual request to the server
       // ============================================================================
-      const response = await fetch(url, {
-        ...options,                                         // Include all provided options
-        headers,                                            // Use prepared headers
-      });
+      let response: Response;
+      try {
+        response = await fetch(primaryUrl, {
+          ...options,
+          headers,
+        });
+      } catch (networkErr: any) {
+        // Network failure (CORS redirect, DNS, etc.). Try relative URL as fallback.
+        if (this.baseURL && this.baseURL.startsWith('http')) {
+          response = await fetch(fallbackUrl, {
+            ...options,
+            headers,
+          });
+        } else {
+          throw networkErr;
+        }
+      }
 
       if (!response.ok) {
         let message = 'Request failed';
@@ -301,7 +315,8 @@ class ApiClient {
             message = 'Your session has expired. Please log in again.';
           }
         }
-        throw new Error(message);
+        const detail = `${message} (url=${response.url || primaryUrl})`;
+        throw new Error(detail);
       }
 
       // Parse JSON response if possible
@@ -310,8 +325,12 @@ class ApiClient {
       } catch (_) {
         return undefined as unknown as T;                   // Some endpoints may not return JSON
       }
-    } catch (error) {
-      throw error;                                          // Propagate error for calling function to handle
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      const enriched = msg.includes('Failed to fetch')
+        ? `${msg}. Please check API URL and CORS. Attempted: base="${this.baseURL}" endpoint="${endpoint}"`
+        : msg;
+      throw new Error(enriched);
     }
   }
 
