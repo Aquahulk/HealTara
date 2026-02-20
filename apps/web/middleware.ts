@@ -39,6 +39,14 @@ export async function middleware(req: NextRequest) {
 
     try {
       const apiHost = process.env.NEXT_PUBLIC_API_URL || req.nextUrl.origin;
+      // First prefer explicit hospital subdomain mapping
+      const sresp = await fetch(`${apiHost}/api/hospitals/subdomain/${sub}`, { cache: 'no-store' });
+      if (sresp.ok) {
+        const data = await sresp.json();
+        const target = `/hospital-site/${data.id}${url.pathname}`;
+        console.log(`Rewriting hospital (custom subdomain) "${sub}" -> "${target}"`);
+        return NextResponse.rewrite(new URL(target, req.url));
+      }
       const resp = await fetch(`${apiHost}/api/hospitals/slug/${sub}`, { cache: 'no-store' });
       if (resp.ok) {
         const target = `/site/${sub}${url.pathname}`;

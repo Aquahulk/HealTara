@@ -98,6 +98,7 @@ model Appointment {
 model Hospital {
   id          Int              @id @default(autoincrement())
   name        String
+  subdomain   String?          @unique
   address     String?
   city        String?
   state       String?

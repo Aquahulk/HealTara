@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
-import { hospitalMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName } from '@/lib/subdomain';
+import { hospitalMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
 import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import { apiClient } from '@/lib/api';
 
@@ -96,7 +96,12 @@ export default function HospitalsPage() {
                           try {
                             if (shouldUseSubdomainNav()) {
                               e.preventDefault();
-                              window.location.href = hospitalIdMicrositeUrl(h.id);
+                              const sub = (h as any).subdomain as string | undefined;
+                              if (sub && sub.length > 1) {
+                                window.location.href = customSubdomainUrl(sub);
+                              } else {
+                                window.location.href = hospitalIdMicrositeUrl(h.id);
+                              }
                             }
                           } catch {}
                         }}

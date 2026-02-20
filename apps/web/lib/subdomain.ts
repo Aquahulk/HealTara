@@ -52,6 +52,12 @@ export function hospitalIdMicrositeUrl(id: string | number): string {
   return buildUrl(`hospital-${String(id)}`);
 }
 
+// Use an explicitly assigned custom subdomain
+export function customSubdomainUrl(sub: string): string {
+  const s = (sub || '').toLowerCase().trim();
+  return buildUrl(s);
+}
+
 // Determine whether to navigate via subdomain microsites.
 // Disabled on localhost to avoid lvh.me redirects being blocked by wallet extensions.
 export function shouldUseSubdomainNav(): boolean {

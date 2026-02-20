@@ -103,6 +103,9 @@ export default function HospitalAdminProfilePage() {
   const [newDepartment, setNewDepartment] = useState<{ name: string; description?: string }>({ name: '', description: '' });
   const [newDoctor, setNewDoctor] = useState<{ name: string; primarySpecialty?: string; subSpecialty?: string; departmentName?: string }>({ name: '', primarySpecialty: '', subSpecialty: '', departmentName: '' });
   const isHospitalAdmin = user?.role === "HOSPITAL_ADMIN";
+  const [subdomain, setSubdomain] = useState<string>('');
+  const [subdomainChecking, setSubdomainChecking] = useState<boolean>(false);
+  const [subdomainError, setSubdomainError] = useState<string>('');
 
   useEffect(() => {
     if (loading) return;
@@ -124,6 +127,7 @@ export default function HospitalAdminProfilePage() {
         ]);
         if (profRes) setProfile(profRes as HospitalProfile);
         if (details?.doctors) setLinkedDoctors(details.doctors || []);
+        if (details?.subdomain) setSubdomain(details.subdomain);
       } catch (e: any) {
         setMessage(e?.message || "Failed to load hospital profile.");
       }
@@ -192,6 +196,53 @@ export default function HospitalAdminProfilePage() {
       list.splice(idx, 1);
       return { ...prev, departments: list };
     });
+  };
+
+  const validateSubdomainFormat = (s: string) => {
+    const v = (s || '').toLowerCase().trim();
+    if (!v) return '';
+    if (v.length < 2 || v.length > 63) return 'Must be 2-63 characters';
+    if (!/^[a-z0-9-]+$/.test(v)) return 'Only lowercase letters, numbers, and -';
+    if (v.startsWith('-') || v.endsWith('-')) return 'Cannot start or end with -';
+    const reserved = new Set(['www','api','admin','doctor','doctors','hospital','hospitals']);
+    if (reserved.has(v)) return 'Reserved subdomain';
+    return '';
+  };
+
+  const checkAvailability = async (name: string) => {
+    const err = validateSubdomainFormat(name);
+    setSubdomainError(err);
+    if (err || !name) return;
+    setSubdomainChecking(true);
+    try {
+      const r = await apiClient.isHospitalSubdomainAvailable(name);
+      setSubdomainError(r.available ? '' : 'Subdomain already taken');
+    } catch (e: any) {
+      setSubdomainError(e?.message || 'Check failed');
+    } finally {
+      setSubdomainChecking(false);
+    }
+  };
+
+  const saveSubdomain = async () => {
+    if (!hospitalId) {
+      setMessage('Create your hospital first.');
+      return;
+    }
+    const err = validateSubdomainFormat(subdomain);
+    if (err) {
+      setSubdomainError(err);
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiClient.setHospitalSubdomain(hospitalId, subdomain);
+      setMessage('Subdomain saved');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to save subdomain');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addListItem = (idx: number, field: "services" | "conditions" | "equipment" | "photos" | "videos", value: string) => {
@@ -579,6 +630,35 @@ export default function HospitalAdminProfilePage() {
             <input className="border rounded p-2" placeholder="Full Legal Name" value={profile.general?.legalName || ""} onChange={(e) => updateGeneralField("legalName", e.target.value)} />
             <input className="border rounded p-2" placeholder="Brand Name" value={profile.general?.brandName || ""} onChange={(e) => updateGeneralField("brandName", e.target.value)} />
             <input className="border rounded p-2" placeholder="Tagline" value={profile.general?.tagline || ""} onChange={(e) => updateGeneralField("tagline", e.target.value)} />
+            {/* Microsite Subdomain */}
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Microsite Subdomain</label>
+                <div className="flex items-center">
+                  <input
+                    className="border rounded p-2 w-full"
+                    placeholder="example (for example.healtara.com)"
+                    value={subdomain}
+                    onChange={(e) => {
+                      const v = e.target.value.toLowerCase().trim();
+                      setSubdomain(v);
+                    }}
+                    onBlur={() => checkAvailability(subdomain)}
+                  />
+                  <span className="ml-2 text-gray-600">.healtara.com</span>
+                </div>
+                {subdomainChecking && <p className="text-sm text-gray-500 mt-1">Checking availability…</p>}
+                {subdomainError && <p className="text-sm text-red-600 mt-1">{subdomainError}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={saveSubdomain}
+                disabled={!!subdomainError || subdomainChecking || !hospitalId}
+                className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+              >
+                Save Subdomain
+              </button>
+            </div>
             <div className="space-y-2">
               <input className="border rounded p-2 w-full" placeholder="Logo URL" value={profile.general?.logoUrl || ""} onChange={(e) => updateGeneralField("logoUrl", e.target.value)} />
               <div className="flex items-center gap-2">

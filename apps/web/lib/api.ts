@@ -465,6 +465,18 @@ class ApiClient {
     });
   }
 
+  // --- Hospital subdomain management ---
+  async isHospitalSubdomainAvailable(name: string): Promise<{ available: boolean; message?: string }> {
+    return this.request(`/api/hospitals/subdomain-available/${encodeURIComponent(name)}`);
+  }
+
+  async setHospitalSubdomain(hospitalId: number, subdomain: string): Promise<{ id: number; subdomain: string | null }> {
+    return this.request(`/api/hospitals/${hospitalId}/subdomain`, {
+      method: 'PATCH',
+      body: JSON.stringify({ subdomain }),
+    });
+  }
+
   async uploadHospitalLogo(hospitalId: number, file: File): Promise<{ url: string }> {
     return this.uploadFile(`/api/hospitals/${hospitalId}/logo`, file, 'logo');
   }
@@ -494,7 +506,7 @@ class ApiClient {
     });
   }
 
-  async getHospitalByDoctorId(doctorId: number): Promise<{ id: number; name?: string; address?: string; city?: string; state?: string; phone?: string }> {
+  async getHospitalByDoctorId(doctorId: number): Promise<{ id: number; name?: string; address?: string; city?: string; state?: string; phone?: string; subdomain?: string | null }> {
     return this.request(`/api/hospitals/by-doctor/${doctorId}`);
   }
 

@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName } from '@/lib/subdomain';
+import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -869,7 +869,12 @@ export default function HomePage() {
                               try {
                                 if (shouldUseSubdomainNav()) {
                                   e.preventDefault();
-                                  window.location.href = hospitalIdMicrositeUrl(hospital.id);
+                                  const sub = (hospital as any).subdomain as string | undefined;
+                                  if (sub && sub.length > 1) {
+                                    window.location.href = customSubdomainUrl(sub);
+                                  } else {
+                                    window.location.href = hospitalIdMicrositeUrl(hospital.id);
+                                  }
                                 }
                               } catch {}
                             }}

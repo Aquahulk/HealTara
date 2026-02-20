@@ -2624,6 +2624,77 @@ app.get('/api/debug/hospitals', async (req: Request, res: Response) => {
   }
 });
 
+// --- Subdomain utilities and endpoints ---
+const RESERVED_SUBDOMAINS = new Set(['www','api','admin','doctor','doctors','hospital','hospitals']);
+function normalizeSubdomain(s: string): string {
+  return String(s || '').toLowerCase().trim();
+}
+function isValidSubdomain(s: string): boolean {
+  const v = normalizeSubdomain(s);
+  if (!v) return false;
+  if (RESERVED_SUBDOMAINS.has(v)) return false;
+  if (v.length < 2 || v.length > 63) return false;
+  if (!/^[a-z0-9-]+$/.test(v)) return false;
+  if (v.startsWith('-') || v.endsWith('-')) return false;
+  return true;
+}
+
+// Check availability
+app.get('/api/hospitals/subdomain-available/:name', async (req: Request, res: Response) => {
+  const raw = String(req.params.name || '').toLowerCase();
+  if (!isValidSubdomain(raw)) {
+    return res.status(400).json({ available: false, message: 'Invalid subdomain format' });
+  }
+  const existing = await prisma.hospital.findFirst({ where: { subdomain: raw }, select: { id: true } });
+  return res.status(200).json({ available: !existing });
+});
+
+// Resolve hospital by subdomain
+app.get('/api/hospitals/subdomain/:name', async (req: Request, res: Response) => {
+  const raw = String(req.params.name || '').toLowerCase();
+  const item = await prisma.hospital.findFirst({ where: { subdomain: raw }, select: { id: true, name: true, subdomain: true } });
+  if (!item) return res.status(404).json({ message: 'Hospital not found' });
+  return res.status(200).json(item);
+});
+
+// Set/update hospital subdomain
+app.patch('/api/hospitals/:hospitalId/subdomain', authMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  const desired = normalizeSubdomain((req.body || {}).subdomain);
+
+  try {
+    const user = req.user!;
+    // Authorization: admin or owning hospital admin / managedHospitalId
+    let authorized = user.role === 'ADMIN';
+    if (!authorized && user.role === 'HOSPITAL_ADMIN') {
+      const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId }, select: { adminId: true } });
+      if (hospital?.adminId === user.userId) authorized = true;
+      if (!authorized) {
+        const me = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedHospitalId: true } });
+        if (me?.managedHospitalId === hospitalId) authorized = true;
+      }
+    }
+    if (!authorized) return res.status(403).json({ message: 'Forbidden' });
+
+    if (desired && !isValidSubdomain(desired)) {
+      return res.status(400).json({ message: 'Invalid subdomain. Use a-z, 0-9, - only.' });
+    }
+    if (desired) {
+      const existing = await prisma.hospital.findFirst({ where: { subdomain: desired, NOT: { id: hospitalId } }, select: { id: true } });
+      if (existing) return res.status(409).json({ message: 'Subdomain already taken' });
+    }
+    const updated = await prisma.hospital.update({ where: { id: hospitalId }, data: { subdomain: desired || null }, select: { id: true, subdomain: true } });
+    cachedHospitals = [];
+    lastHospitalsFetch = 0;
+    await prisma.adminAuditLog.create({ data: { adminId: user.userId, action: 'SET_HOSPITAL_SUBDOMAIN', entityType: 'Hospital', entityId: hospitalId, details: desired || '' } }).catch(() => {});
+    return res.status(200).json(updated);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ message: 'Failed to set subdomain' });
+  }
+});
+
 // --- Hospital Endpoints (Public) ---
 app.get('/api/hospitals', async (req: Request, res: Response) => {
   try {
@@ -2761,6 +2832,7 @@ app.get('/api/hospitals/:hospitalId/details', async (req: Request, res: Response
         city: true,
         state: true,
         phone: true,
+        subdomain: true,
         profile: true,
       }
     });
@@ -3424,6 +3496,7 @@ app.get('/api/hospitals/by-doctor/:doctorId', async (req: Request, res: Response
             city: true,
             state: true,
             phone: true,
+            subdomain: true,
           }
         }
       }
