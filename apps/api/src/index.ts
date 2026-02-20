@@ -2587,6 +2587,8 @@ app.post('/api/hospitals', authMiddleware, async (req: Request, res: Response) =
       data: { name: name.trim(), address, city, state, phone, adminId: user.userId },
       select: { id: true }
     });
+    cachedHospitals = [];
+    lastHospitalsFetch = 0;
     // Audit log for traceability
     await prisma.adminAuditLog.create({ data: { adminId: user.userId, action: 'CREATE_HOSPITAL', entityType: 'Hospital', entityId: created.id } });
     return res.status(201).json({ id: created.id });

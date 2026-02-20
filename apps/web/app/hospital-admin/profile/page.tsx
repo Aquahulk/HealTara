@@ -448,6 +448,12 @@ export default function HospitalAdminProfilePage() {
       const hospital = await apiClient.createHospital(createHospitalForm);
       setHospitalId(hospital.id);
       setMessage("Hospital created. You can now save the profile.");
+      try {
+        const perf = await import('@/lib/performance');
+        if (perf && typeof perf.CacheManager?.clear === 'function') {
+          perf.CacheManager.clear('homepage_hospitals');
+        }
+      } catch {}
     } catch (e: any) {
       setMessage(e?.message || "Failed to create hospital.");
     } finally {
