@@ -2613,9 +2613,12 @@ app.get('/api/debug/hospitals', async (req: Request, res: Response) => {
         hasProfile: !!h.profile
       }))
     });
-  } catch (error) {
-    console.error('Debug endpoint error:', error);
-    res.status(500).json({ message: 'Debug failed', error: error.message });
+  } catch (err: any) {
+    console.error('Debug endpoint error:', err);
+    res.status(500).json({ 
+      message: 'Debug failed', 
+      error: err && err.message ? String(err.message) : String(err) 
+    });
   }
 });
 
@@ -2633,8 +2636,8 @@ app.get('/api/hospitals', async (req: Request, res: Response) => {
     const paginatedHospitals = allHospitals.slice(skip, skip + limit);
     
     res.status(200).json(paginatedHospitals);
-  } catch (error) {
-    console.error(error);
+  } catch (err: any) {
+    console.error(err);
     res.status(500).json({ message: 'An error occurred while fetching hospitals.' });
   }
 });
@@ -2653,8 +2656,8 @@ app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response)
     const match = items.find((h: { id: number; name: string; profile: any | null }) => slugifyHospitalName(h.name) === slug);
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
     return res.status(200).json({ hospitalId: match.id, name: match.name, profile: match.profile ?? null });
-  } catch (error) {
-    console.error(error);
+  } catch (err: any) {
+    console.error(err);
     return res.status(500).json({ message: 'An error occurred while resolving hospital by slug.' });
   }
 });
