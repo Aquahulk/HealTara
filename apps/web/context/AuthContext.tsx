@@ -63,12 +63,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // ============================================================================
     // 🔍 INITIAL AUTH CHECK - Check if user is already logged in when app starts
     // ============================================================================
+    const readCookie = (name: string): string | null => {
+      if (typeof document === 'undefined') return null;
+      const cookies = document.cookie ? document.cookie.split('; ') : [];
+      for (const c of cookies) {
+        const [k, ...v] = c.split('=');
+        if (k === name) return decodeURIComponent(v.join('='));
+      }
+      return null;
+    };
+
     const checkAuthStatus = () => {
       try {
-        // ============================================================================
-        // 🎫 TOKEN RETRIEVAL - Get stored token from localStorage
-        // ============================================================================
-        const token = localStorage.getItem('authToken');
+        // =========================================================================
+        // 🎫 TOKEN RETRIEVAL - Get stored token (cookie preferred, fallback localStorage)
+        // =========================================================================
+        const token = readCookie('authToken') || localStorage.getItem('authToken');
         
         if (token) {
           // ============================================================================

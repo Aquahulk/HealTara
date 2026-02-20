@@ -147,25 +147,82 @@ class ApiClient {
   // 🎫 TOKEN MANAGEMENT - Functions to handle authentication tokens
   // ============================================================================
   
-  // Get token from browser's localStorage
+  // Cookie helpers for cross-subdomain auth
+  private getPrimaryDomainForCookie(): string | null {
+    try {
+      const env = (process.env.NEXT_PUBLIC_PRIMARY_DOMAIN || '').trim();
+      if (env) return env.startsWith('.') ? env : `.${env}`;
+      if (typeof window !== 'undefined') {
+        const host = window.location.hostname.toLowerCase();
+        if (host === 'localhost' || host === '127.0.0.1') return null; // don't set domain for localhost
+        const parts = host.split('.');
+        if (parts.length >= 2) {
+          const base = parts.slice(parts.length - 2).join('.');
+          return `.${base}`;
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  private readCookie(name: string): string | null {
+    if (typeof document === 'undefined') return null;
+    const cookies = document.cookie ? document.cookie.split('; ') : [];
+    for (const c of cookies) {
+      const [k, ...v] = c.split('=');
+      if (k === name) return decodeURIComponent(v.join('='));
+    }
+    return null;
+  }
+
+  private writeCookie(name: string, value: string, maxAgeSeconds: number = 60 * 60 * 24 * 7) {
+    if (typeof document === 'undefined') return;
+    const domain = this.getPrimaryDomainForCookie();
+    const attrs = [
+      `${name}=${encodeURIComponent(value)}`,
+      'Path=/',
+      `Max-Age=${maxAgeSeconds}`,
+    ];
+    if (domain) attrs.push(`Domain=${domain}`, 'Secure');
+    attrs.push('SameSite=Lax');
+    document.cookie = attrs.join('; ');
+  }
+
+  private deleteCookie(name: string) {
+    if (typeof document === 'undefined') return;
+    const domain = this.getPrimaryDomainForCookie();
+    const attrs = [
+      `${name}=; Path=/; Max-Age=0`,
+    ];
+    if (domain) attrs.push(`Domain=${domain}`, 'Secure');
+    attrs.push('SameSite=Lax');
+    document.cookie = attrs.join('; ');
+  }
+
+  // Get token from storage (cookie preferred for cross-subdomain; fallback to localStorage)
   private getStoredToken(): string | null {
-    if (typeof window !== 'undefined') {                    // Check if we're in a browser environment
-      return localStorage.getItem('authToken');              // Retrieve token from localStorage
+    if (typeof window !== 'undefined') {
+      const fromCookie = this.readCookie('authToken');
+      if (fromCookie) return fromCookie;
+      const fromLS = localStorage.getItem('authToken');
+      return fromLS;
     }
-    return null;                                            // Return null if not in browser
+    return null;
   }
 
-  // Save token to browser's localStorage
+  // Save token to storage (cookie + localStorage for backward compatibility)
   private setStoredToken(token: string): void {
-    if (typeof window !== 'undefined') {                    // Check if we're in a browser environment
-      localStorage.setItem('authToken', token);              // Store token in localStorage
+    if (typeof window !== 'undefined') {
+      try { this.writeCookie('authToken', token); } catch {}
+      try { localStorage.setItem('authToken', token); } catch {}
     }
   }
 
-  // Remove token from browser's localStorage
+  // Remove token from storage
   private removeStoredToken(): void {
-    if (typeof window !== 'undefined') {                    // Check if we're in a browser environment
-      localStorage.removeItem('authToken');                  // Remove token from localStorage
+    if (typeof window !== 'undefined') {
+      try { this.deleteCookie('authToken'); } catch {}
+      try { localStorage.removeItem('authToken'); } catch {}
     }
   }
 
