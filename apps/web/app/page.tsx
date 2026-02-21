@@ -68,6 +68,17 @@ export default function HomePage() {
   const [isOnline, setIsOnline] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [activeGrid, setActiveGrid] = useState<'doctors' | 'hospitals'>('hospitals');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Ultra-optimized data loading with performance monitoring
   useEffect(() => {
@@ -317,23 +328,23 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50 to-blue-50 overflow-x-hidden">
       <Header />
       
-      <main className="pt-10">
+      <main className="pt-10 overflow-x-hidden">
         {/* ============================================================================
             🌟 HERO SECTION - Main landing area with search (BLUE GRADIENT)
             ============================================================================ */}
-        <section className="relative py-16 px-4 overflow-visible bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500">
+        <section className="relative py-8 md:py-16 px-4 overflow-visible bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 max-h-[60vh] md:max-h-none">
           {/* Enhanced Background Pattern */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-blue-500/95 to-cyan-500/90" />
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.1%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
           
-          {/* Floating Medical Icons */}
+          {/* Floating Medical Icons - Hidden on mobile */}
           <motion.div
             animate={{ y: [0, -20, 0], rotate: [0, 5, 0] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-20 left-20 text-4xl opacity-30"
+            className="hidden md:block absolute top-20 left-20 text-4xl opacity-30"
           >
             <Stethoscope className="text-white" />
           </motion.div>
@@ -341,7 +352,7 @@ export default function HomePage() {
           <motion.div
             animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="absolute top-32 right-32 text-3xl opacity-25"
+            className="hidden md:block absolute top-32 right-32 text-3xl opacity-25"
           >
             <Pill className="text-white" />
           </motion.div>
@@ -352,14 +363,14 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight drop-shadow-lg">
+              <h1 className="text-2xl md:text-4xl lg:text-6xl font-black text-white mb-4 md:mb-6 leading-tight drop-shadow-lg">
                 Find Trusted Doctors
                 <span className="block bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
                   Near You
                 </span>
               </h1>
               
-              <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-md">
+              <p className="text-base md:text-lg lg:text-xl text-blue-100 mb-4 md:mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-md">
                 Book in seconds. Get the best healthcare with our verified network of doctors and hospitals.
               </p>
             </motion.div>
@@ -369,13 +380,13 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="max-w-4xl mx-auto mb-8"
+              className="max-w-4xl mx-auto mb-4 md:mb-8"
             >
-              <div className="bg-white/95 backdrop-blur-sm border border-white/20 rounded-3xl p-8 shadow-2xl">
-                <div className="space-y-6">
+              <div className="bg-white/95 backdrop-blur-sm border border-white/20 rounded-2xl md:rounded-3xl p-4 md:p-8 shadow-2xl">
+                <div className="space-y-4 md:space-y-6">
                   {/* Main Search */}
                   <div className="relative z-30">
-                    <Search className="absolute left-6 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
+                    <Search className="absolute left-4 md:left-6 top-1/2 transform -translate-y-1/2 w-5 h-5 md:w-6 md:h-6 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search by Doctor / Specialty / Location"
@@ -448,14 +459,14 @@ export default function HomePage() {
                           }
                         }
                       }}
-                      className="w-full pl-16 pr-6 py-3 bg-white border-2 border-gray-200 rounded-2xl text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="w-full pl-12 md:pl-16 pr-4 md:pr-6 py-2.5 md:py-3 bg-white border-2 border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     />
                     {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-lg z-50 max-h-60 overflow-auto">
+                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl shadow-lg z-50 max-h-60 overflow-auto">
                         {suggestions.map((s, i) => (
                           <button
                             key={i}
-                            className="w-full text-left px-4 py-2 text-gray-900 hover:bg-gray-50"
+                            className="w-full text-left px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 hover:bg-gray-50"
                             onMouseDown={(ev) => {
                               const raw = searchQuery;
                               const inputEl = ev.currentTarget.ownerDocument.querySelector('input[type="text"]') as HTMLInputElement | null;
@@ -482,11 +493,11 @@ export default function HomePage() {
                   </div>
 
                   {/* Filters Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
                     <select
                       value={selectedSpecialization}
                       onChange={(e) => setSelectedSpecialization(e.target.value)}
-                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-3 md:px-4 py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-sm md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">Specialization</option>
                       <option value="cardiology">Cardiology</option>
@@ -498,7 +509,7 @@ export default function HomePage() {
                     <select
                       value={selectedCity}
                       onChange={(e) => setSelectedCity(e.target.value)}
-                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-3 md:px-4 py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-sm md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">City/Town</option>
                       <option value="mumbai">Mumbai</option>
@@ -510,7 +521,7 @@ export default function HomePage() {
                     <select
                       value={selectedAvailability}
                       onChange={(e) => setSelectedAvailability(e.target.value)}
-                      className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-3 md:px-4 py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-sm md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">Availability</option>
                       <option value="today">Today</option>
@@ -518,30 +529,30 @@ export default function HomePage() {
                       <option value="week">This Week</option>
                     </select>
 
-                    <label className="flex items-center justify-center px-4 py-3 bg-white border-2 border-gray-200 rounded-xl cursor-pointer hover:bg-emerald-50 transition-all duration-300">
+                    <label className="flex items-center justify-center px-3 md:px-4 py-2.5 md:py-3 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl cursor-pointer hover:bg-emerald-50 transition-all duration-300">
                       <input
                         type="checkbox"
                         checked={isOnline}
                         onChange={(e) => setIsOnline(e.target.checked)}
                         className="mr-2 w-4 h-4 text-emerald-600 focus:ring-emerald-500"
                       />
-                      <span className="text-gray-700 font-medium">Online</span>
+                      <span className="text-sm md:text-base text-gray-700 font-medium">Online</span>
                     </label>
                   </div>
 
-                  <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-4 px-8 rounded-2xl hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-lg">
+                  <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-xl md:rounded-2xl hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-base md:text-lg">
                     Find a Doctor Now
                   </button>
                 </div>
               </div>
             </motion.div>
 
-            {/* Scroll Indicator */}
+            {/* Scroll Indicator - Hidden on mobile */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1 }}
-              className="absolute bottom-8 left-1/2 transform -translate-x-1/2"
+              className="hidden md:block absolute bottom-8 left-1/2 transform -translate-x-1/2"
             >
               <motion.div
                 animate={{ y: [0, 10, 0] }}
@@ -571,7 +582,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
               {categories.map((category, index) => (
                 <motion.div
                   key={index}
@@ -582,12 +593,12 @@ export default function HomePage() {
                   className="group cursor-pointer"
                 >
                   <a href={category.link} className="block">
-                    <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30 hover:border-white/50">
-                      <div className={`w-14 h-14 bg-gradient-to-r ${category.color} rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                        <category.icon className="w-8 h-8 text-white" />
+                    <div className="bg-white/95 backdrop-blur-sm rounded-2xl md:rounded-3xl p-4 md:p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30 hover:border-white/50">
+                      <div className={`w-12 h-12 md:w-14 md:h-14 bg-gradient-to-r ${category.color} rounded-xl md:rounded-2xl flex items-center justify-center mx-auto mb-3 md:mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                        <category.icon className="w-6 h-6 md:w-8 md:h-8 text-white" />
                       </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{category.title}</h3>
-                      <p className="text-gray-600">{category.description}</p>
+                      <h3 className="text-base md:text-xl font-bold text-gray-900 mb-1 md:mb-2">{category.title}</h3>
+                      <p className="text-xs md:text-base text-gray-600">{category.description}</p>
                     </div>
                   </a>
                 </motion.div>
@@ -662,8 +673,8 @@ export default function HomePage() {
               })()}
             </div>
 
-            {/* Vertical Doctor Cards - One per row */}
-            <div className="space-y-6">
+            {/* Vertical Doctor Cards - Compact mobile-friendly design */}
+            <div className="space-y-4">
               {filteredDoctors.map((doctor, index) => (
                 <motion.div 
                   key={doctor.id}
@@ -672,61 +683,66 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.01 }}
                 >
-                  <div className="group bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-white/30 w-full">
-                    <div className="flex items-center justify-between">
+                  <div className="group bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 border border-white/30 w-full">
+                    {/* Mobile: Stack vertically, Desktop: Horizontal layout */}
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       {/* Doctor Info */}
-                      <div className="flex items-center flex-1">
-                        <div className="w-14 h-14 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl mr-6 overflow-hidden">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        {/* Avatar - Smaller on mobile */}
+                        <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden">
                           {doctor.doctorProfile?.profileImage ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={doctor.doctorProfile.profileImage}
                               alt={doctor.email.split('@')[0]}
-                              className="w-14 h-14 object-cover"
+                              className="w-full h-full object-cover"
                             />
                           ) : (
-                            <span role="img" aria-label="doctor">👨‍⚕️</span>
+                            <span role="img" aria-label="doctor" className="text-xl">👨‍⚕️</span>
                           )}
                         </div>
-                        <div className="flex-1">
-                          <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                        
+                        {/* Doctor Details */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1 truncate">
                             Dr. {doctor.email.split('@')[0]}
                           </h3>
-                          <p className="text-emerald-600 font-semibold text-lg mb-3">
+                          <p className="text-emerald-600 font-semibold text-sm md:text-base mb-2 truncate">
                             {doctor.doctorProfile?.specialization || 'General Practitioner'}
                           </p>
                           
-                          <div className="flex flex-wrap gap-8">
+                          {/* Info badges - Wrap on mobile */}
+                          <div className="flex flex-wrap gap-3 text-xs md:text-sm">
                             {doctor.doctorProfile?.city && (
                               <div className="flex items-center text-gray-600">
-                                <MapPin className="w-6 h-6 text-emerald-500 mr-3" />
-                                <span className="text-base">{doctor.doctorProfile.city}, {doctor.doctorProfile.state}</span>
+                                <MapPin className="w-4 h-4 text-emerald-500 mr-1" />
+                                <span className="truncate">{doctor.doctorProfile.city}</span>
                               </div>
                             )}
                             
                             {doctor.doctorProfile?.experience && (
                               <div className="flex items-center text-gray-600">
-                                <Clock className="w-6 h-6 text-blue-500 mr-3" />
-                                <span className="text-base">{doctor.doctorProfile.experience}+ Years Experience</span>
+                                <Clock className="w-4 h-4 text-blue-500 mr-1" />
+                                <span>{doctor.doctorProfile.experience}+ Yrs</span>
                               </div>
                             )}
                             
                             {doctor.doctorProfile?.consultationFee && (
                               <div className="flex items-center text-gray-600">
-                                <DollarSign className="w-6 h-6 text-green-500 mr-3" />
-                                <span className="text-base">₹{doctor.doctorProfile.consultationFee}</span>
+                                <DollarSign className="w-4 h-4 text-green-500 mr-1" />
+                                <span>₹{doctor.doctorProfile.consultationFee}</span>
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Book Button */}
-                      <div className="ml-8 flex items-center gap-3">
+                      {/* Action Buttons - Stack on mobile, horizontal on desktop */}
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:ml-4">
                         {doctor.doctorProfile?.slug ? (
                           <Link
                             href={`/doctor-site/${doctor.doctorProfile.slug}`}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
+                            className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-2 px-4 rounded-xl transition-all text-center text-sm md:text-base min-h-[44px] flex items-center justify-center whitespace-nowrap"
                             onClick={(e) => {
                               if (shouldUseSubdomainNav()) {
                                 e.preventDefault();
@@ -741,7 +757,7 @@ export default function HomePage() {
                           </Link>
                         ) : doctor.managedHospitalId != null ? (
                           <button
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
+                            className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-2 px-4 rounded-xl transition-all text-sm md:text-base min-h-[44px] whitespace-nowrap"
                             onClick={() => {
                               import('@/lib/api').then(({ apiClient }) => {
                                 apiClient
@@ -763,9 +779,7 @@ export default function HomePage() {
                                       }
                                     }
                                   })
-                                  .catch(() => {
-                                    // silently ignore if no hospital link
-                                  });
+                                  .catch(() => {});
                               });
                             }}
                           >
@@ -774,9 +788,9 @@ export default function HomePage() {
                         ) : null}
                         <button 
                           onClick={() => handleBookAppointment(doctor)}
-                          className="btn-brand font-bold py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg min-w-[160px] text-base"
+                          className="btn-brand font-bold py-2 px-4 rounded-xl transition-all text-sm md:text-base min-h-[44px] whitespace-nowrap"
                         >
-                          Book Appointment
+                          Book Now
                         </button>
                       </div>
                     </div>
@@ -806,9 +820,9 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Mobile-Friendly Hospital Cards - One per row on desktop, two per row on mobile */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
-              {hospitals.slice(0, 6).map((hospital, index) => {
+            {/* Compact Hospital Cards */}
+            <div className="grid grid-cols-2 gap-4">
+              {hospitals.map((hospital, index) => {
                 const name = hospital.name || '';
                 const location = hospital.address ? `${hospital.city || ''}, ${hospital.state || ''}`.trim() : 'Location';
                 
@@ -820,78 +834,73 @@ export default function HomePage() {
                     transition={{ delay: index * 0.1 }}
                     whileHover={{ scale: 1.01 }}
                   >
-                    <div className="group bg-white/95 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-4 border border-white/30 w-full">
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        {/* Hospital Logo - Smaller on mobile */}
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 gradient-brand rounded-xl flex items-center justify-center text-white font-bold text-lg sm:text-xl overflow-hidden">
+                    <div className="group bg-white/95 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 border border-white/30 w-full">
+                      <div className="flex items-center gap-3 mb-3">
+                        {/* Hospital Logo - Compact */}
+                        <div className="w-12 h-12 gradient-brand rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden">
                           {(() => {
                             const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
                             if (logoUrl) {
                               return (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={logoUrl} alt={name} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" />
+                                <img src={logoUrl} alt={name} className="w-full h-full object-contain" />
                               );
                             }
-                            return <span role="img" aria-label="hospital" className="text-lg sm:text-xl">🏥</span>;
+                            return <span role="img" aria-label="hospital" className="text-xl">🏥</span>;
                           })()}
                         </div>
                         
-                        {/* Hospital Info - More compact */}
-                        <div className="flex-1 text-center sm:text-left">
-                          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 sm:mb-2">{name}</h3>
-                          <p className="text-blue-600 font-semibold text-sm sm:text-lg mb-2">Multi-Specialty Hospital</p>
+                        {/* Hospital Info - Compact */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base md:text-lg font-bold text-gray-900 mb-1 truncate">{name}</h3>
+                          <p className="text-blue-600 font-semibold text-xs md:text-sm mb-1 truncate">Multi-Specialty Hospital</p>
                           
-                          {/* Location - Smaller on mobile */}
+                          {/* Location */}
                           {location && (
-                            <div className="flex items-center justify-center sm:justify-start text-gray-600 text-sm sm:text-base">
-                              <MapPin className="w-4 h-4 sm:w-6 sm:h-6 text-blue-500 mr-2" />
-                              <span className="text-xs sm:text-base">{location}</span>
+                            <div className="flex items-center text-gray-600 text-xs">
+                              <MapPin className="w-3 h-3 text-blue-500 mr-1 flex-shrink-0" />
+                              <span className="truncate">{location}</span>
                             </div>
                           )}
-                          
-                          {/* Stats - More compact */}
-                          <div className="flex flex-wrap justify-center sm:justify-start gap-3 sm:gap-4 text-sm sm:text-base">
-                            <div className="flex items-center text-gray-600">
-                              <Building2 className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-500 mr-2" />
-                              <span className="text-xs">{hospital._count?.departments || 0}</span>
-                            </div>
-                            
-                            <div className="flex items-center text-gray-600">
-                              <Users className="w-4 h-4 sm:w-6 sm:h-6 text-green-500 mr-2" />
-                              <span className="text-xs">{hospital._count?.doctors || 0}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Visit Button - Smaller on mobile */}
-                        <div className="mt-3 sm:mt-0 sm:ml-8">
-                          <a
-                            href={`/hospital-site/${hospital.id}`}
-                            className="btn-brand font-bold py-2 px-4 sm:py-3 sm:px-6 rounded-xl sm:rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg block text-center text-sm sm:text-base min-w-[120px] sm:min-w-[160px]"
-                            onClick={(e) => {
-                              try {
-                                if (shouldUseSubdomainNav()) {
-                                  e.preventDefault();
-                                  const sub = (hospital as any).subdomain as string | undefined;
-                                  if (sub && sub.length > 1) {
-                                    // Use window.location.href for cross-domain navigation
-                                    window.location.href = customSubdomainUrl(sub);
-                                  } else {
-                                    // Use slugified name for subdomain routing
-                                    const hospitalSlug = slugifyName(hospital.name);
-                                    window.location.href = hospitalMicrositeUrl(hospitalSlug);
-                                  }
-                                } else {
-                                  // Direct navigation without subdomain routing
-                                  router.push(`/hospital-site/${hospital.id}`);
-                                }
-                              } catch {}
-                            }}
-                          >
-                            Visit
-                          </a>
                         </div>
                       </div>
+                      
+                      {/* Stats - Compact */}
+                      <div className="flex gap-3 mb-3 text-xs">
+                        <div className="flex items-center text-gray-600">
+                          <Building2 className="w-4 h-4 text-emerald-500 mr-1" />
+                          <span>{hospital._count?.departments || 0} Depts</span>
+                        </div>
+                        
+                        <div className="flex items-center text-gray-600">
+                          <Users className="w-4 h-4 text-green-500 mr-1" />
+                          <span>{hospital._count?.doctors || 0} Doctors</span>
+                        </div>
+                      </div>
+
+                      {/* Visit Button - Full width */}
+                      <a
+                        href={`/hospital-site/${hospital.id}`}
+                        className="btn-brand font-bold py-2 px-4 rounded-lg block text-center text-sm min-h-[44px] flex items-center justify-center"
+                        onClick={(e) => {
+                          try {
+                            if (shouldUseSubdomainNav()) {
+                              e.preventDefault();
+                              const sub = (hospital as any).subdomain as string | undefined;
+                              if (sub && sub.length > 1) {
+                                window.location.href = customSubdomainUrl(sub);
+                              } else {
+                                const hospitalSlug = slugifyName(hospital.name);
+                                window.location.href = hospitalMicrositeUrl(hospitalSlug);
+                              }
+                            } else {
+                              router.push(`/hospital-site/${hospital.id}`);
+                            }
+                          } catch {}
+                        }}
+                      >
+                        Visit Hospital
+                      </a>
                     </div>
                   </motion.div>
                 );

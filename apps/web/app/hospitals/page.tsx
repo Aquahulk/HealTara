@@ -37,10 +37,10 @@ export default function HospitalsPage() {
       <div className="min-h-screen bg-gray-50">
         <Header />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-3">Partner Hospitals</h1>
-            <p className="text-lg text-gray-600">Browse verified hospitals and visit their websites</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-20 md:pb-8">{/* Add bottom padding on mobile for nav */}
+          <div className="mb-6 md:mb-8 text-center">
+            <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Partner Hospitals</h1>
+            <p className="text-base md:text-lg text-gray-600">Browse verified hospitals and visit their websites</p>
           </div>
 
           {loading && (
@@ -74,10 +74,10 @@ export default function HospitalsPage() {
           )}
 
           {!loading && !error && hospitals.length > 0 && (
-            <div className="space-y-10">
+            <div className="space-y-6 md:space-y-10">
               <HorizontalHospitalScroll hospitals={hospitals} />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {hospitals.map((h) => {
                   const name = h.name || 'Hospital';
                   const city = h.city || '';
@@ -85,25 +85,25 @@ export default function HospitalsPage() {
                   const location = [city, state].filter(Boolean).join(', ');
                   const logoUrl = h.profile && typeof h.profile === 'object' && 'logoUrl' in h.profile ? (h.profile as any).logoUrl : null;
                   return (
-                    <div key={h.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                      <div className="p-5 flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center">
+                    <div key={h.id} className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                      <div className="p-4 md:p-5 flex items-center gap-3 md:gap-4">
+                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
                           {logoUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={logoUrl} alt={name} className="w-14 h-14 rounded-xl object-cover" />
+                            <img src={logoUrl} alt={name} className="w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl object-cover" />
                           ) : (
-                            <span className="text-2xl">🏥</span>
+                            <span className="text-xl md:text-2xl">🏥</span>
                           )}
                         </div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
-                          <p className="text-sm text-gray-600">{location}</p>
+                        <div className="flex-1 min-w-0">{/* min-w-0 for text truncation */}
+                          <h3 className="text-base md:text-lg font-semibold text-gray-900 truncate">{name}</h3>
+                          <p className="text-sm text-gray-600 truncate">{location}</p>
                         </div>
                       </div>
-                      <div className="p-5 border-t border-gray-200 flex gap-3">
+                      <div className="p-4 md:p-5 border-t border-gray-200 flex gap-3">
                         <a
                           href={`/hospital-site/${h.id}`}
-                          className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
+                          className="flex-1 text-center bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-3 rounded-lg transition-colors min-h-[44px] flex items-center justify-center touch-manipulation"
                           onClick={(e) => {
                             try {
                               if (shouldUseSubdomainNav()) {

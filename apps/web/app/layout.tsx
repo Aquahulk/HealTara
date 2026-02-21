@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext"; // Import the provider
+import { MobileProvider } from "@/context/MobileContext"; // Import mobile provider
 import AppShell from "@/components/AppShell"; // App shell handles header visibility
 
 const inter = Inter({ subsets: ["latin"] });
@@ -17,10 +18,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className="overflow-x-hidden">
+      <body className={`${inter.className} overflow-x-hidden`}>
         <AuthProvider> {/* Wrap children with the provider */}
-          <AppShell>{children}</AppShell>
+          <MobileProvider> {/* Wrap with mobile provider for global mobile state */}
+            <AppShell>{children}</AppShell>
+          </MobileProvider>
         </AuthProvider>
       </body>
     </html>

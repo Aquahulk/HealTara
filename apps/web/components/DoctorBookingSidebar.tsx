@@ -56,9 +56,9 @@ export default function DoctorBookingSidebar({
       {/* Trigger Button */}
       <button 
         onClick={openSidebar}
-        className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 px-8 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+        className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-1.5 px-3 md:py-3 md:px-8 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 text-xs md:text-base"
       >
-        📅 Book Appointment
+        📅 <span className="hidden sm:inline">Book Appointment</span><span className="sm:hidden">Book</span>
       </button>
 
       {/* Sidebar Overlay */}

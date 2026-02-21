@@ -11,6 +11,7 @@ import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
 import EmergencyBookingForm from '@/components/EmergencyBookingForm';
 import HospitalDepartments from '@/components/HospitalDepartments';
 import HospitalDoctorsByDepartment from '@/components/HospitalDoctorsByDepartment';
+import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import Script from 'next/script';
 
 interface HospitalProfileGeneral {
@@ -363,60 +364,60 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
       {/* ============================================================================
           🎨 HERO SECTION - Compact hospital header with animated background
           ============================================================================ */}
-      <header className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white overflow-hidden min-h-[60vh]">
+      <header className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white overflow-hidden min-h-[30vh] md:min-h-[60vh]">
         {/* Animated Medical Background */}
         <div className="absolute inset-0">
-          {/* Floating medical icons */}
-          <div className="absolute top-10 left-10 text-6xl opacity-20 animate-bounce" style={{animationDelay: '0s'}}>🏥</div>
-          <div className="absolute top-20 right-20 text-4xl opacity-15 animate-pulse" style={{animationDelay: '1s'}}>💊</div>
-          <div className="absolute top-32 left-1/4 text-5xl opacity-20 animate-bounce" style={{animationDelay: '2s'}}>🩺</div>
-          <div className="absolute top-40 right-1/3 text-3xl opacity-15 animate-pulse" style={{animationDelay: '3s'}}>💉</div>
-          <div className="absolute bottom-20 left-1/5 text-4xl opacity-20 animate-bounce" style={{animationDelay: '4s'}}>🧬</div>
-          <div className="absolute bottom-32 right-1/4 text-5xl opacity-15 animate-pulse" style={{animationDelay: '5s'}}>🔬</div>
-          <div className="absolute bottom-10 left-1/3 text-3xl opacity-20 animate-bounce" style={{animationDelay: '6s'}}>📋</div>
+          {/* Floating medical icons - hidden on mobile */}
+          <div className="hidden md:block absolute top-10 left-10 text-6xl opacity-20 animate-bounce" style={{animationDelay: '0s'}}>🏥</div>
+          <div className="hidden md:block absolute top-20 right-20 text-4xl opacity-15 animate-pulse" style={{animationDelay: '1s'}}>💊</div>
+          <div className="hidden md:block absolute top-32 left-1/4 text-5xl opacity-20 animate-bounce" style={{animationDelay: '2s'}}>🩺</div>
+          <div className="hidden md:block absolute top-40 right-1/3 text-3xl opacity-15 animate-pulse" style={{animationDelay: '3s'}}>💉</div>
+          <div className="hidden md:block absolute bottom-20 left-1/5 text-4xl opacity-20 animate-bounce" style={{animationDelay: '4s'}}>🧬</div>
+          <div className="hidden md:block absolute bottom-32 right-1/4 text-5xl opacity-15 animate-pulse" style={{animationDelay: '5s'}}>🔬</div>
+          <div className="hidden md:block absolute bottom-10 left-1/3 text-3xl opacity-20 animate-bounce" style={{animationDelay: '6s'}}>📋</div>
           
-          {/* Animated geometric shapes */}
-          <div className="absolute top-16 left-1/2 w-4 h-4 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
-          <div className="absolute top-24 right-1/4 w-6 h-6 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '1.5s'}}></div>
-          <div className="absolute bottom-24 left-1/6 w-3 h-3 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '2.5s'}}></div>
-          <div className="absolute bottom-16 right-1/3 w-5 h-5 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '3.5s'}}></div>
+          {/* Animated geometric shapes - hidden on mobile */}
+          <div className="hidden md:block absolute top-16 left-1/2 w-4 h-4 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
+          <div className="hidden md:block absolute top-24 right-1/4 w-6 h-6 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '1.5s'}}></div>
+          <div className="hidden md:block absolute bottom-24 left-1/6 w-3 h-3 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '2.5s'}}></div>
+          <div className="hidden md:block absolute bottom-16 right-1/3 w-5 h-5 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '3.5s'}}></div>
           
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-blue-900/40 via-transparent to-purple-900/40"></div>
         </div>
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-12 lg:py-16">
           <div className="text-center">
-            {/* Hospital Logo */}
-            <div className="mb-6">
+            {/* Hospital Logo - Compact on mobile */}
+            <div className="mb-3 md:mb-6">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img 
                   src={logoUrl} 
                   alt={name} 
-                  className="h-16 w-auto mx-auto mb-4 rounded-xl shadow-2xl bg-white p-3" 
+                  className="h-12 md:h-16 w-auto mx-auto mb-2 md:mb-4 rounded-xl shadow-2xl bg-white p-2 md:p-3" 
                 />
               ) : (
-                <div className="h-16 w-16 mx-auto mb-4 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                <div className="h-12 md:h-16 w-12 md:w-16 mx-auto mb-2 md:mb-4 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
                   <span className="text-3xl">🏥</span>
                 </div>
               )}
             </div>
             
-            {/* Hospital Name & Tagline */}
-            <h1 className="text-3xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+            {/* Hospital Name & Tagline - Compact on mobile */}
+            <h1 className="text-xl md:text-5xl font-bold mb-2 md:mb-4 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
               {name}
             </h1>
-            <p className="text-lg md:text-xl mb-6 text-blue-100 font-light max-w-3xl mx-auto leading-relaxed">
+            <p className="text-sm md:text-xl mb-4 md:mb-6 text-blue-100 font-light max-w-3xl mx-auto leading-relaxed">
               {tagline}
             </p>
             
-            {/* Quick Contact & Book Button */}
-            <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6 mb-8">
+            {/* Quick Contact & Book Button - Compact on mobile */}
+            <div className="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-6 mb-4 md:mb-8">
               {contacts.emergency && (
-                <div className="flex items-center bg-red-500/20 backdrop-blur-sm px-4 py-2 rounded-full border border-red-400/30">
-                  <span className="text-xl mr-2">🚑</span>
-                  <span className="text-sm font-semibold">Emergency: {contacts.emergency}</span>
+                <div className="flex items-center bg-red-500/20 backdrop-blur-sm px-3 py-1.5 md:px-4 md:py-2 rounded-full border border-red-400/30">
+                  <span className="text-base md:text-xl mr-2">🚑</span>
+                  <span className="text-xs md:text-sm font-semibold">Emergency: {contacts.emergency}</span>
                 </div>
               )}
               
@@ -429,24 +430,24 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
               )}
             </div>
 
-            {/* Compact Statistics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                <div className="text-2xl mb-1">👩‍⚕️</div>
-                <div className="text-xl font-bold">{doctorsToShow.length}</div>
+            {/* Compact Statistics - Smaller on mobile */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 max-w-2xl mx-auto">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
+                <div className="text-lg md:text-2xl mb-1">👩‍⚕️</div>
+                <div className="text-base md:text-xl font-bold">{doctorsToShow.length}</div>
                 <div className="text-blue-100 text-xs">Doctors</div>
               </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                <div className="text-2xl mb-1">🏬</div>
-                <div className="text-xl font-bold">{departments.length}</div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
+                <div className="text-lg md:text-2xl mb-1">🏬</div>
+                <div className="text-base md:text-xl font-bold">{departments.length}</div>
                 <div className="text-blue-100 text-xs">Departments</div>
               </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                <div className="text-2xl mb-1">⭐</div>
-                <div className="text-xl font-bold">24/7</div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
+                <div className="text-lg md:text-2xl mb-1">⭐</div>
+                <div className="text-base md:text-xl font-bold">24/7</div>
                 <div className="text-blue-100 text-xs">Emergency</div>
               </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                 <div className="text-2xl mb-1">🏆</div>
                 <div className="text-xl font-bold">Premium</div>
                 <div className="text-blue-100 text-xs">Quality</div>
@@ -489,69 +490,69 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
       </header>
 
 
-      {/* Main sections */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-24">
-        {/* About */}
+      {/* Main sections - Compact padding on mobile */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-16 space-y-6 md:space-y-24 pb-20 md:pb-8">
+        {/* About - Compact on mobile */}
         {(about.mission || about.vision || about.values || about.history) && (
           <section className="relative">
-            <div className="text-center mb-16">
-              <h2 className="text-5xl font-bold text-gray-900 mb-6">About {name}</h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">Committed to excellence in healthcare, innovation in treatment, and compassion in patient care.</p>
+            <div className="text-center mb-4 md:mb-16">
+              <h2 className="text-2xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-6">About {name}</h2>
+              <p className="text-sm md:text-xl text-gray-600 max-w-3xl mx-auto">Committed to excellence in healthcare, innovation in treatment, and compassion in patient care.</p>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-12 mb-4 md:mb-16">
               {about.mission && (
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-8 rounded-3xl shadow-lg">
-                  <div className="text-6xl mb-6 text-center">🎯</div>
-                  <h3 className="text-3xl font-bold text-gray-900 mb-4 text-center">Our Mission</h3>
-                  <p className="text-lg text-gray-700 leading-relaxed text-center">{about.mission}</p>
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center">🎯</div>
+                  <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4 text-center">Our Mission</h3>
+                  <p className="text-sm md:text-lg text-gray-700 leading-relaxed text-center">{about.mission}</p>
                 </div>
               )}
               {about.vision && (
-                <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-8 rounded-3xl shadow-lg">
-                  <div className="text-6xl mb-6 text-center">👁️</div>
-                  <h3 className="text-3xl font-bold text-gray-900 mb-4 text-center">Our Vision</h3>
-                  <p className="text-lg text-gray-700 leading-relaxed text-center">{about.vision}</p>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center">👁️</div>
+                  <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4 text-center">Our Vision</h3>
+                  <p className="text-sm md:text-lg text-gray-700 leading-relaxed text-center">{about.vision}</p>
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-12">
               {about.values && (
-                <div className="bg-gradient-to-br from-purple-50 to-violet-100 p-8 rounded-3xl shadow-lg">
-                  <div className="text-6xl mb-6 text-center">💎</div>
-                  <h3 className="text-3xl font-bold text-gray-900 mb-6 text-center">Our Values</h3>
-                  <div className="text-gray-700 whitespace-pre-line leading-relaxed">{about.values}</div>
+                <div className="bg-gradient-to-br from-purple-50 to-violet-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center">💎</div>
+                  <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-3 md:mb-6 text-center">Our Values</h3>
+                  <div className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">{about.values}</div>
                 </div>
               )}
               {about.history && (
-                <div className="bg-gradient-to-br from-orange-50 to-amber-100 p-8 rounded-3xl shadow-lg">
-                  <div className="text-6xl mb-6 text-center">📖</div>
-                  <h3 className="text-3xl font-bold text-gray-900 mb-6 text-center">Our Story</h3>
-                  <div className="text-gray-700 whitespace-pre-line leading-relaxed">{about.history}</div>
+                <div className="bg-gradient-to-br from-orange-50 to-amber-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center">📖</div>
+                  <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-3 md:mb-6 text-center">Our Story</h3>
+                  <div className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">{about.history}</div>
                 </div>
               )}
             </div>
           </section>
         )}
 
-        {/* Departments */}
+        {/* Departments - Compact on mobile */}
         {departments.length > 0 && (
-          <section className="relative">
-            <div className="text-center mb-16">
-              <h2 className="text-5xl font-bold text-gray-900 mb-6">Our Departments</h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">Specialized medical departments providing comprehensive healthcare services.</p>
+          <section className="relative" id="departments">
+            <div className="text-center mb-4 md:mb-16">
+              <h2 className="text-2xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-6">Our Departments</h2>
+              <p className="text-sm md:text-xl text-gray-600 max-w-3xl mx-auto">Specialized medical departments providing comprehensive healthcare services.</p>
             </div>
             <HospitalDepartments departments={departments as any} doctors={doctorsToShow as any} hospitalName={name} />
           </section>
         )}
 
-        {/* Featured Services Grid */}
+        {/* Featured Services Grid - Compact on mobile */}
         {featuredServices.length > 0 && (
-          <section className="gradient-brand-soft py-16 rounded-3xl">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">Featured Services</h2>
-              <p className="text-xl text-gray-600">Comprehensive medical care across all specialties</p>
+          <section className="gradient-brand-soft py-4 md:py-16 rounded-2xl md:rounded-3xl">
+            <div className="text-center mb-8 md:mb-12">
+              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-4">Featured Services</h2>
+              <p className="text-base md:text-xl text-gray-600">Comprehensive medical care across all specialties</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {featuredServices.map((service: any, index: number) => (
                 <div key={index} className="bg-white p-6 rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 text-center">
                   <div className="text-3xl mb-3">{index % 8 === 0 ? '💊' : index % 8 === 1 ? '🔬' : index % 8 === 2 ? '📋' : index % 8 === 3 ? '🩺' : index % 8 === 4 ? '💉' : index % 8 === 5 ? '🏥' : index % 8 === 6 ? '🦠' : '❤️'}</div>
@@ -738,20 +739,20 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
 
         {/* CTA */}
         <section className="relative">
-          <div className="bg-gradient-to-br from-blue-900 via-blue-700 to-indigo-800 text-white p-16 rounded-3xl shadow-2xl relative overflow-hidden">
+          <div className="bg-gradient-to-br from-blue-900 via-blue-700 to-indigo-800 text-white p-6 md:p-16 rounded-3xl shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-full">
               <div className="absolute top-10 right-10 w-32 h-32 bg-white opacity-5 rounded-full"></div>
               <div className="absolute bottom-10 left-10 w-24 h-24 bg-white opacity-10 rounded-full"></div>
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-white opacity-5 rounded-full"></div>
             </div>
             <div className="relative text-center">
-              <div className="text-8xl mb-8">🏥</div>
-              <h2 className="text-5xl font-bold mb-6">Your Health is Our Priority</h2>
-              <p className="text-2xl mb-12 text-blue-100 max-w-3xl mx-auto leading-relaxed">Experience world-class healthcare with our expert medical team.</p>
-              <div className="flex flex-col sm:flex-row justify-center items-center space-y-6 sm:space-y-0 sm:space-x-8">
-                {contacts.appointment && (<a href={`tel:${contacts.appointment}`} className="bg-white text-blue-700 font-bold py-6 px-12 rounded-2xl text-xl">📞 Book Appointment</a>)}
-                {general.googleMapsLink && (<a href={general.googleMapsLink} target="_blank" rel="noopener noreferrer" className="bg-transparent border-2 border-white text-white font-bold py-6 px-12 rounded-2xl text-xl">📍 Visit Us</a>)}
-                <a href="/doctors" className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-6 px-12 rounded-2xl text-xl">👩‍⚕️ Find Doctors</a>
+              <div className="text-4xl md:text-8xl mb-4 md:mb-8">🏥</div>
+              <h2 className="text-2xl md:text-5xl font-bold mb-3 md:mb-6">Your Health is Our Priority</h2>
+              <p className="text-sm md:text-2xl mb-6 md:mb-12 text-blue-100 max-w-3xl mx-auto leading-relaxed">Experience world-class healthcare with our expert medical team.</p>
+              <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-8">
+                {contacts.appointment && (<a href={`tel:${contacts.appointment}`} className="bg-white text-blue-700 font-bold py-2 px-6 md:py-6 md:px-12 rounded-xl md:rounded-2xl text-sm md:text-xl">📞 Book Appointment</a>)}
+                {general.googleMapsLink && (<a href={general.googleMapsLink} target="_blank" rel="noopener noreferrer" className="bg-transparent border-2 border-white text-white font-bold py-2 px-6 md:py-6 md:px-12 rounded-xl md:rounded-2xl text-sm md:text-xl">📍 Visit Us</a>)}
+                <a href="/doctors" className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2 px-6 md:py-6 md:px-12 rounded-xl md:rounded-2xl text-sm md:text-xl">👩‍⚕️ Find Doctors</a>
                 {/* Inline booking sidebar trigger for quick scheduling */}
                 {doctorsToShow && doctorsToShow.length > 0 && (
                   <div className="mt-6">
@@ -876,6 +877,9 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
         };
         return (<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />);
       })()}
+      
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNavigation currentPath="/hospitals" />
     </div>
   );
 }

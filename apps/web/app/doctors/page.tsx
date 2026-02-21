@@ -127,15 +127,15 @@ function DoctorsPageContent() {
     <div className="min-h-screen bg-gray-50">
       <Header />
       
-      <div className="w-full px-2 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Find Doctors</h1>
-          <p className="text-lg text-gray-600">Search and book appointments with verified healthcare professionals</p>
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3 md:mb-4">Find Doctors</h1>
+          <p className="text-base md:text-lg text-gray-600">Search and book appointments with verified healthcare professionals</p>
         </div>
 
-        {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        {/* Search and Filters - Mobile optimized */}
+        <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-6 md:mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 md:gap-4">
             <div className="md:col-span-2">
               <input
                 type="text"
@@ -187,14 +187,14 @@ function DoctorsPageContent() {
                     }
                   }
                 }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base touch-manipulation"
               />
               {suggestions && suggestions.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {suggestions.slice(0, 6).map((s, i) => (
                     <button
                       key={i}
-                      className="text-sm px-3 py-1 rounded-full border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      className="text-sm px-3 py-2 rounded-full border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 min-h-[44px] touch-manipulation"
                       onClick={() => {
                         const picked = s.replace(/ \((specialization)\)$/i, '');
                         setSearchQuery(picked);
@@ -212,7 +212,7 @@ function DoctorsPageContent() {
               <select
                 value={selectedSpecialization}
                 onChange={(e) => setSelectedSpecialization(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base"
               >
                 <option value="">All Specializations</option>
                 <option value="Cardiology">Cardiology</option>
@@ -226,7 +226,7 @@ function DoctorsPageContent() {
               <select
                 value={selectedCity}
                 onChange={(e) => setSelectedCity(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base"
               >
                 <option value="">All Cities</option>
                 <option value="Mumbai">Mumbai</option>
@@ -239,7 +239,7 @@ function DoctorsPageContent() {
               <select
                 value={sortBy}
                 onChange={(e) => { setSortBy(e.target.value as any); setPage(1); }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base"
               >
                 <option value="trending">Popularity</option>
                 <option value="recent">Recently Updated</option>
@@ -250,15 +250,15 @@ function DoctorsPageContent() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
+                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 min-h-[44px] touch-manipulation flex-1"
               >
                 Prev
               </button>
-              <span className="text-sm text-gray-600">Page {page}</span>
+              <span className="text-sm text-gray-600 whitespace-nowrap">Page {page}</span>
               <button
                 onClick={() => hasMore && setPage((p) => p + 1)}
                 disabled={!hasMore}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
+                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 min-h-[44px] touch-manipulation flex-1"
               >
                 Next
               </button>
@@ -267,8 +267,8 @@ function DoctorsPageContent() {
         </div>
 
         {/* Results */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">
+        <div className="mb-4 md:mb-6">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900">
             {filteredDoctors.length} doctors found
           </h2>
           {(loading || isSearching) && (
@@ -276,8 +276,8 @@ function DoctorsPageContent() {
           )}
         </div>
 
-        {/* Doctors List - OYO style rows */}
-        <div className="space-y-6">
+        {/* Doctors List - OYO style rows - Mobile optimized */}
+        <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">{/* Add bottom padding on mobile for nav */}
           {filteredDoctors.map((doctor: any) => (
             <DoctorOyoCard
               key={doctor.id}

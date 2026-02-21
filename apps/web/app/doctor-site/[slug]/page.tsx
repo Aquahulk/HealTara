@@ -2,6 +2,10 @@
 // 👨‍⚕️ DOCTOR MICROSITE - Simple professional landing for individual doctors
 // ============================================================================
 
+import React from 'react';
+import Script from 'next/script';
+import MobileBottomNavigation from '@/components/MobileBottomNavigation';
+
 interface DoctorProfileResponse {
   id: number;
   email: string;
@@ -89,35 +93,101 @@ export default async function DoctorSitePage({ params }: { params: Promise<{ slu
         } catch(_) {}
         `}
       </Script>
-      <header className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white py-16">
-        <div className="max-w-5xl mx-auto px-6 text-center">
-          <div className="mb-4">
-            {p.profileImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.profileImage} alt={name} className="w-20 h-20 rounded-full mx-auto object-cover shadow-lg" />
-            ) : (
-              <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mx-auto">
-                <span className="text-3xl">👨‍⚕️</span>
-              </div>
-            )}
+      
+      {/* Mobile-optimized header with reduced height and single-column layout */}
+      <header className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white py-8 md:py-16">
+        <div className="max-w-5xl mx-auto px-4 md:px-6">
+          {/* Single-column layout on mobile, centered content */}
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div>
+              {p.profileImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img 
+                  src={p.profileImage} 
+                  alt={name} 
+                  className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover shadow-lg" 
+                />
+              ) : (
+                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white/20 flex items-center justify-center">
+                  <span className="text-3xl md:text-4xl">👨‍⚕️</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight">{name}</h1>
+              <p className="text-base md:text-lg text-indigo-100">{sub}</p>
+              {addr && <p className="text-sm text-indigo-100">{addr}</p>}
+            </div>
+
+            {/* Prominent booking button near top on mobile - minimum 44px touch target, compact text */}
+            <a 
+              href={`/book?doctorId=${data.id}`} 
+              className="inline-block bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold py-2 px-4 md:py-3 md:px-8 rounded-lg shadow-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation text-sm md:text-base"
+            >
+              Book Now
+            </a>
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight mb-2">{name}</h1>
-          <p className="text-lg text-indigo-100">{sub}</p>
-          {addr && <p className="text-sm text-indigo-100 mt-1">{addr}</p>}
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-12 space-y-10">
+      {/* Single-column layout on mobile with responsive padding */}
+      <main className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-12 space-y-6 md:space-y-10">
+        {/* Consultation info section - prominent on mobile */}
+        <section className="bg-gray-50 rounded-lg p-4 md:p-6 border border-gray-200">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">Consultation Details</h2>
+          
+          {/* Single-column stack on mobile, responsive grid on larger screens */}
+          <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row md:flex-wrap md:gap-4 text-gray-700">
+            {typeof fee === 'number' && (
+              <div className="flex items-center gap-2 min-h-[44px]">
+                <span className="font-semibold">Fee:</span>
+                <span className="text-lg">₹{fee}</span>
+              </div>
+            )}
+            
+            {p.phone && (
+              <div className="flex items-center gap-2 min-h-[44px]">
+                <span className="font-semibold">Phone:</span>
+                {/* Tappable phone link with minimum touch target */}
+                <a 
+                  href={`tel:${p.phone}`} 
+                  className="text-indigo-600 hover:text-indigo-800 underline min-h-[44px] flex items-center touch-manipulation"
+                >
+                  {p.phone}
+                </a>
+              </div>
+            )}
+            
+            {p.workingHours && (
+              <div className="flex items-center gap-2 min-h-[44px]">
+                <span className="font-semibold">Hours:</span>
+                <span>{p.workingHours}</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* About section with progressive disclosure for lengthy content */}
         {(p.about || p.services) && (
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">About</h2>
-            {p.about && <p className="text-gray-700 leading-relaxed">{p.about}</p>}
+            <h2 className="text-lg md:text-xl font-semibold text-gray-900 mb-3">About</h2>
+            
+            {p.about && (
+              <DoctorAboutSection about={p.about} />
+            )}
+            
             {Array.isArray(p.services) && p.services.length > 0 && (
               <div className="mt-4">
-                <h3 className="text-sm font-semibold text-gray-800 mb-2">Services</h3>
+                <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-2">Services</h3>
                 <div className="flex flex-wrap gap-2">
                   {p.services.slice(0, 12).map((s, i) => (
-                    <span key={i} className="text-xs bg-gray-100 px-3 py-1 rounded-full border border-gray-200">{s}</span>
+                    <span 
+                      key={i} 
+                      className="text-xs md:text-sm bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200"
+                    >
+                      {s}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -125,20 +195,49 @@ export default async function DoctorSitePage({ params }: { params: Promise<{ slu
           </section>
         )}
 
-        <section>
-          <h2 className="text-xl font-semibold text-gray-900 mb-3">Consultation</h2>
-          <div className="flex items-center gap-4 text-gray-700">
-            {typeof fee === 'number' && <div>Fee: ₹{fee}</div>}
-            {p.phone && <div>Phone: {p.phone}</div>}
-            {p.workingHours && <div>Hours: {p.workingHours}</div>}
-          </div>
-          <div className="mt-6">
-            {/* Inline CTA without importing client components in server file */}
-            <a href={`/book?doctorId=${data.id}`} className="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg">Book Appointment</a>
-          </div>
-        </section>
+        {/* Sticky booking button at bottom on mobile */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg z-10">
+          <a 
+            href={`/book?doctorId=${data.id}`} 
+            className="block w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold py-3 px-6 rounded-lg text-center transition-colors min-h-[44px] flex items-center justify-center touch-manipulation text-sm"
+          >
+            Book Now
+          </a>
+        </div>
+        
+        {/* Add bottom padding on mobile to prevent content from being hidden by sticky button */}
+        <div className="md:hidden h-20" aria-hidden="true"></div>
       </main>
+      
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNavigation currentPath="/doctors" />
     </div>
   );
 }
-import Script from 'next/script';
+
+/**
+ * Client component for progressive disclosure of lengthy about text
+ */
+function DoctorAboutSection({ about }: { about: string }) {
+  'use client';
+  
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const shouldTruncate = about.length > 300;
+  const displayText = shouldTruncate && !isExpanded ? about.slice(0, 300) + '...' : about;
+  
+  return (
+    <div>
+      <p className="text-gray-700 leading-relaxed text-base">{displayText}</p>
+      
+      {shouldTruncate && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 text-indigo-600 hover:text-indigo-800 font-medium text-sm min-h-[44px] min-w-[44px] px-4 py-2 touch-manipulation"
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? 'Show Less' : 'Show More'}
+        </button>
+      )}
+    </div>
+  );
+}
