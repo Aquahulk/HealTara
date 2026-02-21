@@ -18,6 +18,7 @@ interface BookAppointmentModalProps {
     // Deprecated: the modal reads auth internally now; props kept for compatibility
     patientLoggedIn?: boolean;
     patientRole?: string | null;
+    initialDate?: string;
 }
 
 export default function BookAppointmentModal({
@@ -29,11 +30,12 @@ export default function BookAppointmentModal({
     onSubmit,
     patientLoggedIn,
     patientRole,
+    initialDate,
 }: BookAppointmentModalProps) {
     const { user } = useAuth();
     const effectivePatientLoggedIn = patientLoggedIn ?? !!user;
     const effectivePatientRole = patientRole ?? user?.role ?? null;
-    const [date, setDate] = useState("");
+    const [date, setDate] = useState(initialDate ?? "");
     const [time, setTime] = useState("");
     const [availableTimes, setAvailableTimes] = useState<string[]>([]);
     const [workingHoursForDay, setWorkingHoursForDay] = useState<{ start: string; end: string } | null>(null);

@@ -76,8 +76,11 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
   return cachedHospitals;
 }
 
-const SEARCH_CACHE_MS = 30 * 1000; // cache identical queries for 30s (increased from 10s)
+const SEARCH_CACHE_MS = 30 * 1000;
 const searchCache = new Map<string, { ts: number; result: any }>();
+
+const AVAIL_CACHE_MS = 10 * 1000;
+const availabilityCache = new Map<string, { ts: number; periodMinutes: number; hours: Array<{ hour: string; labelFrom: string; labelTo: string; capacity: number; bookedCount: number; isFull: boolean }> }>();
 
 function dayWindowUtc(dateStr: string) {
   const start = new Date(`${dateStr}T00:00:00.000Z`);
@@ -3551,6 +3554,12 @@ app.get('/api/slots/availability', async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'doctorId and date (YYYY-MM-DD) are required.' });
   }
   try {
+    const cacheKey = `${doctorId}:${dateStr}`;
+    const now = Date.now();
+    const cached = availabilityCache.get(cacheKey);
+    if (cached && (now - cached.ts) < AVAIL_CACHE_MS) {
+      return res.status(200).json({ slots: [], availability: { periodMinutes: cached.periodMinutes, hours: cached.hours } });
+    }
     const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId);
     const { start: dayStart, end: dayEnd } = dayWindowUtc(dateStr);
     const counts = await countBookedPerHour(prisma, doctorId, dayStart, dayEnd);
@@ -3579,7 +3588,7 @@ app.get('/api/slots/availability', async (req: Request, res: Response) => {
         isFull: bookedCount >= capacity,
       });
     }
-
+    availabilityCache.set(cacheKey, { ts: now, periodMinutes, hours });
     return res.status(200).json({ slots: [], availability: { periodMinutes, hours } });
   } catch (error) {
     console.error(error);
@@ -3595,6 +3604,12 @@ app.get('/api/slots/insights', async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'doctorId and date (YYYY-MM-DD) are required.' });
   }
   try {
+    const cacheKey = `${doctorId}:${dateStr}`;
+    const now = Date.now();
+    const cached = availabilityCache.get(cacheKey);
+    if (cached && (now - cached.ts) < AVAIL_CACHE_MS) {
+      return res.status(200).json({ availability: { periodMinutes: cached.periodMinutes, hours: cached.hours } });
+    }
     const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId);
     const { start: dayStart, end: dayEnd } = dayWindowUtc(dateStr);
     const counts = await countBookedPerHour(prisma, doctorId, dayStart, dayEnd);
@@ -3613,7 +3628,7 @@ app.get('/api/slots/insights', async (req: Request, res: Response) => {
         isFull: bookedCount >= capacity,
       });
     }
-
+    availabilityCache.set(cacheKey, { ts: now, periodMinutes, hours });
     return res.status(200).json({ availability: { periodMinutes, hours } });
   } catch (error) {
     console.error(error);

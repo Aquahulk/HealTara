@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api';
 import { loadWithCache, PerformanceMonitor, CacheManager } from '@/lib/performance';
 import Header from '@/components/Header';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
+import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import { 
   Search, 
   ArrowDown, 
@@ -805,8 +806,8 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Vertical Hospital Cards - One per row */}
-            <div className="space-y-6">
+            {/* Mobile-Friendly Hospital Cards - One per row on desktop, two per row on mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
               {hospitals.slice(0, 6).map((hospital, index) => {
                 const name = hospital.name || '';
                 const location = hospital.address ? `${hospital.city || ''}, ${hospital.state || ''}`.trim() : 'Location';
@@ -819,52 +820,54 @@ export default function HomePage() {
                     transition={{ delay: index * 0.1 }}
                     whileHover={{ scale: 1.01 }}
                   >
-                    <div className="group bg-white/95 backdrop-blur-sm rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 border border-white/30 w-full">
-                      <div className="flex items-center justify-between">
-                        {/* Hospital Info */}
-                        <div className="flex items-center flex-1">
-                          <div className="w-14 h-14 gradient-brand rounded-2xl flex items-center justify-center text-white font-bold text-xl mr-6 overflow-hidden">
-                            {(() => {
-                              const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
-                              if (logoUrl) {
-                                return (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={logoUrl} alt={name} className="w-14 h-14 object-contain" />
-                                );
-                              }
-                              return <span role="img" aria-label="hospital">🏥</span>;
-                            })()}
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="text-2xl font-bold text-gray-900 mb-2">{name}</h3>
-                            <p className="text-blue-600 font-semibold text-lg mb-3">Multi-Specialty Hospital</p>
+                    <div className="group bg-white/95 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-4 border border-white/30 w-full">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        {/* Hospital Logo - Smaller on mobile */}
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 gradient-brand rounded-xl flex items-center justify-center text-white font-bold text-lg sm:text-xl overflow-hidden">
+                          {(() => {
+                            const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
+                            if (logoUrl) {
+                              return (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={logoUrl} alt={name} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" />
+                              );
+                            }
+                            return <span role="img" aria-label="hospital" className="text-lg sm:text-xl">🏥</span>;
+                          })()}
+                        </div>
+                        
+                        {/* Hospital Info - More compact */}
+                        <div className="flex-1 text-center sm:text-left">
+                          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 sm:mb-2">{name}</h3>
+                          <p className="text-blue-600 font-semibold text-sm sm:text-lg mb-2">Multi-Specialty Hospital</p>
+                          
+                          {/* Location - Smaller on mobile */}
+                          {location && (
+                            <div className="flex items-center justify-center sm:justify-start text-gray-600 text-sm sm:text-base">
+                              <MapPin className="w-4 h-4 sm:w-6 sm:h-6 text-blue-500 mr-2" />
+                              <span className="text-xs sm:text-base">{location}</span>
+                            </div>
+                          )}
+                          
+                          {/* Stats - More compact */}
+                          <div className="flex flex-wrap justify-center sm:justify-start gap-3 sm:gap-4 text-sm sm:text-base">
+                            <div className="flex items-center text-gray-600">
+                              <Building2 className="w-4 h-4 sm:w-6 sm:h-6 text-emerald-500 mr-2" />
+                              <span className="text-xs">{hospital._count?.departments || 0}</span>
+                            </div>
                             
-                            <div className="flex flex-wrap gap-8">
-                              {location && (
-                                <div className="flex items-center text-gray-600">
-                                  <MapPin className="w-6 h-6 text-blue-500 mr-3" />
-                                  <span className="text-base">{location}</span>
-                                </div>
-                              )}
-                              
-                              <div className="flex items-center text-gray-600">
-                                <Building2 className="w-6 h-6 text-emerald-500 mr-3" />
-                                <span className="text-base">{hospital._count?.departments || 0} Departments</span>
-                              </div>
-                              
-                              <div className="flex items-center text-gray-600">
-                                <Users className="w-6 h-6 text-green-500 mr-3" />
-                                <span className="text-base">{hospital._count?.doctors || 0} Doctors</span>
-                              </div>
+                            <div className="flex items-center text-gray-600">
+                              <Users className="w-4 h-4 sm:w-6 sm:h-6 text-green-500 mr-2" />
+                              <span className="text-xs">{hospital._count?.doctors || 0}</span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Visit Button */}
-                        <div className="ml-8">
+                        {/* Visit Button - Smaller on mobile */}
+                        <div className="mt-3 sm:mt-0 sm:ml-8">
                           <a
                             href={`/hospital-site/${hospital.id}`}
-                            className="btn-brand font-bold py-3 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg block text-center min-w-[160px] text-base"
+                            className="btn-brand font-bold py-2 px-4 sm:py-3 sm:px-6 rounded-xl sm:rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg block text-center text-sm sm:text-base min-w-[120px] sm:min-w-[160px]"
                             onClick={(e) => {
                               try {
                                 if (shouldUseSubdomainNav()) {
@@ -885,7 +888,7 @@ export default function HomePage() {
                               } catch {}
                             }}
                           >
-                            Visit Hospital
+                            Visit
                           </a>
                         </div>
                       </div>
@@ -1276,9 +1279,8 @@ export default function HomePage() {
         </section>
       </main>
 
-      {/* ============================================================================
-          🦶 FOOTER SECTION - Comprehensive footer with links
-          ============================================================================ */}
+      <MobileBottomNavigation />
+
       <footer className="bg-gray-900 text-white py-10 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
