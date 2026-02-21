@@ -20,6 +20,10 @@ export async function middleware(req: NextRequest) {
     if (sub === 'www') {
       return NextResponse.next();
     }
+    // IMPORTANT: Don't treat the main domain as a subdomain
+    if (sub === 'hosptest' || sub === 'healtara' || sub === 'app') {
+      return NextResponse.next();
+    }
     // Use relative fetch; Next.js dev rewrite proxies to backend
     const slugify = (s: string) => s.toLowerCase()
         .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
@@ -66,6 +70,9 @@ export async function middleware(req: NextRequest) {
     console.log(`Rewriting doctor subdomain: "${sub}" -> "${target}"`);
     return NextResponse.rewrite(new URL(target, req.url));
   }
+
+  // For main domain or any other cases, let them pass through
+  return NextResponse.next();
 
   // Protect admin routes
   if (url.pathname.startsWith('/admin-secure-panel-7x9y2z-2024')) {

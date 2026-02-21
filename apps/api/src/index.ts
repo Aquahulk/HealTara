@@ -55,7 +55,17 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
   }
   console.log(`🔄 Fetching fresh hospitals from database...`);
   const hospitals = await prismaClient.hospital.findMany({
-    include: {
+    select: {
+      id: true,
+      name: true,
+      address: true,
+      city: true,
+      state: true,
+      phone: true,
+      profile: true,
+      createdAt: true,
+      updatedAt: true,
+      adminId: true,
       doctors: true,
     },
     orderBy: { createdAt: 'desc' },
@@ -2823,19 +2833,39 @@ app.get('/api/hospitals/:hospitalId/details', async (req: Request, res: Response
     return res.status(400).json({ message: 'Invalid hospitalId' });
   }
   try {
-    const hospital = await prisma.hospital.findUnique({
-      where: { id: hospitalId },
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        city: true,
-        state: true,
-        phone: true,
-        subdomain: true,
-        profile: true,
+    let hospital: any = null;
+    try {
+      hospital = await prisma.hospital.findUnique({
+        where: { id: hospitalId },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          city: true,
+          state: true,
+          phone: true,
+          subdomain: true,
+          profile: true,
+        }
+      });
+    } catch (e: any) {
+      if (e && e.code === 'P2022') {
+        hospital = await prisma.hospital.findUnique({
+          where: { id: hospitalId },
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            city: true,
+            state: true,
+            phone: true,
+            profile: true,
+          }
+        });
+      } else {
+        throw e;
       }
-    });
+    }
     if (!hospital) {
       return res.status(404).json({ message: 'Hospital not found' });
     }
