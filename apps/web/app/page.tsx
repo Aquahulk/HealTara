@@ -871,10 +871,16 @@ export default function HomePage() {
                                   e.preventDefault();
                                   const sub = (hospital as any).subdomain as string | undefined;
                                   if (sub && sub.length > 1) {
+                                    // Use window.location.href for cross-domain navigation
                                     window.location.href = customSubdomainUrl(sub);
                                   } else {
-                                    window.location.href = hospitalIdMicrositeUrl(hospital.id);
+                                    // Use slugified name for subdomain routing
+                                    const hospitalSlug = slugifyName(hospital.name);
+                                    window.location.href = hospitalMicrositeUrl(hospitalSlug);
                                   }
+                                } else {
+                                  // Direct navigation without subdomain routing
+                                  router.push(`/hospital-site/${hospital.id}`);
                                 }
                               } catch {}
                             }}

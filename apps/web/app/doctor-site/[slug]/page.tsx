@@ -32,8 +32,8 @@ async function getDoctorBySlug(slug: string): Promise<DoctorProfileResponse | nu
   }
 }
 
-export default async function DoctorSitePage({ params }: { params: { slug: string } }) {
-  const { slug } = params;
+export default async function DoctorSitePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
   const data = await getDoctorBySlug(slug);
   if (!data) {
     return (
@@ -57,6 +57,38 @@ export default async function DoctorSitePage({ params }: { params: { slug: strin
 
   return (
     <div className="min-h-screen bg-white">
+      <Script id="auth-bridge-doctor" strategy="afterInteractive">
+        {`
+        try {
+          if (typeof window !== 'undefined') {
+            // 1) Hash-based token handoff (same-window navigation)
+            var hash = window.location.hash || '';
+            var m = /authToken=([^&]+)/.exec(hash);
+            if (m && m[1]) {
+              var t = decodeURIComponent(m[1]);
+              try { localStorage.setItem('authToken', t); } catch(_) {}
+              try {
+                var d=(function(){var env=(window.process&&window.process.env&&window.process.env.NEXT_PUBLIC_PRIMARY_DOMAIN)||''; if(env){return env.startsWith('.')?env:'.'+env;} var h=window.location.hostname.toLowerCase(); if(h==='localhost'||h==='127.0.0.1') return null; var p=h.split('.'); if(p.length>=2){return '.'+p.slice(p.length-2).join('.');} return null;})();
+                var attrs=['authToken='+encodeURIComponent(t),'Path=/','Max-Age='+(60*60*24*7)]; if(d){attrs.push('Domain='+d,'Secure');} attrs.push('SameSite=Lax'); document.cookie=attrs.join('; ');
+              } catch(_) {}
+              try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch(_) {}
+              try { location.reload(); } catch(_) {}
+            }
+
+            // 2) PostMessage-based token handoff (new window/tab)
+            if (window.opener) {
+              var has = document.cookie && document.cookie.indexOf('authToken=') !== -1;
+              if (!has) {
+                function h(e){try{if(e&&e.data&&e.data.type==='auth-token'&&e.data.token){try{localStorage.setItem('authToken', e.data.token);}catch(_){};try{var d=(function(){var env=(window.process&&window.process.env&&window.process.env.NEXT_PUBLIC_PRIMARY_DOMAIN)||''; if(env){return env.startsWith('.')?env:'.'+env;} var h=window.location.hostname.toLowerCase(); if(h==='localhost'||h==='127.0.0.1') return null; var p=h.split('.'); if(p.length>=2){return '.'+p.slice(p.length-2).join('.');} return null;})(); var attrs=['authToken='+encodeURIComponent(e.data.token),'Path=/','Max-Age='+(60*60*24*7)]; if(d){attrs.push('Domain='+d,'Secure');} attrs.push('SameSite=Lax'); document.cookie=attrs.join('; ');}catch(_){}; window.removeEventListener('message', h); location.reload();}}
+                catch(_){} }
+                window.addEventListener('message', h);
+                window.opener.postMessage({ type: 'request-auth-token' }, '*');
+              }
+            }
+          }
+        } catch(_) {}
+        `}
+      </Script>
       <header className="bg-gradient-to-br from-indigo-600 to-violet-700 text-white py-16">
         <div className="max-w-5xl mx-auto px-6 text-center">
           <div className="mb-4">
@@ -109,3 +141,4 @@ export default async function DoctorSitePage({ params }: { params: { slug: strin
     </div>
   );
 }
+import Script from 'next/script';

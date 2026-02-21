@@ -2645,7 +2645,9 @@ function isValidSubdomain(s: string): boolean {
   if (!v) return false;
   if (RESERVED_SUBDOMAINS.has(v)) return false;
   if (v.length < 2 || v.length > 63) return false;
-  if (!/^[a-z0-9-]+$/.test(v)) return false;
+  // Support both subdomains and custom domains
+  if (!/^[a-z0-9.-]+$/.test(v)) return false;
+  if (v.startsWith('.') || v.endsWith('.')) return false;
   if (v.startsWith('-') || v.endsWith('-')) return false;
   return true;
 }

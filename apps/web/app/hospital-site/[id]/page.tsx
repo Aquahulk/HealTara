@@ -11,6 +11,7 @@ import DoctorBookingSidebar from '@/components/DoctorBookingSidebar';
 import EmergencyBookingForm from '@/components/EmergencyBookingForm';
 import HospitalDepartments from '@/components/HospitalDepartments';
 import HospitalDoctorsByDepartment from '@/components/HospitalDoctorsByDepartment';
+import Script from 'next/script';
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -327,6 +328,38 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
 
   return (
     <div className="min-h-screen bg-white">
+      <Script id="auth-bridge-hospital" strategy="afterInteractive">
+        {`
+        try {
+          if (typeof window !== 'undefined') {
+            // 1) Hash-based token handoff (same-window navigation)
+            var hash = window.location.hash || '';
+            var m = /authToken=([^&]+)/.exec(hash);
+            if (m && m[1]) {
+              var t = decodeURIComponent(m[1]);
+              try { localStorage.setItem('authToken', t); } catch(_) {}
+              try {
+                var d=(function(){var env=(window.process&&window.process.env&&window.process.env.NEXT_PUBLIC_PRIMARY_DOMAIN)||''; if(env){return env.startsWith('.')?env:'.'+env;} var h=window.location.hostname.toLowerCase(); if(h==='localhost'||h==='127.0.0.1') return null; var p=h.split('.'); if(p.length>=2){return '.'+p.slice(p.length-2).join('.');} return null;})();
+                var attrs=['authToken='+encodeURIComponent(t),'Path=/','Max-Age='+(60*60*24*7)]; if(d){attrs.push('Domain='+d,'Secure');} attrs.push('SameSite=Lax'); document.cookie=attrs.join('; ');
+              } catch(_) {}
+              try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch(_) {}
+              try { location.reload(); } catch(_) {}
+            }
+
+            // 2) PostMessage-based token handoff (new window/tab)
+            if (window.opener) {
+              var has = document.cookie && document.cookie.indexOf('authToken=') !== -1;
+              if (!has) {
+                function h(e){try{if(e&&e.data&&e.data.type==='auth-token'&&e.data.token){try{localStorage.setItem('authToken', e.data.token);}catch(_){};try{var d=(function(){var env=(window.process&&window.process.env&&window.process.env.NEXT_PUBLIC_PRIMARY_DOMAIN)||''; if(env){return env.startsWith('.')?env:'.'+env;} var h=window.location.hostname.toLowerCase(); if(h==='localhost'||h==='127.0.0.1') return null; var p=h.split('.'); if(p.length>=2){return '.'+p.slice(p.length-2).join('.');} return null;})(); var attrs=['authToken='+encodeURIComponent(e.data.token),'Path=/','Max-Age='+(60*60*24*7)]; if(d){attrs.push('Domain='+d,'Secure');} attrs.push('SameSite=Lax'); document.cookie=attrs.join('; ');}catch(_){}; window.removeEventListener('message', h); location.reload();}}
+                catch(_){} }
+                window.addEventListener('message', h);
+                window.opener.postMessage({ type: 'request-auth-token' }, '*');
+              }
+            }
+          }
+        } catch(_) {}
+        `}
+      </Script>
       {/* ============================================================================
           🎨 HERO SECTION - Compact hospital header with animated background
           ============================================================================ */}

@@ -154,7 +154,12 @@ class ApiClient {
       if (env) return env.startsWith('.') ? env : `.${env}`;
       if (typeof window !== 'undefined') {
         const host = window.location.hostname.toLowerCase();
-        if (host === 'localhost' || host === '127.0.0.1') return null; // don't set domain for localhost
+        // For localhost testing, allow cookie sharing across localhost subdomains
+        if (host === 'localhost' || host === '127.0.0.1') return null;
+        // For localhost subdomains, set domain to .localhost
+        if (host.endsWith('.localhost')) {
+          return '.localhost';
+        }
         const parts = host.split('.');
         if (parts.length >= 2) {
           const base = parts.slice(parts.length - 2).join('.');
@@ -200,11 +205,21 @@ class ApiClient {
   }
 
   // Get token from storage (cookie preferred for cross-subdomain; fallback to localStorage)
-  private getStoredToken(): string | null {
+  public getStoredToken(): string | null {
     if (typeof window !== 'undefined') {
       const fromCookie = this.readCookie('authToken');
-      if (fromCookie) return fromCookie;
       const fromLS = localStorage.getItem('authToken');
+      
+      // Debug: Log token retrieval attempts with more visible output
+      console.log('🔍🔍🔍 API CLIENT TOKEN CHECK 🔍🔍🔍');
+      console.log('Hostname:', window.location.hostname);
+      console.log('From cookie:', fromCookie ? 'YES ✅' : 'NO ❌');
+      console.log('From localStorage:', fromLS ? 'YES ✅' : 'NO ❌');
+      console.log('Cookie domain:', this.getPrimaryDomainForCookie());
+      console.log('Final token:', fromCookie || fromLS || 'NONE ❌');
+      console.log('🔍🔍🔍 END API CLIENT CHECK 🔍🔍🔍');
+      
+      if (fromCookie) return fromCookie;
       return fromLS;
     }
     return null;

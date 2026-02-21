@@ -76,9 +76,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuthStatus = () => {
       try {
         // =========================================================================
-        // 🎫 TOKEN RETRIEVAL - Get stored token (cookie preferred, fallback localStorage)
+        // 🎫 TOKEN RETRIEVAL - Get stored token using apiClient's cross-domain method
         // =========================================================================
-        const token = readCookie('authToken') || localStorage.getItem('authToken');
+        const token = apiClient.getStoredToken();
+        
+        // Debug: Log token retrieval with more visible output
+        console.log('🔍🔍🔍 AUTHCONTEXT TOKEN CHECK 🔍🔍🔍');
+        console.log('Hostname:', typeof window !== 'undefined' ? window.location.hostname : 'SSR');
+        console.log('Token found:', token ? 'YES ✅' : 'NO ❌');
+        console.log('Token length:', token?.length || 0);
+        console.log('🔍🔍🔍 END TOKEN CHECK 🔍🔍🔍');
         
         if (token) {
           // ============================================================================
@@ -92,15 +99,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // ============================================================================
           if (decoded.exp > currentTime) {
             // ============================================================================
-            // ✅ VALID TOKEN - Set user information and update API client
+            // 👤 USER STATE UPDATE - Set authenticated user information
             // ============================================================================
-            const userData: User = {
-              id: decoded.userId,
+            setUser({
+              id: decoded.id,
               email: decoded.email,
-              role: decoded.role
-            };
-            setUser(userData);
-            apiClient.setToken(token);                      // Update API client with token
+              role: decoded.role,
+            });
+            setLoading(false);
+            
+            // Debug: Log successful authentication
+            console.log('✅ AuthContext Debug - User authenticated:', {
+              hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
+              userId: decoded.id,
+              userEmail: decoded.email,
+              userRole: decoded.role
+            });
+            
+            return;
           } else {
             // ============================================================================
             // ⏰ EXPIRED TOKEN - Remove expired token and clear user data
@@ -125,6 +141,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // 🚀 INITIAL CHECK - Run authentication check when component mounts
     // ============================================================================
     checkAuthStatus();
+
+    const onMessage = (event: MessageEvent) => {
+      try {
+        const data: any = (event as any).data;
+        if (data && data.type === 'request-auth-token') {
+          const token = apiClient.getStoredToken();
+          if (token && (event.source as WindowProxy | null)) {
+            (event.source as WindowProxy).postMessage({ type: 'auth-token', token }, event.origin);
+          }
+        }
+      } catch {}
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', onMessage);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('message', onMessage);
+      }
+    };
   }, []); // Empty dependency array means this runs only once when component mounts
 
   // ============================================================================

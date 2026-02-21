@@ -15,6 +15,8 @@ import DoctorBookingCTA from "@/components/DoctorBookingCTA";
 import HospitalDoctorsByDepartment from "@/components/HospitalDoctorsByDepartment";
 import EmergencyBookingForm from "@/components/EmergencyBookingForm";
 import HospitalDepartments from "@/components/HospitalDepartments";
+import { SidebarToggle, SidebarOverlay } from '@/components/SidebarToggle';
+import Script from 'next/script';
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -176,11 +178,12 @@ async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsRe
 // ============================================================================
 // 🏥 HOSPITAL WEBSITE COMPONENT - Main website component
 // ============================================================================
-export default async function HospitalSitePage({ params }: { params: { slug: string } }) {
-  const { slug } = params;
-  const [profileResponse, details] = await Promise.all([
+export default async function HospitalSitePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const [profileResponse, details, { SidebarToggle, SidebarOverlay }] = await Promise.all([
     getHospitalProfileBySlug(slug),
     getHospitalDetailsBySlug(slug),
+    import('@/components/SidebarToggle'),
   ]);
 
   // ============================================================================
@@ -235,6 +238,38 @@ export default async function HospitalSitePage({ params }: { params: { slug: str
   // ============================================================================
   return (
     <div className="min-h-screen bg-white">
+      <Script id="auth-bridge-site" strategy="afterInteractive">
+        {`
+        try {
+          if (typeof window !== 'undefined') {
+            // 1) Hash-based token handoff (same-window navigation)
+            var hash = window.location.hash || '';
+            var m = /authToken=([^&]+)/.exec(hash);
+            if (m && m[1]) {
+              var t = decodeURIComponent(m[1]);
+              try { localStorage.setItem('authToken', t); } catch(_) {}
+              try {
+                var d=(function(){var env=(window.process&&window.process.env&&window.process.env.NEXT_PUBLIC_PRIMARY_DOMAIN)||''; if(env){return env.startsWith('.')?env:'.'+env;} var h=window.location.hostname.toLowerCase(); if(h==='localhost'||h==='127.0.0.1') return null; var p=h.split('.'); if(p.length>=2){return '.'+p.slice(p.length-2).join('.');} return null;})();
+                var attrs=['authToken='+encodeURIComponent(t),'Path=/','Max-Age='+(60*60*24*7)]; if(d){attrs.push('Domain='+d,'Secure');} attrs.push('SameSite=Lax'); document.cookie=attrs.join('; ');
+              } catch(_) {}
+              try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch(_) {}
+              try { location.reload(); } catch(_) {}
+            }
+
+            // 2) PostMessage-based token handoff (new window/tab)
+            if (window.opener) {
+              var has = document.cookie && document.cookie.indexOf('authToken=') !== -1;
+              if (!has) {
+                function h(e){try{if(e&&e.data&&e.data.type==='auth-token'&&e.data.token){try{localStorage.setItem('authToken', e.data.token);}catch(_){};try{var d=(function(){var env=(window.process&&window.process.env&&window.process.env.NEXT_PUBLIC_PRIMARY_DOMAIN)||''; if(env){return env.startsWith('.')?env:'.'+env;} var h=window.location.hostname.toLowerCase(); if(h==='localhost'||h==='127.0.0.1') return null; var p=h.split('.'); if(p.length>=2){return '.'+p.slice(p.length-2).join('.');} return null;})(); var attrs=['authToken='+encodeURIComponent(e.data.token),'Path=/','Max-Age='+(60*60*24*7)]; if(d){attrs.push('Domain='+d,'Secure');} attrs.push('SameSite=Lax'); document.cookie=attrs.join('; ');}catch(_){}; window.removeEventListener('message', h); location.reload();}}
+                catch(_){} }
+                window.addEventListener('message', h);
+                window.opener.postMessage({ type: 'request-auth-token' }, '*');
+              }
+            }
+          }
+        } catch(_) {}
+        `}
+      </Script>
       {/* ============================================================================
           🎨 HERO SECTION - Compact hospital header with animated background
           ============================================================================ */}
@@ -296,19 +331,11 @@ export default async function HospitalSitePage({ params }: { params: { slug: str
               )}
               
               {doctorsToShow.length > 0 && (
-                <button 
-                  onClick={() => {
-                    const sidebar = document.getElementById('doctor-sidebar');
-                    const overlay = document.getElementById('sidebar-overlay');
-                    if (sidebar && overlay) {
-                      sidebar.classList.remove('translate-x-full');
-                      overlay.classList.remove('hidden');
-                    }
-                  }}
+                <SidebarToggle 
                   className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 px-8 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   📅 Book Appointment
-                </button>
+                </SidebarToggle>
               )}
             </div>
 
@@ -382,19 +409,9 @@ export default async function HospitalSitePage({ params }: { params: { slug: str
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">Book Appointment</h2>
-            <button 
-              onClick={() => {
-                const sidebar = document.getElementById('doctor-sidebar');
-                const overlay = document.getElementById('sidebar-overlay');
-                if (sidebar && overlay) {
-                  sidebar.classList.add('translate-x-full');
-                  overlay.classList.add('hidden');
-                }
-              }}
-              className="text-2xl hover:scale-110 transition-transform duration-200"
-            >
+            <SidebarToggle className="text-white hover:text-gray-200 text-2xl">
               ✕
-            </button>
+            </SidebarToggle>
           </div>
           <p className="text-blue-100">Select a doctor and book your appointment</p>
         </div>
@@ -485,18 +502,9 @@ export default async function HospitalSitePage({ params }: { params: { slug: str
       </div>
 
       {/* Sidebar Overlay */}
-      <div 
-        id="sidebar-overlay"
+      <SidebarOverlay 
         className="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"
-        onClick={() => {
-          const sidebar = document.getElementById('doctor-sidebar');
-          const overlay = document.getElementById('sidebar-overlay');
-          if (sidebar && overlay) {
-            sidebar.classList.add('translate-x-full');
-            overlay.classList.add('hidden');
-          }
-        }}
-      ></div>
+      />
 
       {/* ============================================================================
           📋 MAIN CONTENT - Website sections

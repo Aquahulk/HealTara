@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
+import { useRouter } from 'next/navigation';
 import { hospitalMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
 import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import { apiClient } from '@/lib/api';
 
 export default function HospitalsPage() {
+  const router = useRouter();
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,10 +100,16 @@ export default function HospitalsPage() {
                               e.preventDefault();
                               const sub = (h as any).subdomain as string | undefined;
                               if (sub && sub.length > 1) {
+                                // Use window.location.href for cross-domain navigation
                                 window.location.href = customSubdomainUrl(sub);
                               } else {
-                                window.location.href = hospitalIdMicrositeUrl(h.id);
+                                // Use slugified name for subdomain routing
+                                const hospitalSlug = slugifyName(h.name);
+                                window.location.href = hospitalMicrositeUrl(hospitalSlug);
                               }
+                            } else {
+                              // Direct navigation without subdomain routing
+                              router.push(`/hospital-site/${h.id}`);
                             }
                           } catch {}
                         }}

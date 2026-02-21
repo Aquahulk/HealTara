@@ -22,6 +22,8 @@ function getPrimaryDomain(): string {
     const parts = host.split(".");
     // If there are 3+ parts (e.g., hospital-birla.lvh.me), drop the first
     if (parts.length >= 3) return parts.slice(1).join(".");
+    // For localhost subdomains (e.g., hospital1.localhost), return localhost
+    if (host.endsWith('.localhost')) return 'localhost';
     // On localhost, avoid lvh.me to prevent extension blocks; use localhost
     if (host === "localhost" || host === "127.0.0.1") return "localhost";
     return host; // localhost or bare domain
@@ -30,11 +32,31 @@ function getPrimaryDomain(): string {
   return "lvh.me";
 }
 
+function getAuthTokenForNav(): string | null {
+  try {
+    if (typeof document !== 'undefined') {
+      const cookies = document.cookie ? document.cookie.split('; ') : [];
+      for (const c of cookies) {
+        const [k, ...v] = c.split('=');
+        if (k === 'authToken') return decodeURIComponent(v.join('='));
+      }
+    }
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const ls = window.localStorage.getItem('authToken');
+      if (ls) return ls;
+    }
+  } catch {}
+  return null;
+}
+
 function buildUrl(subdomain: string): string {
   const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
   const port = typeof window !== "undefined" && window.location.port ? `:${window.location.port}` : "";
   const root = getPrimaryDomain();
-  return `${protocol}//${subdomain}.${root}${port}/`;
+  const base = `${protocol}//${subdomain}.${root}${port}/`;
+  const token = getAuthTokenForNav();
+  if (token) return `${base}#authToken=${encodeURIComponent(token)}`;
+  return base;
 }
 
 export function hospitalMicrositeUrl(nameOrSlug: string): string {
@@ -52,20 +74,34 @@ export function hospitalIdMicrositeUrl(id: string | number): string {
   return buildUrl(`hospital-${String(id)}`);
 }
 
-// Use an explicitly assigned custom subdomain
+// Use an explicitly assigned custom domain or subdomain
 export function customSubdomainUrl(sub: string): string {
   const s = (sub || '').toLowerCase().trim();
-  return buildUrl(s);
+  if (!s) return '';
+  
+  // Check if it's a custom domain (contains dots)
+  if (s.includes('.')) {
+    // Custom domain - use as-is
+    return buildUrl(s);
+  } else {
+    // Subdomain - use as-is
+    return buildUrl(s);
+  }
 }
 
 // Determine whether to navigate via subdomain microsites.
-// Disabled on localhost to avoid lvh.me redirects being blocked by wallet extensions.
+  // Note: Enable on localhost for testing custom domains and subdomains
 export function shouldUseSubdomainNav(): boolean {
   const enabled = (process.env.NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING ?? 'true') !== 'false';
   if (!enabled) return false;
   if (typeof window !== 'undefined') {
     const host = window.location.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return false;
+    // Allow localhost testing for subdomain routing
+    if (host === 'localhost' || host === '127.0.0.1') {
+      console.log('🧪 Subdomain routing enabled on localhost for testing');
+      return true;
+    }
+    if (host === 'lvh.me') return false;
   }
   return true;
 }
