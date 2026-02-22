@@ -546,7 +546,15 @@ class ApiClient {
       page: String(params.page || 1),
       limit: String(params.limit || 50),
     }).toString();
-    return this.request(`/api/hospitals?${query}`);
+    const response = await this.request(`/api/hospitals?${query}`);
+    
+    // Handle the new API response format
+    if (response && typeof response === 'object' && 'success' in response && response.success && 'data' in response) {
+      return (response as any).data;
+    }
+    
+    // Fallback for backward compatibility
+    return Array.isArray(response) ? response : [];
   }
 
   async createHospital(payload: { name: string; address?: string; city?: string; state?: string; phone?: string }): Promise<{ id: number }> {

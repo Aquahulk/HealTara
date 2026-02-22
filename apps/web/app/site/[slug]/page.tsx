@@ -15,7 +15,6 @@ import DoctorBookingCTA from "@/components/DoctorBookingCTA";
 import HospitalDoctorsByDepartment from "@/components/HospitalDoctorsByDepartment";
 import EmergencyBookingForm from "@/components/EmergencyBookingForm";
 import HospitalDepartments from "@/components/HospitalDepartments";
-import { SidebarToggle, SidebarOverlay } from '@/components/SidebarToggle';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import Script from 'next/script';
 import { CommentsSection } from '@/components/CommentsSection';
@@ -182,10 +181,9 @@ async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsRe
 // ============================================================================
 export default async function HospitalSitePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const [profileResponse, details, { SidebarToggle, SidebarOverlay }] = await Promise.all([
+  const [profileResponse, details] = await Promise.all([
     getHospitalProfileBySlug(slug),
     getHospitalDetailsBySlug(slug),
-    import('@/components/SidebarToggle'),
   ]);
 
   // ============================================================================
@@ -275,7 +273,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
       {/* ============================================================================
           🎨 PREMIUM HERO SECTION - Modern hospital header with advanced animations
           ============================================================================ */}
-      <header className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white overflow-hidden min-h-[40vh] md:min-h-[70vh]">
+      <header className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white overflow-hidden min-h-[35vh] md:min-h-[65vh]">
         {/* Animated Medical Background with Particles */}
         <div className="absolute inset-0">
           {/* Floating medical icons - responsive sizing */}
@@ -333,11 +331,12 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
               )}
               
               {doctorsToShow.length > 0 && (
-                <SidebarToggle 
+                <a 
+                  href="#doctors"
                   className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2 px-4 md:py-3 md:px-8 rounded-full hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 text-sm md:text-base"
                 >
                   📅 Book Now
-                </SidebarToggle>
+                </a>
               )}
             </div>
 
@@ -349,18 +348,18 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                 <div className="text-blue-100 text-xs">Doctors</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                <div className="text-2xl mb-1">🏬</div>
-                <div className="text-xl font-bold">{departments.length}</div>
+                <div className="text-lg md:text-2xl mb-1">🏬</div>
+                <div className="text-base md:text-xl font-bold">{departments.length}</div>
                 <div className="text-blue-100 text-xs">Departments</div>
               </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                <div className="text-2xl mb-1">⭐</div>
-                <div className="text-xl font-bold">24/7</div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
+                <div className="text-lg md:text-2xl mb-1">⭐</div>
+                <div className="text-base md:text-xl font-bold">24/7</div>
                 <div className="text-blue-100 text-xs">Emergency</div>
               </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                <div className="text-2xl mb-1">🏆</div>
-                <div className="text-xl font-bold">Premium</div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
+                <div className="text-lg md:text-2xl mb-1">🏆</div>
+                <div className="text-base md:text-xl font-bold">Premium</div>
                 <div className="text-blue-100 text-xs">Quality</div>
               </div>
             </div>
@@ -399,114 +398,6 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
           </div>
         </div>
       </header>
-
-      {/* ============================================================================
-          📅 DOCTOR BOOKING SIDEBAR - Sliding sidebar for doctor appointments
-          ============================================================================ */}
-      <div 
-        id="doctor-sidebar" 
-        className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out z-50 overflow-y-auto"
-      >
-        {/* Sidebar Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Book Appointment</h2>
-            <SidebarToggle className="text-white hover:text-gray-200 text-2xl">
-              ✕
-            </SidebarToggle>
-          </div>
-          <p className="text-blue-100">Select a doctor and book your appointment</p>
-        </div>
-
-        {/* Doctor List */}
-        <div className="p-6">
-          {doctorsToShow.length > 0 ? (
-            <div className="space-y-4">
-              {doctorsToShow.map((link, index) => {
-                const doctor = link.doctor;
-                const profile = doctor.doctorProfile;
-                
-                if (!profile) return null;
-                
-                return (
-                  <div key={index} className="bg-gray-50 p-4 rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200">
-                    <div className="flex items-start space-x-4">
-                      {/* Doctor Avatar */}
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
-                        {profile.profileImage ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img 
-                            src={profile.profileImage} 
-                            alt={doctor.email.split('@')[0]} 
-                            className="w-14 h-14 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-2xl">👨‍⚕️</span>
-                        )}
-                      </div>
-                      
-                      {/* Doctor Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">
-                          Dr. {doctor.email.split('@')[0]}
-                        </h3>
-                        <p className="text-blue-600 font-semibold text-sm mb-2">{profile.specialization}</p>
-                        
-                        <div className="space-y-1 text-sm text-gray-600">
-                          {profile.experience && (
-                    <div className="flex items-center">
-                              <span className="text-blue-500 mr-1">⏰</span>
-                              <span>{profile.experience}+ Years</span>
-                    </div>
-                          )}
-                          
-                          {profile.consultationFee && (
-                    <div className="flex items-center">
-                              <span className="text-green-500 mr-1">💰</span>
-                              <span>₹{profile.consultationFee}</span>
-                    </div>
-                          )}
-                          
-                          {link.department && (
-                    <div className="flex items-center">
-                              <span className="text-purple-500 mr-1">🏥</span>
-                              <span>{link.department.name}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Book Button */}
-                        <div className="mt-3">
-                          <DoctorBookingCTA doctorId={doctor.id} clinicName={profile.clinicName || name} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">👩‍⚕️</div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">No Doctors Available</h3>
-              <p className="text-gray-600">Please check back later or contact us directly.</p>
-              {contacts.reception && (
-                <a 
-                  href={`tel:${contacts.reception}`}
-                  className="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Call Reception
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Sidebar Overlay */}
-      <SidebarOverlay 
-        className="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"
-      />
 
       {/* ============================================================================
           📋 MAIN CONTENT - Website sections - Compact on mobile
@@ -675,11 +566,11 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             🏥 DEPARTMENTS & SERVICES SECTION - Specialized departments and services - Compact on mobile
             ============================================================================ */}
         {departments.length > 0 && (
-          <section className="relative">
-            <div className="text-center mb-4 md:mb-16">
-              <h2 className="text-2xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-6">Our Departments</h2>
-              <p className="text-sm md:text-xl text-gray-600 max-w-3xl mx-auto">
-                Specialized medical departments providing comprehensive healthcare services with state-of-the-art facilities.
+          <section className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-8 md:py-12 rounded-3xl">
+            <div className="text-center mb-6 md:mb-10">
+              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Our Departments</h2>
+              <p className="text-sm md:text-lg text-gray-600 max-w-2xl mx-auto">
+                Specialized medical departments with state-of-the-art facilities
               </p>
             </div>
             <HospitalDepartments departments={departments as any} doctors={doctorsToShow as any} hospitalName={name} />
@@ -688,16 +579,16 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         
         {/* Featured Services Grid - Compact on mobile */}
         {featuredServices.length > 0 && (
-          <section className="gradient-brand-soft py-4 md:py-16 rounded-2xl md:rounded-3xl">
-            <div className="text-center mb-4 md:mb-12">
-              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-4">Featured Services</h2>
-              <p className="text-sm md:text-xl text-gray-600">Comprehensive medical care across all specialties</p>
+          <section className="relative bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 py-6 md:py-10 rounded-3xl">
+            <div className="text-center mb-5 md:mb-8">
+              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Featured Services</h2>
+              <p className="text-sm md:text-lg text-gray-600">Comprehensive medical care across all specialties</p>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {featuredServices.map((service, index) => (
-                <div key={index} className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 text-center group">
-                  <div className="text-2xl md:text-3xl mb-2 md:mb-3 group-hover:scale-110 transition-transform duration-300">
+                <div key={index} className="bg-white p-4 md:p-6 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 text-center group border border-gray-100">
+                  <div className="text-3xl md:text-4xl mb-2 md:mb-3 group-hover:scale-110 transition-transform duration-300">
                     {index % 8 === 0 ? '💊' : index % 8 === 1 ? '🔬' : index % 8 === 2 ? '📋' : index % 8 === 3 ? '🩺' : index % 8 === 4 ? '💉' : index % 8 === 5 ? '🏥' : index % 8 === 6 ? '🦠' : '❤️'}
                   </div>
                   <h3 className="font-semibold text-gray-900 text-xs md:text-sm">{service}</h3>
@@ -708,11 +599,11 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         )}
 
         {doctorsToShow.length > 0 && (
-          <section className="relative">
-            <div className="text-center mb-4 md:mb-16">
-              <h2 className="text-2xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-6">Our Medical Team</h2>
-              <p className="text-sm md:text-xl text-gray-600 max-w-3xl mx-auto">
-                Meet our experienced and dedicated healthcare professionals committed to providing exceptional patient care.
+          <section id="doctors" className="relative bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 py-8 md:py-12 rounded-3xl">
+            <div className="text-center mb-6 md:mb-10">
+              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Our Medical Team</h2>
+              <p className="text-sm md:text-lg text-gray-600 max-w-2xl mx-auto">
+                Experienced healthcare professionals dedicated to your care
               </p>
             </div>
             <HospitalDoctorsByDepartment doctors={doctorsToShow as any} hospitalName={name} />
@@ -774,16 +665,20 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         </section>
         )}
 
-        {/* Comments Section */}
-        <section className="py-8">
+        {/* Comments Section - Compact and Modern */}
+        <section className="relative bg-gradient-to-br from-gray-50 to-blue-50 py-6 md:py-10 rounded-3xl">
           <div className="max-w-4xl mx-auto px-4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Patient Reviews & Comments</h2>
-            <p className="text-gray-600 mb-8">Share your experience and help others make informed decisions</p>
-            <CommentsSection 
-              entityType="hospital" 
-              entityId={String(details.id)} 
-              entityName={name} 
-            />
+            <div className="text-center mb-4 md:mb-6">
+              <h2 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">Patient Reviews</h2>
+              <p className="text-xs md:text-base text-gray-600">Share your experience with us</p>
+            </div>
+            <div className="bg-white rounded-2xl shadow-lg p-3 md:p-6">
+              <CommentsSection 
+                entityType="hospital" 
+                entityId={String(details.id)} 
+                entityName={name} 
+              />
+            </div>
           </div>
         </section>
 
@@ -905,32 +800,33 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         </section>
 
         {/* ============================================================================
-            🚨 EMERGENCY BOOKING - Immediate attention requests
+            🚨 EMERGENCY BOOKING - Compact and Modern
             ============================================================================ */}
         {doctorsToShow.length > 0 && (
-          <section className="relative">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-              <div className="lg:col-span-2">
-                <div className="bg-red-50 border border-red-100 rounded-3xl p-8 shadow">
-                  <div className="flex items-center mb-4">
-                    <div className="text-4xl mr-3">🚑</div>
-                    <h2 className="text-3xl font-bold text-red-700">Emergency Appointments</h2>
+          <section className="relative bg-gradient-to-br from-red-50 to-orange-50 py-6 md:py-10 rounded-3xl">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+              <div className="lg:col-span-4">
+                <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border-l-4 border-red-500">
+                  <div className="flex items-center mb-3">
+                    <div className="text-2xl md:text-3xl mr-3">🚑</div>
+                    <h2 className="text-lg md:text-2xl font-bold text-gray-900">Emergency Appointments</h2>
                   </div>
-                  <p className="text-red-800 mb-4">
-                    If you need urgent attention, submit an emergency booking. Our team will prioritize your case and allocate the earliest available slot.
+                  <p className="text-gray-700 text-xs md:text-sm mb-3">
+                    Need urgent care? Submit an emergency booking and we'll prioritize your case.
                   </p>
                   <EmergencyBookingForm doctors={doctorsToShow.map((link) => ({ id: link.doctor.id, email: link.doctor.email }))} />
                 </div>
               </div>
-              <div>
-                <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Emergency Contact</h3>
+              <div className="lg:col-span-1">
+                <div className="bg-red-600 text-white rounded-2xl p-4 shadow-lg text-center">
+                  <div className="text-3xl mb-2">📞</div>
+                  <h3 className="text-base font-bold mb-2">24/7 Emergency</h3>
                   {contacts.emergency ? (
-                    <a href={`tel:${contacts.emergency}`} className="inline-flex items-center bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
-                      <span className="mr-2">📞</span> {contacts.emergency}
+                    <a href={`tel:${contacts.emergency}`} className="block bg-white text-red-600 font-bold px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors mt-3 text-sm">
+                      {contacts.emergency}
                     </a>
                   ) : (
-                    <p className="text-gray-600">Emergency services are available 24/7.</p>
+                    <p className="text-xs text-red-100">Available 24/7</p>
                   )}
                 </div>
               </div>
