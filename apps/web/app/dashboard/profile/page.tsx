@@ -22,6 +22,7 @@ export default function DoctorProfilePage() {
     consultationFee: 0,
   });
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Redirect hospital admins to their dedicated profile page via effect
   useEffect(() => {
@@ -40,7 +41,7 @@ export default function DoctorProfilePage() {
   }
 
   // Handler to update state when user types in an input
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prevState => ({
       ...prevState,
@@ -53,9 +54,11 @@ export default function DoctorProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage('');
+    setLoading(true);
 
     if (!user) {
       setMessage('Error: You are not authenticated.');
+      setLoading(false);
       return;
     }
 
@@ -65,6 +68,8 @@ export default function DoctorProfilePage() {
       setMessage('Success! Your profile has been saved.');
     } catch (error: any) {
       setMessage(`Error: ${error.message || 'Could not connect to the server.'}`);
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -77,55 +82,212 @@ export default function DoctorProfilePage() {
       )
   }
 
-  // A helper array to create form fields dynamically
-  const formFields = [
-  { name: 'specialization', type: 'text' },
-  { name: 'qualifications', type: 'text' },
-  // ... keep the rest of the fields
-  { name: 'experience', type: 'number' },
-  { name: 'clinicName', type: 'text' },
-  { name: 'clinicAddress', type: 'text' },
-  { name: 'city', type: 'text' },
-  { name: 'state', type: 'text' },
-  { name: 'phone', type: 'tel' },
-  { name: 'consultationFee', type: 'number' },
-];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white p-6 sm:p-10">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8 rounded-xl overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 shadow-lg">
-          <h1 className="text-3xl sm:text-4xl font-bold">Doctor Profile</h1>
-          <p className="mt-2 opacity-90">Update your specialization, experience, and clinic details.</p>
-        </div>
-        <form onSubmit={handleSubmit} className="bg-white/10 backdrop-blur p-6 rounded-xl space-y-4">
-          {formFields.map(({ name, type }) => (
-            <div key={name} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-              <label className="sm:text-right text-sm font-medium capitalize opacity-90">
-                {name.replace(/([A-Z])/g, ' $1')}
-              </label>
-              <input
-                type={type}
-                name={name}
-                value={formData[name as keyof typeof formData]}
-                onChange={handleChange}
-                required
-                className="sm:col-span-2 w-full p-3 bg-white/5 rounded border border-white/10 focus:border-white/30 focus:outline-none"
-              />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 rounded-2xl overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 shadow-xl">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-white text-2xl font-bold">
+              👨‍⚕️
             </div>
-          ))}
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-bold text-white">Doctor Profile</h1>
+              <p className="mt-2 text-blue-100">Complete your professional profile to start accepting appointments</p>
+            </div>
+          </div>
+        </div>
 
-          <div className="flex justify-end">
-            <button type="submit" className="px-5 py-3 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold transition-colors">
-              Save Profile
-            </button>
+        {message && (
+          <div className={`mb-6 p-4 rounded-xl ${message.startsWith('Error') ? 'bg-red-50 border-2 border-red-200 text-red-800' : 'bg-green-50 border-2 border-green-200 text-green-800'}`}>
+            <p className="font-medium">{message}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Professional Information Section */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-2xl">🩺</span>
+                Professional Information
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Your medical expertise and qualifications</p>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Specialization *
+                </label>
+                <input
+                  type="text"
+                  name="specialization"
+                  value={formData.specialization}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g., Cardiologist, Pediatrician"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Qualifications *
+                </label>
+                <input
+                  type="text"
+                  name="qualifications"
+                  value={formData.qualifications}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g., MBBS, MD"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Years of Experience *
+                </label>
+                <input
+                  type="number"
+                  name="experience"
+                  value={formData.experience}
+                  onChange={handleChange}
+                  required
+                  min="0"
+                  placeholder="e.g., 10"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Consultation Fee (₹) *
+                </label>
+                <input
+                  type="number"
+                  name="consultationFee"
+                  value={formData.consultationFee}
+                  onChange={handleChange}
+                  required
+                  min="0"
+                  placeholder="e.g., 500"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+            </div>
           </div>
 
-          {message && (
-            <p className={`mt-4 text-center text-sm ${message.startsWith('Error') ? 'text-red-300' : 'text-emerald-300'}`}>
-              {message}
-            </p>
-          )}
+          {/* Clinic Information Section */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-2xl">🏥</span>
+                Clinic Information
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Where you practice medicine</p>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Clinic Name *
+                </label>
+                <input
+                  type="text"
+                  name="clinicName"
+                  value={formData.clinicName}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g., City Health Clinic"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Clinic Address *
+                </label>
+                <input
+                  type="text"
+                  name="clinicAddress"
+                  value={formData.clinicAddress}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g., 123 Main Street, Building A"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  City *
+                </label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g., Mumbai"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  State *
+                </label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g., Maharashtra"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Information Section */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-2xl">📞</span>
+                Contact Information
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">How patients can reach you</p>
+            </div>
+            <div className="p-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g., +91 98765 43210"
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end gap-4">
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Saving...' : 'Save Profile'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

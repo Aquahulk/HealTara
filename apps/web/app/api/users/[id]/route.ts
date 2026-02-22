@@ -3,10 +3,11 @@ import { executeQuery } from '@/lib/database-pool';
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
     if (!id || !/^[0-9]+$/.test(String(id))) {
       return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
     }

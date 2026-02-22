@@ -169,9 +169,6 @@ export const ProgressiveAppointmentLoader: React.FC<ProgressiveAppointmentLoader
         // Remove from available appointments
         setAppointments(prev => prev.filter(apt => apt.id !== appointmentId));
         
-        // Invalidate cache
-        onAppointmentBooked(doctorId, date);
-        
         // Callback for parent component
         if (onAppointmentBooked) {
           onAppointmentBooked(result.data);

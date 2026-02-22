@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
-// Link removed as hospital-wide Slot Admin UI has been deprecated
 
 type HospitalProfile = {
   general?: {
@@ -90,28 +89,25 @@ export default function HospitalAdminProfilePage() {
   const [creatingHospital, setCreatingHospital] = useState(false);
   const [createHospitalForm, setCreateHospitalForm] = useState({ name: "", address: "", city: "", state: "", phone: "" });
   const [message, setMessage] = useState<string>("");
-  const [departmentsExpanded, setDepartmentsExpanded] = useState(true);
-  const [aboutExpanded, setAboutExpanded] = useState(true);
-  const [generalExpanded, setGeneralExpanded] = useState(true);
   const [doctorAdmins, setDoctorAdmins] = useState<Record<number, { currentEmail?: string; email: string; password: string; saving: boolean; loading: boolean }>>({});
   const [linkedDoctors, setLinkedDoctors] = useState<Array<{ doctor: { id: number; email: string; doctorProfile?: any }, department?: { id: number; name: string } | null }>>([]);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'departments' | 'doctors'>('departments');
-  const [departmentsTab, setDepartmentsTab] = useState<'new' | 'existing'>('new');
-  const [doctorsTab, setDoctorsTab] = useState<'new' | 'existing'>('new');
+  const [activeSection, setActiveSection] = useState<'general' | 'about' | 'departments' | 'doctors'>('general');
   const [newDepartment, setNewDepartment] = useState<{ name: string; description?: string }>({ name: '', description: '' });
   const [newDoctor, setNewDoctor] = useState<{ name: string; primarySpecialty?: string; subSpecialty?: string; departmentName?: string }>({ name: '', primarySpecialty: '', subSpecialty: '', departmentName: '' });
-  const isHospitalAdmin = user?.role === "HOSPITAL_ADMIN";
   const [subdomain, setSubdomain] = useState<string>('');
   const [subdomainChecking, setSubdomainChecking] = useState<boolean>(false);
   const [subdomainError, setSubdomainError] = useState<string>('');
+  const [initialSubdomain, setInitialSubdomain] = useState<string>('');
+  const [expandedDepartments, setExpandedDepartments] = useState<Set<number>>(new Set());
+  const [expandedDoctors, setExpandedDoctors] = useState<Set<number>>(new Set());
+
+  const isHospitalAdmin = user?.role === "HOSPITAL_ADMIN";
 
   useEffect(() => {
     if (loading) return;
-    // Allow both classic ADMIN and HOSPITAL_ADMIN roles
     if (!user || (user.role !== "ADMIN" && user.role !== "HOSPITAL_ADMIN")) return;
-
 
     const load = async () => {
       try {
@@ -127,7 +123,10 @@ export default function HospitalAdminProfilePage() {
         ]);
         if (profRes) setProfile(profRes as HospitalProfile);
         if (details?.doctors) setLinkedDoctors(details.doctors || []);
-        if (details?.subdomain) setSubdomain(details.subdomain);
+        if (details?.subdomain) {
+          setSubdomain(details.subdomain);
+          setInitialSubdomain(details.subdomain);
+        }
       } catch (e: any) {
         setMessage(e?.message || "Failed to load hospital profile.");
       }
@@ -135,7 +134,6 @@ export default function HospitalAdminProfilePage() {
     load();
   }, [user, loading]);
 
-  // Load per-doctor slot admin details when doctors list changes
   useEffect(() => {
     const doctors = profile.doctors || [];
     const loadPerDoctor = async () => {
@@ -162,7 +160,6 @@ export default function HospitalAdminProfilePage() {
       }
     };
     loadPerDoctor();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.doctors]);
 
   const updateGeneralField = (path: (keyof NonNullable<HospitalProfile["general"]>) | string, value: any) => {
@@ -172,13 +169,6 @@ export default function HospitalAdminProfilePage() {
         ...prev.general,
         [path as string]: value,
       },
-    }));
-  };
-
-  const addDepartment = () => {
-    setProfile((prev) => ({
-      ...prev,
-      departments: [...(prev.departments || []), { name: "", description: "", services: [], conditions: [], equipment: [], photos: [], videos: [], associatedDoctorIds: [] }],
     }));
   };
 
@@ -202,13 +192,10 @@ export default function HospitalAdminProfilePage() {
     const v = (s || '').toLowerCase().trim();
     if (!v) return '';
     if (v.length < 2 || v.length > 63) return 'Must be 2-63 characters';
-    // Support custom domains (allow dots) and subdomains
     if (!/^[a-z0-9.-]+$/.test(v)) return 'Only lowercase letters, numbers, dots, and hyphens';
     if (v.startsWith('.') || v.endsWith('.')) return 'Cannot start or end with dot';
     if (v.startsWith('-') || v.endsWith('-')) return 'Cannot start or end with hyphen';
-    // Check if it's a custom domain (has dots) or subdomain
     if (v.includes('.')) {
-      // Custom domain validation
       const parts = v.split('.');
       if (parts.length < 2) return 'Invalid domain format';
       if (parts.some(part => part.length === 0)) return 'Invalid domain format';
@@ -247,7 +234,8 @@ export default function HospitalAdminProfilePage() {
     setSaving(true);
     try {
       await apiClient.setHospitalSubdomain(hospitalId, subdomain);
-      setMessage('Subdomain saved');
+      setInitialSubdomain(subdomain);
+      setMessage('Subdomain saved successfully. This cannot be changed.');
     } catch (e: any) {
       setMessage(e?.message || 'Failed to save subdomain');
     } finally {
@@ -265,17 +253,6 @@ export default function HospitalAdminProfilePage() {
     updateDepartment(idx, field, arr);
   };
 
-  const addDoctor = () => {
-    setProfile((prev) => {
-      const firstDept = (prev.departments && prev.departments[0] && prev.departments[0].name) ? String(prev.departments[0].name) : "";
-      const preset = firstDept ? [firstDept] : [];
-      return {
-        ...prev,
-        doctors: [...(prev.doctors || []), { name: "", primarySpecialty: "", subSpecialty: "", departments: preset }],
-      } as HospitalProfile;
-    });
-  };
-
   const updateDoctor = (idx: number, field: string, value: any) => {
     setProfile((prev) => {
       const list = [...(prev.doctors || [])];
@@ -284,7 +261,6 @@ export default function HospitalAdminProfilePage() {
     });
   };
 
-  // Create and link a real doctor account for booking
   const makeDoctorBookable = async (idx: number) => {
     try {
       setSaving(true);
@@ -299,7 +275,6 @@ export default function HospitalAdminProfilePage() {
         departmentName: selectedDept,
       };
       const result = await apiClient.createHospitalDoctor(myHospital.id, payload);
-      // Link created doctor to hospital profile and persist immediately
       if (result?.doctor?.id) {
         const list = [...(profile.doctors || [])];
         const doc = { ...(list[idx] || {}) } as any;
@@ -320,15 +295,12 @@ export default function HospitalAdminProfilePage() {
     }
   };
 
-  // Toggle ON/OFF for doctor bookable status
   const toggleDoctorBookable = async (idx: number) => {
     const d = (profile.doctors || [])[idx];
-    // If currently OFF (no doctorId), turn ON by creating and linking
     if (!d?.doctorId) {
       await makeDoctorBookable(idx);
       return;
     }
-    // If currently ON, turn OFF by unlinking from profile (soft disable)
     try {
       setSaving(true);
       const myHospital = await apiClient.getMyHospital();
@@ -356,28 +328,10 @@ export default function HospitalAdminProfilePage() {
     });
   };
 
-  const toggleDoctorDepartment = (idx: number, deptName: string) => {
-    setProfile((prev) => {
-      const list = [...(prev.doctors || [])];
-      const doc = { ...list[idx] } as any;
-      const depts = new Set<string>(doc.departments || []);
-      if (depts.has(deptName)) {
-        depts.delete(deptName);
-      } else {
-        depts.add(deptName);
-      }
-      doc.departments = Array.from(depts);
-      list[idx] = doc;
-      return { ...prev, doctors: list } as HospitalProfile;
-    });
-  };
-
-  // Set a single department via dropdown selection
   const setDoctorDepartment = (idx: number, deptName: string) => {
     setProfile((prev) => {
       const list = [...(prev.doctors || [])];
       const doc = { ...list[idx] } as any;
-      // store as single-selection array to keep schema compatibility
       doc.departments = deptName ? [deptName] : [];
       list[idx] = doc;
       return { ...prev, doctors: list } as HospitalProfile;
@@ -405,7 +359,6 @@ export default function HospitalAdminProfilePage() {
     setMessage("");
     try {
       await apiClient.updateHospitalProfile(hospitalId, profile);
-      // Silent bulk sync of doctor departments after saving
       let count = 0;
       try {
         const hId = hospitalId;
@@ -449,7 +402,6 @@ export default function HospitalAdminProfilePage() {
       setMessage("");
       await apiClient.updateHospitalProfile(hospitalId, { doctors: profile.doctors || [] });
       let count = 0;
-      // After saving, auto-sync department for each linked doctor with selected department
       for (const d of (profile.doctors || [])) {
         const did = (d as any)?.doctorId;
         const deptName = Array.isArray((d as any)?.departments) && (d as any).departments[0] ? String((d as any).departments[0]) : '';
@@ -459,7 +411,6 @@ export default function HospitalAdminProfilePage() {
           count++;
         } catch {}
       }
-      // Refresh linked doctors list
       try {
         const details = await apiClient.getHospitalDetails(hospitalId);
         if (details?.doctors) setLinkedDoctors(details.doctors || []);
@@ -469,32 +420,6 @@ export default function HospitalAdminProfilePage() {
       setMessage(e?.message || 'Failed to save doctors');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const syncAllDoctorDepartments = async () => {
-    try {
-      if (!hospitalId) {
-        const myHospital = await apiClient.getMyHospital();
-        if (!myHospital?.id) throw new Error('Hospital not found for admin');
-        setHospitalId(myHospital.id);
-      }
-      const hId = hospitalId || (await apiClient.getMyHospital())?.id;
-      if (!hId) throw new Error('Hospital not found for admin');
-      let count = 0;
-      for (let i = 0; i < (profile.doctors || []).length; i++) {
-        const d: any = (profile.doctors || [])[i];
-        if (!d?.doctorId) continue;
-        const deptName = Array.isArray(d?.departments) && d.departments[0] ? String(d.departments[0]) : '';
-        if (!deptName) continue;
-        try {
-          await apiClient.updateHospitalDoctorDepartment(hId, d.doctorId, { departmentName: deptName });
-          count++;
-        } catch {}
-      }
-      if (count > 0) setMessage(`Synced departments for ${count} doctors.`);
-    } catch (e: any) {
-      setMessage(e?.message || 'Failed to sync departments');
     }
   };
 
@@ -522,8 +447,6 @@ export default function HospitalAdminProfilePage() {
     }
   };
 
-  // Removed hospital-wide Doctors Management save handler; only doctor-scoped management remain
-
   const saveDoctorSlotAdmin = async (doctorId?: number) => {
     if (!hospitalId) {
       setMessage("Create your hospital first, then add Doctors Management.");
@@ -549,26 +472,6 @@ export default function HospitalAdminProfilePage() {
     }
   };
 
-  if (!user) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-semibold">Please log in</h1>
-        <p className="text-gray-600">Hospital admin access required.</p>
-      </div>
-    );
-  }
-
-  if (!user || (user.role !== "ADMIN" && user.role !== "HOSPITAL_ADMIN" && user.role !== "DOCTOR")) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-semibold">Access denied</h1>
-        <p className="text-gray-600">This page is only for hospital admins.</p>
-      </div>
-    );
-  }
-
-  // Frontend guard: surface clearer hint if not HOSPITAL_ADMIN
-
   const handleUploadLogo = async () => {
     if (!hospitalId) {
       setMessage("Create your hospital first before uploading a logo.");
@@ -591,548 +494,1026 @@ export default function HospitalAdminProfilePage() {
     }
   };
 
-  return (
-    <div className="max-w-5xl mx-auto p-6 space-y-8 min-h-screen bg-gray-50 text-gray-900">
-      <section className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white p-6">
-  <div className="flex items-center space-x-4">
-    {profile.general?.logoUrl && (
-      <img src={profile.general.logoUrl} alt="Logo" className="h-12 w-12 rounded-full border border-white/30" />
-    )}
-    <div>
-      <h1 className="text-2xl sm:text-3xl font-bold">{profile.general?.brandName || profile.general?.legalName || 'Hospital Profile'}</h1>
-      <p className="opacity-90 text-sm sm:text-base">{profile.general?.tagline || 'Manage your hospital information and doctor team'}</p>
-    </div>
-  </div>
-</section>
-      {message && <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>}
-
-      {/* Hospital-wide Slot Admin section removed. Only per-doctor Slot Admin controls remain below. */}
-
-      {!hospitalId && (
-        <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-          <h2 className="text-xl font-semibold mb-3">Create Your Hospital</h2>
-          <p className="text-sm text-gray-600 mb-4">No hospital is linked to your admin account yet. Create one to enable saving the profile.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input className="border rounded p-2" placeholder="Hospital Name (required)" value={createHospitalForm.name} onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, name: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Phone" value={createHospitalForm.phone} onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, phone: e.target.value })} />
-            <input className="border rounded p-2 md:col-span-2" placeholder="Address" value={createHospitalForm.address} onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, address: e.target.value })} />
-            <input className="border rounded p-2" placeholder="City" value={createHospitalForm.city} onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, city: e.target.value })} />
-            <input className="border rounded p-2" placeholder="State" value={createHospitalForm.state} onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, state: e.target.value })} />
-          </div>
-          <div className="mt-4">
-            <button onClick={createHospital} disabled={creatingHospital} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
-              {creatingHospital ? "Creating..." : "Create Hospital"}
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* General & Contact Information */}
-      <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-        <button className="w-full text-left" onClick={() => setGeneralExpanded(!generalExpanded)}>
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">General & Contact Information</h2>
-            <span>{generalExpanded ? "▾" : "▸"}</span>
-          </div>
-        </button>
-        {generalExpanded && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <input className="border rounded p-2" placeholder="Full Legal Name" value={profile.general?.legalName || ""} onChange={(e) => updateGeneralField("legalName", e.target.value)} />
-            <input className="border rounded p-2" placeholder="Brand Name" value={profile.general?.brandName || ""} onChange={(e) => updateGeneralField("brandName", e.target.value)} />
-            <input className="border rounded p-2" placeholder="Tagline" value={profile.general?.tagline || ""} onChange={(e) => updateGeneralField("tagline", e.target.value)} />
-            {/* Microsite Custom Domain */}
-            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">Microsite Custom Domain</label>
-                <div className="flex items-center">
-                  <input
-                    className="border rounded p-2 w-full"
-                    placeholder="hospital1.com (your custom domain)"
-                    value={subdomain}
-                    onChange={(e) => {
-                      const v = e.target.value.toLowerCase().trim();
-                      setSubdomain(v);
-                    }}
-                    onBlur={() => checkAvailability(subdomain)}
-                  />
-                </div>
-                {subdomainChecking && <p className="text-sm text-gray-500 mt-1">Checking availability…</p>}
-                {subdomainError && <p className="text-sm text-red-600 mt-1">{subdomainError}</p>}
-              </div>
-              <button
-                type="button"
-                onClick={saveSubdomain}
-                disabled={!!subdomainError || subdomainChecking || !hospitalId}
-                className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-              >
-                Save Domain
-              </button>
-            </div>
-            <div className="space-y-2">
-              <input className="border rounded p-2 w-full" placeholder="Logo URL" value={profile.general?.logoUrl || ""} onChange={(e) => updateGeneralField("logoUrl", e.target.value)} />
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                  className="border rounded p-2 w-full"
-                />
-                <button
-                  type="button"
-                  onClick={handleUploadLogo}
-                  disabled={!logoFile || uploadingLogo || !hospitalId}
-                  className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-                >
-                  {uploadingLogo ? "Uploading…" : "Upload Logo"}
-                </button>
-              </div>
-            </div>
-            <input className="border rounded p-2 md:col-span-2" placeholder="Complete Address" value={profile.general?.address || ""} onChange={(e) => updateGeneralField("address", e.target.value)} />
-            <input className="border rounded p-2" placeholder="PIN code" value={profile.general?.pincode || ""} onChange={(e) => updateGeneralField("pincode", e.target.value)} />
-            <input className="border rounded p-2" placeholder="Google Maps Link" value={profile.general?.googleMapsLink || ""} onChange={(e) => updateGeneralField("googleMapsLink", e.target.value)} />
-
-            {/* Contacts */}
-            <input className="border rounded p-2" placeholder="Emergency/Casualty" value={profile.general?.contacts?.emergency || ""} onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), emergency: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Reception" value={profile.general?.contacts?.reception || ""} onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), reception: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Ambulance" value={profile.general?.contacts?.ambulance || ""} onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), ambulance: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Appointment Desk" value={profile.general?.contacts?.appointment || ""} onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), appointment: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Health Check-ups" value={profile.general?.contacts?.healthCheckups || ""} onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), healthCheckups: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Fax" value={profile.general?.contacts?.fax || ""} onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), fax: e.target.value })} />
-
-            {/* Emails */}
-            <input className="border rounded p-2" placeholder="Email: info@" value={profile.general?.emails?.info || ""} onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), info: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Email: appointments@" value={profile.general?.emails?.appointments || ""} onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), appointments: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Email: feedback@" value={profile.general?.emails?.feedback || ""} onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), feedback: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Email: hr@" value={profile.general?.emails?.careers || ""} onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), careers: e.target.value })} />
-
-            {/* Social */}
-            <input className="border rounded p-2" placeholder="Facebook URL" value={profile.general?.social?.facebook || ""} onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), facebook: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Twitter URL" value={profile.general?.social?.twitter || ""} onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), twitter: e.target.value })} />
-            <input className="border rounded p-2" placeholder="Instagram URL" value={profile.general?.social?.instagram || ""} onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), instagram: e.target.value })} />
-            <input className="border rounded p-2" placeholder="LinkedIn URL" value={profile.general?.social?.linkedin || ""} onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), linkedin: e.target.value })} />
-            <input className="border rounded p-2" placeholder="YouTube URL" value={profile.general?.social?.youtube || ""} onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), youtube: e.target.value })} />
-          </div>
-        )}
-      </section>
-
-      <div className="flex items-center gap-2 mb-4">
-        <button
-          className={`px-3 py-2 rounded ${activeTab === 'departments' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
-          onClick={() => setActiveTab('departments')}
-        >
-          Departments
-        </button>
-        <button
-          className={`px-3 py-2 rounded ${activeTab === 'doctors' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
-          onClick={() => setActiveTab('doctors')}
-        >
-          Doctors
-        </button>
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-gray-900">Please log in</h1>
+          <p className="text-gray-600 mt-2">Hospital admin access required.</p>
+        </div>
       </div>
+    );
+  }
 
-      {/* About Us */}
-      <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-        <button className="w-full text-left" onClick={() => setAboutExpanded(!aboutExpanded)}>
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">About Us</h2>
-            <span>{aboutExpanded ? "▾" : "▸"}</span>
-          </div>
-        </button>
-        {aboutExpanded && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <textarea className="border rounded p-2 md:col-span-2" placeholder="Mission" value={profile.about?.mission || ""} onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), mission: e.target.value } }))} />
-            <textarea className="border rounded p-2 md:col-span-2" placeholder="Vision" value={profile.about?.vision || ""} onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), vision: e.target.value } }))} />
-            <textarea className="border rounded p-2 md:col-span-2" placeholder="Values" value={profile.about?.values || ""} onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), values: e.target.value } }))} />
-            <textarea className="border rounded p-2 md:col-span-2" placeholder="History" value={profile.about?.history || ""} onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), history: e.target.value } }))} />
-          </div>
-        )}
-      </section>
+  if (!user || (user.role !== "ADMIN" && user.role !== "HOSPITAL_ADMIN" && user.role !== "DOCTOR")) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-gray-900">Access denied</h1>
+          <p className="text-gray-600 mt-2">This page is only for hospital admins.</p>
+        </div>
+      </div>
+    );
+  }
 
-      {/* Departments & Specialties */}
-      {activeTab === 'departments' && (
-      <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-        <div className="flex items-center gap-2 mb-4">
-          <button
-            className={`px-3 py-2 rounded ${departmentsTab === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
-            onClick={() => setDepartmentsTab('new')}
-          >
-            New Department
-          </button>
-          <button
-            className={`px-3 py-2 rounded ${departmentsTab === 'existing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
-            onClick={() => setDepartmentsTab('existing')}
-          >
-            Existing Departments
-          </button>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 rounded-2xl overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 shadow-xl">
+          <div className="flex items-center gap-4">
+            {profile.general?.logoUrl ? (
+              <img src={profile.general.logoUrl} alt="Logo" className="w-20 h-20 rounded-full border-4 border-white/30 object-cover" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-white text-3xl font-bold">
+                🏥
+              </div>
+            )}
+            <div className="flex-1">
+              <h1 className="text-3xl sm:text-4xl font-bold text-white">
+                {profile.general?.brandName || profile.general?.legalName || 'Hospital Profile'}
+              </h1>
+              <p className="mt-2 text-blue-100">{profile.general?.tagline || 'Manage your hospital information and doctor team'}</p>
+            </div>
+          </div>
         </div>
 
-        {departmentsTab === 'new' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <input
-                className="border rounded p-2"
-                placeholder="Department Name"
-                value={newDepartment.name}
-                onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
+        {message && (
+          <div className={`mb-6 p-4 rounded-xl ${message.includes('Error') || message.includes('Failed') ? 'bg-red-50 border-2 border-red-200 text-red-800' : 'bg-green-50 border-2 border-green-200 text-green-800'}`}>
+            <p className="font-medium">{message}</p>
+          </div>
+        )}
+
+        {/* Create Hospital Section */}
+        {!hospitalId && (
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-4">🏥</div>
+              <h2 className="text-2xl font-bold text-gray-900">Create Your Hospital</h2>
+              <p className="text-gray-600 mt-2">No hospital is linked to your admin account yet. Create one to enable saving the profile.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
+              <input 
+                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                placeholder="Hospital Name (required)" 
+                value={createHospitalForm.name} 
+                onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, name: e.target.value })} 
               />
-              <input
-                className="border rounded p-2 md:col-span-2"
-                placeholder="Description (optional)"
-                value={newDepartment.description || ''}
-                onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })}
+              <input 
+                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                placeholder="Phone" 
+                value={createHospitalForm.phone} 
+                onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, phone: e.target.value })} 
+              />
+              <input 
+                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all md:col-span-2" 
+                placeholder="Address" 
+                value={createHospitalForm.address} 
+                onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, address: e.target.value })} 
+              />
+              <input 
+                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                placeholder="City" 
+                value={createHospitalForm.city} 
+                onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, city: e.target.value })} 
+              />
+              <input 
+                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                placeholder="State" 
+                value={createHospitalForm.state} 
+                onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, state: e.target.value })} 
               />
             </div>
-            <div className="flex gap-2">
-              <button
-                className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-                onClick={() => {
-                  const name = (newDepartment.name || '').trim();
-                  if (!name) { setMessage('Please enter Department Name'); return; }
-                  setProfile((prev) => ({
-                    ...prev,
-                    departments: [...(prev.departments || []), { name, description: (newDepartment.description || '').trim(), services: [], conditions: [], equipment: [], photos: [], videos: [], associatedDoctorIds: [] }],
-                  }));
-                  setNewDepartment({ name: '', description: '' });
-                  setDepartmentsTab('existing');
-                }}
+            <div className="mt-6 text-center">
+              <button 
+                onClick={createHospital} 
+                disabled={creatingHospital} 
+                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add Department
-              </button>
-              <button
-                className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50"
-                onClick={saveDepartments}
-                disabled={saving || !hospitalId}
-              >
-                Save Departments
+                {creatingHospital ? "Creating..." : "Create Hospital"}
               </button>
             </div>
           </div>
         )}
 
-        {departmentsTab === 'existing' && (
-          <div>
-            <button className="w-full text-left" onClick={() => setDepartmentsExpanded(!departmentsExpanded)}>
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Medical Departments & Specialties</h2>
-                <span>{departmentsExpanded ? "▾" : "▸"}</span>
-              </div>
-            </button>
-            {departmentsExpanded && (
-              <div className="space-y-4 mt-4">
-                <div className="flex gap-2">
-                  <button className="px-3 py-2 bg-blue-600 text-white rounded" onClick={() => setDepartmentsTab('new')}>Add Department</button>
-                  <button className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50" onClick={saveDepartments} disabled={saving || !hospitalId}>Save Departments</button>
-                </div>
-                {(profile.departments || []).map((dept, idx) => (
-                  <div key={idx} className="border rounded p-3">
-                    <div className="flex gap-2">
-                      <input className="border rounded p-2 flex-1" placeholder="Department Name" value={dept.name} onChange={(e) => updateDepartment(idx, "name", e.target.value)} />
-                      <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDepartment(idx)}>Remove</button>
-                    </div>
-                    <textarea className="border rounded p-2 w-full mt-2" placeholder="Description" value={dept.description || ""} onChange={(e) => updateDepartment(idx, "description", e.target.value)} />
+        {/* Navigation Tabs */}
+        {hospitalId && (
+          <>
+            <div className="bg-white rounded-2xl shadow-lg p-2 mb-8 flex gap-2 overflow-x-auto">
+              <button
+                className={`flex-1 min-w-[120px] px-6 py-4 rounded-xl font-semibold transition-all ${
+                  activeSection === 'general'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setActiveSection('general')}
+              >
+                <div className="text-2xl mb-1">🏢</div>
+                General Info
+              </button>
+              <button
+                className={`flex-1 min-w-[120px] px-6 py-4 rounded-xl font-semibold transition-all ${
+                  activeSection === 'about'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setActiveSection('about')}
+              >
+                <div className="text-2xl mb-1">📖</div>
+                About Us
+              </button>
+              <button
+                className={`flex-1 min-w-[120px] px-6 py-4 rounded-xl font-semibold transition-all ${
+                  activeSection === 'departments'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setActiveSection('departments')}
+              >
+                <div className="text-2xl mb-1">🏥</div>
+                Departments
+              </button>
+              <button
+                className={`flex-1 min-w-[120px] px-6 py-4 rounded-xl font-semibold transition-all ${
+                  activeSection === 'doctors'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setActiveSection('doctors')}
+              >
+                <div className="text-2xl mb-1">👨‍⚕️</div>
+                Doctors
+              </button>
+            </div>
 
-                    {/* Services */}
-                    <div className="mt-2">
-                      <h3 className="font-semibold">Services</h3>
-                      <div className="flex gap-2 mt-1">
-                        <input id={`service-${idx}`} className="border rounded p-2 flex-1" placeholder="Add a service" />
-                        <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
-                          const input = document.getElementById(`service-${idx}`) as HTMLInputElement;
-                          if (input?.value) { addListItem(idx, "services", input.value); input.value = ""; }
-                        }}>Add</button>
-                      </div>
-                      <ul className="list-disc ml-6 mt-2">
-                        {(dept.services || []).map((s, i) => (
-                          <li key={i} className="flex items-center gap-2">
-                            <span>{s}</span>
-                            <button className="text-red-600" onClick={() => removeListItem(idx, "services", i)}>Remove</button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Conditions */}
-                    <div className="mt-2">
-                      <h3 className="font-semibold">Conditions Treated</h3>
-                      <div className="flex gap-2 mt-1">
-                        <input id={`condition-${idx}`} className="border rounded p-2 flex-1" placeholder="Add a condition" />
-                        <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
-                          const input = document.getElementById(`condition-${idx}`) as HTMLInputElement;
-                          if (input?.value) { addListItem(idx, "conditions", input.value); input.value = ""; }
-                        }}>Add</button>
-                      </div>
-                      <ul className="list-disc ml-6 mt-2">
-                        {(dept.conditions || []).map((s, i) => (
-                          <li key={i} className="flex items-center gap-2">
-                            <span>{s}</span>
-                            <button className="text-red-600" onClick={() => removeListItem(idx, "conditions", i)}>Remove</button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Equipment */}
-                    <div className="mt-2">
-                      <h3 className="font-semibold">Key Technology & Equipment</h3>
-                      <div className="flex gap-2 mt-1">
-                        <input id={`equipment-${idx}`} className="border rounded p-2 flex-1" placeholder="Add equipment" />
-                        <button className="px-3 py-2 bg-gray-800 text-white rounded" onClick={() => {
-                          const input = document.getElementById(`equipment-${idx}`) as HTMLInputElement;
-                          if (input?.value) { addListItem(idx, "equipment", input.value); input.value = ""; }
-                        }}>Add</button>
-                      </div>
-                      <ul className="list-disc ml-6 mt-2">
-                        {(dept.equipment || []).map((s, i) => (
-                          <li key={i} className="flex items-center gap-2">
-                            <span>{s}</span>
-                            <button className="text-red-600" onClick={() => removeListItem(idx, "equipment", i)}>Remove</button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+            {/* General Information Section */}
+            {activeSection === 'general' && (
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Basic Information</h2>
+                    <p className="text-sm text-gray-600 mt-1">Hospital identity and branding</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-      )}
-
-      {/* Doctors */}
-      {activeTab === 'doctors' && (
-      <section className="border rounded-lg p-4 bg-white shadow text-gray-900">
-        <div className="flex items-center gap-2 mb-4">
-          <button
-            className={`px-3 py-2 rounded ${doctorsTab === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
-            onClick={() => setDoctorsTab('new')}
-          >
-            New Doctor
-          </button>
-          <button
-            className={`px-3 py-2 rounded ${doctorsTab === 'existing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}
-            onClick={() => setDoctorsTab('existing')}
-          >
-            Existing Doctors
-          </button>
-        </div>
-        {doctorsTab === 'new' ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <input className="border rounded p-2" placeholder="Doctor Name" value={newDoctor.name} onChange={(e) => setNewDoctor({ ...newDoctor, name: e.target.value })} />
-              <input className="border rounded p-2" placeholder="Primary Specialty" value={newDoctor.primarySpecialty || ''} onChange={(e) => setNewDoctor({ ...newDoctor, primarySpecialty: e.target.value })} />
-              <input className="border rounded p-2" placeholder="Sub-Specialty" value={newDoctor.subSpecialty || ''} onChange={(e) => setNewDoctor({ ...newDoctor, subSpecialty: e.target.value })} />
-            </div>
-            {(profile.departments || []).length > 0 && (
-              <div>
-                <h3 className="font-semibold">Associate with Department</h3>
-                <select
-                  className="border rounded p-2 w-full mt-2"
-                  value={newDoctor.departmentName || ''}
-                  onChange={(e) => setNewDoctor({ ...newDoctor, departmentName: e.target.value })}
-                >
-                  <option value="">Select a department (optional)</option>
-                  {(profile.departments || []).map((d, i) => (
-                    <option key={i} value={d.name}>{d.name || `Dept ${i+1}`}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <button
-                className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-                onClick={() => {
-                  const name = (newDoctor.name || '').trim();
-                  if (!name) { setMessage('Please enter Doctor Name'); return; }
-                  const deptName = (newDoctor.departmentName || '').trim();
-                  setProfile((prev) => ({
-                    ...prev,
-                    doctors: [...(prev.doctors || []), { name, primarySpecialty: (newDoctor.primarySpecialty || '').trim(), subSpecialty: (newDoctor.subSpecialty || '').trim(), departments: deptName ? [deptName] : [] }],
-                  } as HospitalProfile));
-                  setNewDoctor({ name: '', primarySpecialty: '', subSpecialty: '', departmentName: '' });
-                  setDoctorsTab('existing');
-                }}
-              >
-                Add Doctor
-              </button>
-              <button
-                className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50"
-                onClick={saveDoctorsOnly}
-                disabled={saving || !hospitalId}
-              >
-                Save Doctors
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Doctors</h2>
-              <div className="flex gap-2">
-                <button className="px-3 py-2 bg-blue-600 text-white rounded" onClick={() => setDoctorsTab('new')}>Add Doctor</button>
-                <button className="px-3 py-2 bg-emerald-600 text-white rounded disabled:opacity-50" onClick={saveDoctorsOnly} disabled={saving || !hospitalId}>Save Doctors</button>
-              </div>
-            </div>
-            <div className="space-y-4 mt-4">
-              {(profile.doctors || []).map((doc, idx) => (
-                <div key={idx} className="border rounded p-3 space-y-3">
-                  <div className="flex gap-2">
-                    <input className="border rounded p-2 flex-1" placeholder="Doctor Name" value={doc.name || ""} onChange={(e) => updateDoctor(idx, "name", e.target.value)} />
-                    <input className="border rounded p-2 flex-1" placeholder="Primary Specialty" value={doc.primarySpecialty || ""} onChange={(e) => updateDoctor(idx, "primarySpecialty", e.target.value)} />
-                    <input className="border rounded p-2 flex-1" placeholder="Sub-Specialty" value={doc.subSpecialty || ""} onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)} />
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-700">Bookable</span>
-                      <label className="inline-flex items-center cursor-pointer">
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Legal Name</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Full Legal Name" 
+                        value={profile.general?.legalName || ""} 
+                        onChange={(e) => updateGeneralField("legalName", e.target.value)} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Brand Name</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Brand Name" 
+                        value={profile.general?.brandName || ""} 
+                        onChange={(e) => updateGeneralField("brandName", e.target.value)} 
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Tagline</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Hospital Tagline" 
+                        value={profile.general?.tagline || ""} 
+                        onChange={(e) => updateGeneralField("tagline", e.target.value)} 
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Logo</label>
+                      <div className="flex gap-3">
                         <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          checked={Boolean((profile.doctors || [])[idx]?.doctorId)}
-                          onChange={() => toggleDoctorBookable(idx)}
-                          disabled={saving}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                          className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                         />
-                        <div className="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-green-600 transition-colors relative">
-                          <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
-                        </div>
-                        <span className="ml-2 text-sm text-gray-800">{Boolean((profile.doctors || [])[idx]?.doctorId) ? 'ON' : 'OFF'}</span>
-                      </label>
+                        <button
+                          type="button"
+                          onClick={handleUploadLogo}
+                          disabled={!logoFile || uploadingLogo}
+                          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {uploadingLogo ? "Uploading…" : "Upload"}
+                        </button>
+                      </div>
                     </div>
-                    <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={() => removeDoctor(idx)}>Remove</button>
                   </div>
+                </div>
 
-                  {/* Doctor-scoped Slot Admin */}
-                  <div className="mt-2 border rounded p-3 bg-gray-50">
-                    <h3 className="font-semibold">Doctor Slot Admin</h3>
-                    {!doc.doctorId && (
-                      <div className="text-sm text-gray-700 mt-1">
-                        Link this doctor to a real account first by clicking <span className="font-semibold">Make Bookable</span>.
+                {/* Location & Contact */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Location & Address</h2>
+                    <p className="text-sm text-gray-600 mt-1">Physical location details</p>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Complete Address</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Street Address" 
+                        value={profile.general?.address || ""} 
+                        onChange={(e) => updateGeneralField("address", e.target.value)} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">PIN Code</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="PIN code" 
+                        value={profile.general?.pincode || ""} 
+                        onChange={(e) => updateGeneralField("pincode", e.target.value)} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Google Maps Link</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Google Maps URL" 
+                        value={profile.general?.googleMapsLink || ""} 
+                        onChange={(e) => updateGeneralField("googleMapsLink", e.target.value)} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Microsite Domain */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Microsite Custom Domain</h2>
+                    <p className="text-sm text-gray-600 mt-1">Your hospital's web address {initialSubdomain && <span className="text-red-600 font-semibold">(Cannot be changed once set)</span>}</p>
+                  </div>
+                  <div className="p-6">
+                    {initialSubdomain ? (
+                      <div className="bg-gray-100 border-2 border-gray-300 rounded-xl p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-600 mb-1">Your Custom Domain:</p>
+                            <p className="text-xl font-bold text-gray-900">{initialSubdomain}</p>
+                          </div>
+                          <div className="bg-green-100 text-green-800 px-4 py-2 rounded-lg font-semibold text-sm">
+                            ✓ Active
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-3">
+                          ⚠️ Domain cannot be changed once set. Contact support if you need to update it.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <input
+                            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                            placeholder="hospital1.com (your custom domain)"
+                            value={subdomain}
+                            onChange={(e) => {
+                              const v = e.target.value.toLowerCase().trim();
+                              setSubdomain(v);
+                            }}
+                            onBlur={() => checkAvailability(subdomain)}
+                          />
+                          {subdomainChecking && <p className="text-sm text-gray-500 mt-2">Checking availability…</p>}
+                          {subdomainError && <p className="text-sm text-red-600 mt-2">{subdomainError}</p>}
+                          <p className="text-sm text-amber-600 mt-2 font-medium">
+                            ⚠️ Warning: Once saved, this domain cannot be changed!
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={saveSubdomain}
+                          disabled={!!subdomainError || subdomainChecking || !subdomain}
+                          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Save Domain
+                        </button>
                       </div>
                     )}
-                    {doc.doctorId && (
-                      <div className="space-y-2 mt-2">
-                        <div className="text-sm text-gray-700">
-                          Current Slot Admin: {doctorAdmins[doc.doctorId]?.currentEmail ? (
-                            <span className="font-mono">{doctorAdmins[doc.doctorId]?.currentEmail}</span>
-                          ) : (
-                            <span className="text-gray-500">None</span>
+                  </div>
+                </div>
+
+                {/* Contact Numbers */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Contact Numbers</h2>
+                    <p className="text-sm text-gray-600 mt-1">Phone numbers for different services</p>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Emergency/Casualty</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Emergency" 
+                        value={profile.general?.contacts?.emergency || ""} 
+                        onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), emergency: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Reception</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Reception" 
+                        value={profile.general?.contacts?.reception || ""} 
+                        onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), reception: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Ambulance</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Ambulance" 
+                        value={profile.general?.contacts?.ambulance || ""} 
+                        onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), ambulance: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Appointment Desk</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Appointments" 
+                        value={profile.general?.contacts?.appointment || ""} 
+                        onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), appointment: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Health Check-ups</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Health Checkups" 
+                        value={profile.general?.contacts?.healthCheckups || ""} 
+                        onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), healthCheckups: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Fax</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Fax" 
+                        value={profile.general?.contacts?.fax || ""} 
+                        onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), fax: e.target.value })} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email Addresses */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-cyan-50 to-blue-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Email Addresses</h2>
+                    <p className="text-sm text-gray-600 mt-1">Email contacts for different purposes</p>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Info Email</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="info@hospital.com" 
+                        value={profile.general?.emails?.info || ""} 
+                        onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), info: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Appointments Email</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="appointments@hospital.com" 
+                        value={profile.general?.emails?.appointments || ""} 
+                        onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), appointments: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Feedback Email</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="feedback@hospital.com" 
+                        value={profile.general?.emails?.feedback || ""} 
+                        onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), feedback: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Careers Email</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="hr@hospital.com" 
+                        value={profile.general?.emails?.careers || ""} 
+                        onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), careers: e.target.value })} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Social Media */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-pink-50 to-purple-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Social Media</h2>
+                    <p className="text-sm text-gray-600 mt-1">Connect with patients on social platforms</p>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Facebook</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Facebook URL" 
+                        value={profile.general?.social?.facebook || ""} 
+                        onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), facebook: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Twitter</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Twitter URL" 
+                        value={profile.general?.social?.twitter || ""} 
+                        onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), twitter: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Instagram</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="Instagram URL" 
+                        value={profile.general?.social?.instagram || ""} 
+                        onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), instagram: e.target.value })} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">LinkedIn</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="LinkedIn URL" 
+                        value={profile.general?.social?.linkedin || ""} 
+                        onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), linkedin: e.target.value })} 
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">YouTube</label>
+                      <input 
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        placeholder="YouTube URL" 
+                        value={profile.general?.social?.youtube || ""} 
+                        onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), youtube: e.target.value })} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* About Us Section */}
+            {activeSection === 'about' && (
+              <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-xl font-bold text-gray-900">About Your Hospital</h2>
+                  <p className="text-sm text-gray-600 mt-1">Tell your story and values</p>
+                </div>
+                <div className="p-6 space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mission Statement</label>
+                    <textarea 
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      placeholder="Our mission is to..." 
+                      value={profile.about?.mission || ""} 
+                      onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), mission: e.target.value } }))} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Vision Statement</label>
+                    <textarea 
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      placeholder="Our vision is to..." 
+                      value={profile.about?.vision || ""} 
+                      onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), vision: e.target.value } }))} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Core Values</label>
+                    <textarea 
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      placeholder="Our values include..." 
+                      value={profile.about?.values || ""} 
+                      onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), values: e.target.value } }))} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">History</label>
+                    <textarea 
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      placeholder="Founded in..." 
+                      value={profile.about?.history || ""} 
+                      onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), history: e.target.value } }))} 
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Departments Section */}
+            {activeSection === 'departments' && (
+              <div className="space-y-6">
+                {/* Add New Department */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Add New Department</h2>
+                    <p className="text-sm text-gray-600 mt-1">Create a new medical department</p>
+                  </div>
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Department Name *</label>
+                        <input
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          placeholder="e.g., Cardiology"
+                          value={newDepartment.name}
+                          onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                        <input
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          placeholder="Brief description"
+                          value={newDepartment.description || ''}
+                          onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+                        onClick={() => {
+                          const name = (newDepartment.name || '').trim();
+                          if (!name) { setMessage('Please enter Department Name'); return; }
+                          setProfile((prev) => ({
+                            ...prev,
+                            departments: [...(prev.departments || []), { name, description: (newDepartment.description || '').trim(), services: [], conditions: [], equipment: [], photos: [], videos: [], associatedDoctorIds: [] }],
+                          }));
+                          setNewDepartment({ name: '', description: '' });
+                        }}
+                      >
+                        Add Department
+                      </button>
+                      <button
+                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+                        onClick={saveDepartments}
+                        disabled={saving}
+                      >
+                        Save All Departments
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Existing Departments */}
+                {(profile.departments || []).length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+                      <h2 className="text-xl font-bold text-gray-900">Existing Departments ({profile.departments?.length || 0})</h2>
+                      <p className="text-sm text-gray-600 mt-1">Manage your hospital departments</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {(profile.departments || []).map((dept, idx) => (
+                        <div key={idx} className="border-2 border-gray-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
+                          <div className="flex items-start justify-between mb-4">
+                            <button
+                              onClick={() => {
+                                const newSet = new Set(expandedDepartments);
+                                if (newSet.has(idx)) {
+                                  newSet.delete(idx);
+                                } else {
+                                  newSet.add(idx);
+                                }
+                                setExpandedDepartments(newSet);
+                              }}
+                              className="flex-1 text-left"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{expandedDepartments.has(idx) ? '▼' : '▶'}</span>
+                                <div>
+                                  <h3 className="text-lg font-bold text-gray-900">{dept.name || `Department ${idx + 1}`}</h3>
+                                  {dept.description && <p className="text-sm text-gray-600 mt-1">{dept.description}</p>}
+                                </div>
+                              </div>
+                            </button>
+                            <button
+                              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+                              onClick={() => removeDepartment(idx)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+
+                          {expandedDepartments.has(idx) && (
+                            <div className="space-y-4 mt-4 pt-4 border-t border-gray-200">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Department Name</label>
+                                  <input
+                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    placeholder="Department Name"
+                                    value={dept.name}
+                                    onChange={(e) => updateDepartment(idx, "name", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                  <input
+                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    placeholder="Description"
+                                    value={dept.description || ""}
+                                    onChange={(e) => updateDepartment(idx, "description", e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Services */}
+                              <div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Services Offered</h4>
+                                <div className="flex gap-2 mb-2">
+                                  <input
+                                    id={`service-${idx}`}
+                                    className="flex-1 px-4 py-2 bg-gray-50 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                                    placeholder="Add a service"
+                                  />
+                                  <button
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                                    onClick={() => {
+                                      const input = document.getElementById(`service-${idx}`) as HTMLInputElement;
+                                      if (input?.value) { addListItem(idx, "services", input.value); input.value = ""; }
+                                    }}
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                                {(dept.services || []).length > 0 && (
+                                  <ul className="space-y-1">
+                                    {(dept.services || []).map((s, i) => (
+                                      <li key={i} className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded-lg">
+                                        <span className="text-sm text-gray-800">{s}</span>
+                                        <button
+                                          className="text-red-600 hover:text-red-700 font-semibold text-sm"
+                                          onClick={() => removeListItem(idx, "services", i)}
+                                        >
+                                          Remove
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+
+                              {/* Conditions */}
+                              <div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Conditions Treated</h4>
+                                <div className="flex gap-2 mb-2">
+                                  <input
+                                    id={`condition-${idx}`}
+                                    className="flex-1 px-4 py-2 bg-gray-50 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                                    placeholder="Add a condition"
+                                  />
+                                  <button
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                                    onClick={() => {
+                                      const input = document.getElementById(`condition-${idx}`) as HTMLInputElement;
+                                      if (input?.value) { addListItem(idx, "conditions", input.value); input.value = ""; }
+                                    }}
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                                {(dept.conditions || []).length > 0 && (
+                                  <ul className="space-y-1">
+                                    {(dept.conditions || []).map((s, i) => (
+                                      <li key={i} className="flex items-center justify-between bg-green-50 px-3 py-2 rounded-lg">
+                                        <span className="text-sm text-gray-800">{s}</span>
+                                        <button
+                                          className="text-red-600 hover:text-red-700 font-semibold text-sm"
+                                          onClick={() => removeListItem(idx, "conditions", i)}
+                                        >
+                                          Remove
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+
+                              {/* Equipment */}
+                              <div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Key Technology & Equipment</h4>
+                                <div className="flex gap-2 mb-2">
+                                  <input
+                                    id={`equipment-${idx}`}
+                                    className="flex-1 px-4 py-2 bg-gray-50 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                                    placeholder="Add equipment"
+                                  />
+                                  <button
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+                                    onClick={() => {
+                                      const input = document.getElementById(`equipment-${idx}`) as HTMLInputElement;
+                                      if (input?.value) { addListItem(idx, "equipment", input.value); input.value = ""; }
+                                    }}
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                                {(dept.equipment || []).length > 0 && (
+                                  <ul className="space-y-1">
+                                    {(dept.equipment || []).map((s, i) => (
+                                      <li key={i} className="flex items-center justify-between bg-purple-50 px-3 py-2 rounded-lg">
+                                        <span className="text-sm text-gray-800">{s}</span>
+                                        <button
+                                          className="text-red-600 hover:text-red-700 font-semibold text-sm"
+                                          onClick={() => removeListItem(idx, "equipment", i)}
+                                        >
+                                          Remove
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            </div>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          <input
-                            type="email"
-                            className="border rounded p-2"
-                            placeholder="Slot Admin Email"
-                            value={doctorAdmins[doc.doctorId]?.email || ""}
-                            onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], email: e.target.value } }))}
-                            disabled={doctorAdmins[doc.doctorId]?.loading}
-                          />
-                          <input
-                            type="password"
-                            className="border rounded p-2"
-                            placeholder="New Password"
-                            value={doctorAdmins[doc.doctorId]?.password || ""}
-                            onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], password: e.target.value } }))}
-                            disabled={doctorAdmins[doc.doctorId]?.loading}
-                          />
-                        </div>
-                        <div>
-                          <button
-                            type="button"
-                            className="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-                            onClick={() => saveDoctorSlotAdmin(doc.doctorId)}
-                            disabled={doctorAdmins[doc.doctorId]?.saving || doctorAdmins[doc.doctorId]?.loading}
-                          >
-                            {doctorAdmins[doc.doctorId]?.saving ? 'Saving...' : (doctorAdmins[doc.doctorId]?.currentEmail ? 'Update Slot Admin' : 'Create Slot Admin')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
+                )}
+              </div>
+            )}
 
-                  {/* Associate with Departments */}
-                  {(profile.departments || []).length > 0 && (
-                    <div>
-                      <h3 className="font-semibold">Associate with Departments</h3>
-                      <div className="mt-2">
+            {/* Doctors Section */}
+            {activeSection === 'doctors' && (
+              <div className="space-y-6">
+                {/* Add New Doctor */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">Add New Doctor</h2>
+                    <p className="text-sm text-gray-600 mt-1">Add a doctor to your hospital profile</p>
+                  </div>
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Doctor Name *</label>
+                        <input
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          placeholder="Dr. John Doe"
+                          value={newDoctor.name}
+                          onChange={(e) => setNewDoctor({ ...newDoctor, name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Primary Specialty</label>
+                        <input
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          placeholder="e.g., Cardiologist"
+                          value={newDoctor.primarySpecialty || ''}
+                          onChange={(e) => setNewDoctor({ ...newDoctor, primarySpecialty: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Sub-Specialty</label>
+                        <input
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          placeholder="e.g., Interventional"
+                          value={newDoctor.subSpecialty || ''}
+                          onChange={(e) => setNewDoctor({ ...newDoctor, subSpecialty: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    {(profile.departments || []).length > 0 && (
+                      <div className="mb-4">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Associate with Department</label>
                         <select
-                          className="border rounded p-2 w-full"
-                          value={(doc.departments && doc.departments[0]) || ""}
-                          onChange={(e) => setDoctorDepartment(idx, e.target.value)}
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          value={newDoctor.departmentName || ''}
+                          onChange={(e) => setNewDoctor({ ...newDoctor, departmentName: e.target.value })}
                         >
-                          <option value="" disabled>Select a department</option>
+                          <option value="">Select a department (optional)</option>
                           {(profile.departments || []).map((d, i) => (
                             <option key={i} value={d.name}>{d.name || `Dept ${i+1}`}</option>
                           ))}
                         </select>
-                        {doc.doctorId && (
-                          <div className="mt-2">
-                            <button
-                              type="button"
-                              onClick={() => syncDoctorDepartment(idx)}
-                              className="px-3 py-2 bg-emerald-600 text-white rounded"
-                            >
-                              Sync Department
-                            </button>
-                          </div>
-                        )}
                       </div>
+                    )}
+                    <div className="flex gap-3">
+                      <button
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+                        onClick={() => {
+                          const name = (newDoctor.name || '').trim();
+                          if (!name) { setMessage('Please enter Doctor Name'); return; }
+                          const deptName = (newDoctor.departmentName || '').trim();
+                          setProfile((prev) => ({
+                            ...prev,
+                            doctors: [...(prev.doctors || []), { name, primarySpecialty: (newDoctor.primarySpecialty || '').trim(), subSpecialty: (newDoctor.subSpecialty || '').trim(), departments: deptName ? [deptName] : [] }],
+                          } as HospitalProfile));
+                          setNewDoctor({ name: '', primarySpecialty: '', subSpecialty: '', departmentName: '' });
+                        }}
+                      >
+                        Add Doctor
+                      </button>
+                      <button
+                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+                        onClick={saveDoctorsOnly}
+                        disabled={saving}
+                      >
+                        Save All Doctors
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-      )}
 
-      {activeTab === 'doctors' && doctorsTab === 'existing' && linkedDoctors.length > 0 && (
-        <section className="border rounded-lg p-4 bg-white shadow text-gray-900 mt-6">
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-xl font-semibold">Linked Doctors (Real Accounts)</h2>
-          </div>
-          <div className="space-y-3">
-            {linkedDoctors.map((link, i) => (
-              <div key={i} className="border rounded p-3 flex items-center justify-between">
-                <div>
-                  <div className="font-mono">{link.doctor.email}</div>
-                  <div className="text-xs text-gray-600">Current: {link.department?.name || 'None'}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    className="border rounded p-2"
-                    value={link.department?.name || ''}
-                    onChange={async (e) => {
-                      const name = e.target.value;
-                      try {
-                        if (!hospitalId) return;
-                        await apiClient.updateHospitalDoctorDepartment(hospitalId, link.doctor.id, { departmentName: name || undefined });
-                        const details = await apiClient.getHospitalDetails(hospitalId);
-                        setLinkedDoctors(details?.doctors || []);
-                        setMessage(`Updated ${link.doctor.email} → ${name || 'None'}`);
-                      } catch (err: any) {
-                        setMessage(err?.message || 'Failed to update department');
-                      }
-                    }}
-                  >
-                    <option value="">Select department</option>
-                    {(profile.departments || []).map((d, di) => (
-                      <option key={di} value={d.name}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
+                {/* Existing Doctors */}
+                {(profile.doctors || []).length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+                      <h2 className="text-xl font-bold text-gray-900">Existing Doctors ({profile.doctors?.length || 0})</h2>
+                      <p className="text-sm text-gray-600 mt-1">Manage your hospital doctors</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {(profile.doctors || []).map((doc, idx) => (
+                        <div key={idx} className="border-2 border-gray-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
+                          <div className="flex items-start justify-between mb-4">
+                            <button
+                              onClick={() => {
+                                const newSet = new Set(expandedDoctors);
+                                if (newSet.has(idx)) {
+                                  newSet.delete(idx);
+                                } else {
+                                  newSet.add(idx);
+                                }
+                                setExpandedDoctors(newSet);
+                              }}
+                              className="flex-1 text-left"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{expandedDoctors.has(idx) ? '▼' : '▶'}</span>
+                                <div>
+                                  <h3 className="text-lg font-bold text-gray-900">{doc.name || `Doctor ${idx + 1}`}</h3>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {doc.primarySpecialty && <span>{doc.primarySpecialty}</span>}
+                                    {doc.subSpecialty && <span> • {doc.subSpecialty}</span>}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-700 font-medium">Bookable</span>
+                                <label className="inline-flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={Boolean(doc.doctorId)}
+                                    onChange={() => toggleDoctorBookable(idx)}
+                                    disabled={saving}
+                                  />
+                                  <div className="w-11 h-6 bg-gray-200 rounded-full peer-checked:bg-green-600 transition-colors relative">
+                                    <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                                  </div>
+                                  <span className="ml-2 text-sm font-semibold text-gray-800">{Boolean(doc.doctorId) ? 'ON' : 'OFF'}</span>
+                                </label>
+                              </div>
+                              <button
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+                                onClick={() => removeDoctor(idx)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+
+                          {expandedDoctors.has(idx) && (
+                            <div className="space-y-4 mt-4 pt-4 border-t border-gray-200">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Doctor Name</label>
+                                  <input
+                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    placeholder="Doctor Name"
+                                    value={doc.name || ""}
+                                    onChange={(e) => updateDoctor(idx, "name", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Primary Specialty</label>
+                                  <input
+                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    placeholder="Primary Specialty"
+                                    value={doc.primarySpecialty || ""}
+                                    onChange={(e) => updateDoctor(idx, "primarySpecialty", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Sub-Specialty</label>
+                                  <input
+                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    placeholder="Sub-Specialty"
+                                    value={doc.subSpecialty || ""}
+                                    onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Department Association */}
+                              {(profile.departments || []).length > 0 && (
+                                <div>
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Associate with Department</label>
+                                  <div className="flex gap-3">
+                                    <select
+                                      className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                      value={(doc.departments && doc.departments[0]) || ""}
+                                      onChange={(e) => setDoctorDepartment(idx, e.target.value)}
+                                    >
+                                      <option value="">Select a department</option>
+                                      {(profile.departments || []).map((d, i) => (
+                                        <option key={i} value={d.name}>{d.name || `Dept ${i+1}`}</option>
+                                      ))}
+                                    </select>
+                                    {doc.doctorId && (
+                                      <button
+                                        type="button"
+                                        onClick={() => syncDoctorDepartment(idx)}
+                                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors"
+                                      >
+                                        Sync
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Doctor Slot Admin */}
+                              {doc.doctorId && (
+                                <div className="bg-gray-50 rounded-xl p-4 border-2 border-gray-200">
+                                  <h4 className="font-semibold text-gray-900 mb-3">Doctor Slot Admin</h4>
+                                  <div className="text-sm text-gray-700 mb-3">
+                                    Current: {doctorAdmins[doc.doctorId]?.currentEmail ? (
+                                      <span className="font-mono font-semibold">{doctorAdmins[doc.doctorId]?.currentEmail}</span>
+                                    ) : (
+                                      <span className="text-gray-500">None</span>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                      <label className="block text-sm font-semibold text-gray-700 mb-2">Slot Admin Email</label>
+                                      <input
+                                        type="email"
+                                        className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                                        placeholder="admin@example.com"
+                                        value={doctorAdmins[doc.doctorId]?.email || ""}
+                                        onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], email: e.target.value } }))}
+                                        disabled={doctorAdmins[doc.doctorId]?.loading}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
+                                      <input
+                                        type="password"
+                                        className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                                        placeholder="••••••••"
+                                        value={doctorAdmins[doc.doctorId]?.password || ""}
+                                        onChange={(e) => setDoctorAdmins((prev) => ({ ...prev, [doc.doctorId!]: { ...prev[doc.doctorId!], password: e.target.value } }))}
+                                        disabled={doctorAdmins[doc.doctorId]?.loading}
+                                      />
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+                                    onClick={() => saveDoctorSlotAdmin(doc.doctorId)}
+                                    disabled={doctorAdmins[doc.doctorId]?.saving || doctorAdmins[doc.doctorId]?.loading}
+                                  >
+                                    {doctorAdmins[doc.doctorId]?.saving ? 'Saving...' : (doctorAdmins[doc.doctorId]?.currentEmail ? 'Update Slot Admin' : 'Create Slot Admin')}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            )}
 
-      <div className="flex justify-between">
-        <button onClick={syncAllDoctorDepartments} disabled={saving || !profile.doctors || profile.doctors.length === 0} className="px-4 py-2 bg-emerald-600 text-white rounded disabled:opacity-50">
-          Sync All Doctor Departments
-        </button>
-        <button onClick={saveProfile} disabled={saving || !hospitalId} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
-          {saving ? "Saving..." : "Save Profile"}
-        </button>
+            {/* Save Button */}
+            <div className="flex justify-end">
+              <button 
+                onClick={saveProfile} 
+                disabled={saving} 
+                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "Saving..." : "Save All Changes"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@
 // Calculate and display average ratings from comment system
 // ============================================================================
 
+import React, { useState, useEffect } from 'react';
+import { Star } from 'lucide-react';
 import { executeQuery } from '@/lib/database-pool';
 
 // ============================================================================
@@ -84,7 +86,7 @@ export const RatingBar: React.FC<RatingBarProps> = ({
   maxCount 
 }) => {
   const percentage = total > 0 ? (count / total) * 100 : 0;
-  const maxBarCount = maxCount || Math.max(...Object.values({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }.map(v => count)));
+  const maxBarCount = maxCount || Math.max(...Object.values({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }));
   const barWidth = maxBarCount > 0 ? (count / maxBarCount) * 100 : 0;
   
   return (

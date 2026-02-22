@@ -146,7 +146,7 @@ export const EnhancedRatingDisplay: React.FC<EnhancedRatingDisplayProps> = ({
       {/* Rating Distribution */}
       {showDistribution && ratingData.totalReviews > 0 && (
         <div className="space-y-1">
-          {Object.entries(ratingData.ratingDistribution).map(([rating, count]: [string, number]) => (
+          {Object.entries(ratingData.ratingDistribution).map(([rating, count]) => (
             <RatingBar
               key={rating}
               rating={Number(rating)}

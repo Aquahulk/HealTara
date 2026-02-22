@@ -123,7 +123,7 @@ export async function getDoctorProfile(doctorId: string): Promise<any> {
   
   try {
     const doctors = await apiClient.getDoctors({ page: 1, pageSize: 50 });
-    const doctor = doctors.find(d => d.id === doctorId);
+    const doctor = doctors.find(d => d.id === Number(doctorId));
     
     if (!doctor) {
       throw new Error('Doctor not found');
