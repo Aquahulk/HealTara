@@ -131,7 +131,7 @@ interface HospitalDetailsResponse {
 // ============================================================================
 async function getHospitalProfileBySlug(slug: string): Promise<HospitalProfileResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     // First try to get hospital by slug, if that doesn't work, try by ID
     const res = await fetch(`${apiHost}/api/hospitals/slug/${slug}/profile`, {
       cache: 'no-store',
@@ -155,7 +155,7 @@ async function getHospitalProfileBySlug(slug: string): Promise<HospitalProfileRe
 
 async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsResponse | null> {
   try {
-    const apiHost = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     // First try to get hospital by slug, if that doesn't work, try by ID
     const res = await fetch(`${apiHost}/api/hospitals/slug/${slug}`, {
       cache: 'no-store',
@@ -273,28 +273,28 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         `}
       </Script>
       {/* ============================================================================
-          🎨 HERO SECTION - Compact hospital header with animated background
+          🎨 PREMIUM HERO SECTION - Modern hospital header with advanced animations
           ============================================================================ */}
-      <header className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white overflow-hidden min-h-[30vh] md:min-h-[60vh]">
-        {/* Animated Medical Background */}
+      <header className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white overflow-hidden min-h-[40vh] md:min-h-[70vh]">
+        {/* Animated Medical Background with Particles */}
         <div className="absolute inset-0">
-          {/* Floating medical icons - hidden on mobile */}
-          <div className="hidden md:block absolute top-10 left-10 text-6xl opacity-20 animate-bounce" style={{animationDelay: '0s'}}>🏥</div>
-          <div className="hidden md:block absolute top-20 right-20 text-4xl opacity-15 animate-pulse" style={{animationDelay: '1s'}}>💊</div>
+          {/* Floating medical icons - responsive sizing */}
+          <div className="absolute top-10 left-10 text-3xl md:text-6xl opacity-20 animate-bounce" style={{animationDelay: '0s'}}>🏥</div>
+          <div className="absolute top-20 right-20 text-2xl md:text-4xl opacity-15 animate-pulse" style={{animationDelay: '1s'}}>💊</div>
           <div className="hidden md:block absolute top-32 left-1/4 text-5xl opacity-20 animate-bounce" style={{animationDelay: '2s'}}>🩺</div>
           <div className="hidden md:block absolute top-40 right-1/3 text-3xl opacity-15 animate-pulse" style={{animationDelay: '3s'}}>💉</div>
           <div className="hidden md:block absolute bottom-20 left-1/5 text-4xl opacity-20 animate-bounce" style={{animationDelay: '4s'}}>🧬</div>
           <div className="hidden md:block absolute bottom-32 right-1/4 text-5xl opacity-15 animate-pulse" style={{animationDelay: '5s'}}>🔬</div>
-          <div className="hidden md:block absolute bottom-10 left-1/3 text-3xl opacity-20 animate-bounce" style={{animationDelay: '6s'}}>📋</div>
+          <div className="absolute bottom-10 left-1/3 text-2xl md:text-3xl opacity-20 animate-bounce" style={{animationDelay: '6s'}}>📋</div>
           
-          {/* Animated geometric shapes - hidden on mobile */}
-          <div className="hidden md:block absolute top-16 left-1/2 w-4 h-4 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
-          <div className="hidden md:block absolute top-24 right-1/4 w-6 h-6 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '1.5s'}}></div>
-          <div className="hidden md:block absolute bottom-24 left-1/6 w-3 h-3 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '2.5s'}}></div>
-          <div className="hidden md:block absolute bottom-16 right-1/3 w-5 h-5 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '3.5s'}}></div>
+          {/* Animated geometric shapes - more visible on mobile */}
+          <div className="absolute top-16 left-1/2 w-3 h-3 md:w-4 md:h-4 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
+          <div className="absolute top-24 right-1/4 w-4 h-4 md:w-6 md:h-6 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '1.5s'}}></div>
+          <div className="absolute bottom-24 left-1/6 w-2 h-2 md:w-3 md:h-3 bg-white opacity-10 rounded-full animate-ping" style={{animationDelay: '2.5s'}}></div>
+          <div className="absolute bottom-16 right-1/3 w-3 h-3 md:w-5 md:h-5 bg-white opacity-15 rounded-full animate-ping" style={{animationDelay: '3.5s'}}></div>
           
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/40 via-transparent to-purple-900/40"></div>
+          {/* Gradient overlay with pulse effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/40 via-transparent to-purple-900/40 animate-pulse" style={{animationDuration: '3s'}}></div>
         </div>
         
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-12 lg:py-16">
@@ -514,6 +514,72 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-16 space-y-6 md:space-y-24 pb-20 md:pb-8">
         
         {/* ============================================================================
+            ✨ WHY CHOOSE US SECTION - Key differentiators and trust signals
+            ============================================================================ */}
+        <section className="relative -mt-20 md:-mt-32 z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-blue-500">
+              <div className="text-4xl mb-4">🏆</div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Award Winning</h3>
+              <p className="text-gray-600 text-sm">Recognized for excellence in patient care and medical innovation</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-green-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-green-500">
+              <div className="text-4xl mb-4">🔬</div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Advanced Technology</h3>
+              <p className="text-gray-600 text-sm">State-of-the-art medical equipment and diagnostic facilities</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-purple-500">
+              <div className="text-4xl mb-4">👨‍⚕️</div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Expert Doctors</h3>
+              <p className="text-gray-600 text-sm">Highly qualified specialists with years of experience</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-red-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-red-500">
+              <div className="text-4xl mb-4">❤️</div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Patient First</h3>
+              <p className="text-gray-600 text-sm">Compassionate care focused on your comfort and recovery</p>
+            </div>
+          </div>
+        </section>
+        
+        {/* ============================================================================
+            🚀 QUICK ACTIONS SECTION - Fast access to key services
+            ============================================================================ */}
+        <section className="relative">
+          <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl p-8 md:p-12">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">How Can We Help You Today?</h2>
+              <p className="text-gray-600">Quick access to our most popular services</p>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">📅</div>
+                <h3 className="font-bold text-gray-900 text-sm md:text-base">Book Appointment</h3>
+                <p className="text-gray-500 text-xs mt-1">Schedule a visit</p>
+              </button>
+              
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">🚑</div>
+                <h3 className="font-bold text-gray-900 text-sm md:text-base">Emergency</h3>
+                <p className="text-gray-500 text-xs mt-1">24/7 available</p>
+              </button>
+              
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">📋</div>
+                <h3 className="font-bold text-gray-900 text-sm md:text-base">Health Records</h3>
+                <p className="text-gray-500 text-xs mt-1">Access reports</p>
+              </button>
+              
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">💬</div>
+                <h3 className="font-bold text-gray-900 text-sm md:text-base">Consult Online</h3>
+                <p className="text-gray-500 text-xs mt-1">Video call</p>
+              </button>
+            </div>
+          </div>
+        </section>
+        
+        {/* ============================================================================
             🏥 ABOUT SECTION - Hospital information and mission - Compact on mobile
             ============================================================================ */}
         {(about.mission || about.vision || about.values || about.history) && (
@@ -722,6 +788,72 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         </section>
 
         {/* ============================================================================
+            ⭐ PATIENT TESTIMONIALS CAROUSEL - Success stories
+            ============================================================================ */}
+        <section className="relative bg-gradient-to-br from-blue-50 to-indigo-100 py-16 rounded-3xl">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-4">What Our Patients Say</h2>
+            <p className="text-xl text-gray-600">Real stories from real people</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-white rounded-2xl p-8 shadow-xl">
+              <div className="flex items-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-2xl font-bold mr-4">
+                  RS
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900">Rajesh Sharma</h4>
+                  <div className="flex text-yellow-400">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+              </div>
+              <p className="text-gray-600 italic leading-relaxed">
+                "Excellent care and professional staff. The doctors took time to explain everything clearly. Highly recommended!"
+              </p>
+              <div className="mt-4 text-sm text-gray-500">Cardiology Department</div>
+            </div>
+            
+            <div className="bg-white rounded-2xl p-8 shadow-xl">
+              <div className="flex items-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white text-2xl font-bold mr-4">
+                  PK
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900">Priya Kumar</h4>
+                  <div className="flex text-yellow-400">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+              </div>
+              <p className="text-gray-600 italic leading-relaxed">
+                "State-of-the-art facilities and compassionate care. My surgery was successful and recovery was smooth."
+              </p>
+              <div className="mt-4 text-sm text-gray-500">Orthopedics Department</div>
+            </div>
+            
+            <div className="bg-white rounded-2xl p-8 shadow-xl">
+              <div className="flex items-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white text-2xl font-bold mr-4">
+                  AM
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900">Amit Mehta</h4>
+                  <div className="flex text-yellow-400">
+                    ⭐⭐⭐⭐⭐
+                  </div>
+                </div>
+              </div>
+              <p className="text-gray-600 italic leading-relaxed">
+                "Best hospital in the city! Clean environment, modern equipment, and caring staff. Thank you for everything."
+              </p>
+              <div className="mt-4 text-sm text-gray-500">General Medicine</div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================================================
             📞 CTA SECTION - Call to action for appointments and contact
             ============================================================================ */}
         <section className="relative">
@@ -805,6 +937,95 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             </div>
           </section>
         )}
+
+        {/* ============================================================================
+            🏥 INSURANCE PARTNERS SECTION - Accepted insurance providers
+            ============================================================================ */}
+        <section className="relative bg-white py-16 rounded-3xl border-2 border-gray-100">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Insurance Partners</h2>
+            <p className="text-gray-600">We accept all major insurance providers</p>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 items-center">
+            {['ICICI Lombard', 'Star Health', 'HDFC ERGO', 'Max Bupa', 'Care Health', 'Bajaj Allianz'].map((insurance, index) => (
+              <div key={index} className="bg-gray-50 rounded-xl p-6 flex items-center justify-center hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                <div className="text-center">
+                  <div className="text-3xl mb-2">🏥</div>
+                  <p className="font-semibold text-gray-700 text-sm">{insurance}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="text-center mt-8">
+            <button className="text-blue-600 font-semibold hover:text-blue-700 transition-colors">
+              View All Insurance Partners →
+            </button>
+          </div>
+        </section>
+
+        {/* ============================================================================
+            ❓ FAQ SECTION - Frequently asked questions
+            ============================================================================ */}
+        <section className="relative">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
+            <p className="text-xl text-gray-600">Find answers to common questions</p>
+          </div>
+          
+          <div className="max-w-4xl mx-auto space-y-4">
+            <details className="bg-white rounded-2xl p-6 shadow-lg group">
+              <summary className="font-bold text-lg text-gray-900 cursor-pointer flex justify-between items-center">
+                What are your visiting hours?
+                <span className="text-2xl group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="mt-4 text-gray-600 leading-relaxed">
+                Our general visiting hours are from 4:00 PM to 7:00 PM daily. ICU visiting hours are from 11:00 AM to 12:00 PM and 5:00 PM to 6:00 PM. Please check with specific departments for any variations.
+              </p>
+            </details>
+            
+            <details className="bg-white rounded-2xl p-6 shadow-lg group">
+              <summary className="font-bold text-lg text-gray-900 cursor-pointer flex justify-between items-center">
+                Do you accept insurance?
+                <span className="text-2xl group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="mt-4 text-gray-600 leading-relaxed">
+                Yes, we accept all major insurance providers including ICICI Lombard, Star Health, HDFC ERGO, Max Bupa, and many more. Please bring your insurance card and policy documents during admission.
+              </p>
+            </details>
+            
+            <details className="bg-white rounded-2xl p-6 shadow-lg group">
+              <summary className="font-bold text-lg text-gray-900 cursor-pointer flex justify-between items-center">
+                How do I book an appointment?
+                <span className="text-2xl group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="mt-4 text-gray-600 leading-relaxed">
+                You can book an appointment online through our website, call our appointment desk, or visit the hospital reception. Online booking is available 24/7 for your convenience.
+              </p>
+            </details>
+            
+            <details className="bg-white rounded-2xl p-6 shadow-lg group">
+              <summary className="font-bold text-lg text-gray-900 cursor-pointer flex justify-between items-center">
+                What should I bring for my first visit?
+                <span className="text-2xl group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="mt-4 text-gray-600 leading-relaxed">
+                Please bring a valid ID proof, insurance card (if applicable), previous medical records, list of current medications, and any relevant test reports. Arriving 15 minutes early is recommended.
+              </p>
+            </details>
+            
+            <details className="bg-white rounded-2xl p-6 shadow-lg group">
+              <summary className="font-bold text-lg text-gray-900 cursor-pointer flex justify-between items-center">
+                Do you have parking facilities?
+                <span className="text-2xl group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="mt-4 text-gray-600 leading-relaxed">
+                Yes, we have ample parking space for both two-wheelers and four-wheelers. Valet parking service is also available at the main entrance for your convenience.
+              </p>
+            </details>
+          </div>
+        </section>
       </main>
 
       {/* ============================================================================

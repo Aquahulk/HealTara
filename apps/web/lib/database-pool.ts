@@ -43,6 +43,19 @@ const poolConfig: any = connectionString
       application_name: 'healtara_web',
     };
 
+const hasDbCredentials = (): boolean => {
+  try {
+    if (connectionString) {
+      const u = new URL(connectionString);
+      return typeof u.password === 'string' && u.password.length > 0;
+    }
+    const pwd = (poolConfig as any)?.password;
+    return typeof pwd === 'string' && pwd.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 // Create connection pool
 const pool = new Pool(poolConfig);
 
@@ -74,6 +87,13 @@ export async function executeQuery<T = any>(
   const startTime = Date.now();
   
   try {
+    if (!hasDbCredentials()) {
+      const duration = Date.now() - startTime;
+      console.warn(`⏭️ Skipping DB query (no credentials) after ${duration}ms`);
+      const err: any = new Error('NO_DB_CONFIG');
+      err.code = 'NO_DB_CONFIG';
+      throw err;
+    }
     // Get client from pool (1-5ms)
     const client = await pool.connect();
     
@@ -95,9 +115,13 @@ export async function executeQuery<T = any>(
       // Return client to pool (1-2ms)
       client.release();
     }
-  } catch (error) {
+  } catch (error: any) {
     const duration = Date.now() - startTime;
-    console.error(`❌ Query failed after ${duration}ms:`, error);
+    if (error?.code === 'NO_DB_CONFIG' || String(error?.message).includes('NO_DB_CONFIG')) {
+      console.warn(`⏭️ Query bypassed (no DB config) after ${duration}ms`);
+    } else {
+      console.error(`❌ Query failed after ${duration}ms:`, error);
+    }
     throw error;
   }
 }

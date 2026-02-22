@@ -11,7 +11,7 @@
 // ============================================================================
 // 🔗 API CONFIGURATION - Server connection settings
 // ============================================================================
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';              // Backend server address
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? '';              // Backend server address
 
 // ============================================================================
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data

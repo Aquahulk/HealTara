@@ -12,7 +12,7 @@
 // ============================================================================
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';                                      // Password hashing for security
 import jwt from 'jsonwebtoken';                                     // JWT tokens for user authentication
 import cors from 'cors';                                            // Allows frontend to communicate with API
@@ -692,7 +692,7 @@ app.get('/api/comments', async (req: Request, res: Response) => {
     if (!entityType || !entityIdRaw) return res.status(400).json({ error: 'entityType and entityId are required' });
     const entityId = parseInt(entityIdRaw, 10);
     const offset = (page - 1) * limit;
-    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows = await prisma.$queryRaw(`
       SELECT 
         c.id,
         c.name,
@@ -711,7 +711,7 @@ app.get('/api/comments', async (req: Request, res: Response) => {
       ORDER BY c.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
-    const countRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    const countRows = await prisma.$queryRaw(`
       SELECT COUNT(*)::int as total FROM "public"."comments" WHERE entity_type = ${entityType} AND entity_id = ${entityId} AND is_active = true
     `);
     const total = countRows[0]?.total ?? 0;
@@ -744,7 +744,7 @@ app.post('/api/comments', async (req: Request, res: Response) => {
         finalName = finalName || makeName(finalEmail);
       } catch {}
     }
-    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows = await prisma.$queryRaw(`
       INSERT INTO "public"."comments" (entity_type, entity_id, user_id, parent_id, name, email, rating, comment)
       VALUES (${String(entityType)}, ${parseInt(String(entityId), 10)}, ${parseInt(String(userId), 10)}, ${parentId ? parseInt(String(parentId), 10) : null}, ${String(finalName)}, ${String(finalEmail)}, ${r}, ${String(comment)})
       RETURNING id, name, email, rating, comment, created_at, is_verified, parent_id
@@ -761,7 +761,7 @@ app.patch('/api/comments', async (req: Request, res: Response) => {
     await ensureCommentsSchema();
     const { commentId, userId, name, email, rating, comment } = req.body || {};
     if (!commentId || !userId || !comment) return res.status(400).json({ error: 'commentId, userId, and comment are required' });
-    const parentRows = await prisma.$queryRaw<any[]>(Prisma.sql`SELECT entity_type, entity_id FROM "public"."comments" WHERE id = ${parseInt(String(commentId), 10)} AND is_active = true`);
+    const parentRows = await prisma.$queryRaw(`SELECT entity_type, entity_id FROM "public"."comments" WHERE id = ${parseInt(String(commentId), 10)} AND is_active = true`);
     if (parentRows.length === 0) return res.status(404).json({ error: 'Parent comment not found' });
     const { entity_type, entity_id } = parentRows[0];
     let finalName = name;
@@ -778,7 +778,7 @@ app.patch('/api/comments', async (req: Request, res: Response) => {
         finalName = finalName || makeName(finalEmail);
       } catch {}
     }
-    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+    const rows = await prisma.$queryRaw(`
       INSERT INTO "public"."comments" (entity_type, entity_id, parent_id, user_id, name, email, rating, comment)
       VALUES (${String(entity_type)}, ${parseInt(String(entity_id), 10)}, ${parseInt(String(commentId), 10)}, ${parseInt(String(userId), 10)}, ${String(finalName)}, ${String(finalEmail)}, ${rating ? parseInt(String(rating), 10) : null}, ${String(comment)})
       RETURNING id, name, email, rating, comment, created_at, parent_id
@@ -796,7 +796,7 @@ app.put('/api/comments', async (req: Request, res: Response) => {
     const { commentId, userId, reactionType } = req.body || {};
     if (!commentId || !userId || !reactionType) return res.status(400).json({ error: 'commentId, userId, and reactionType are required' });
     if (!['helpful', 'not_helpful', 'spam'].includes(String(reactionType))) return res.status(400).json({ error: 'reactionType must be "helpful", "not_helpful", or "spam"' });
-    await prisma.$executeRaw(Prisma.sql`
+    await prisma.$executeRaw(`
       INSERT INTO "public"."comment_reactions" (comment_id, user_id, reaction_type)
       VALUES (${parseInt(String(commentId), 10)}, ${parseInt(String(userId), 10)}, ${String(reactionType)})
       ON CONFLICT (comment_id, user_id, reaction_type) DO UPDATE SET created_at = CURRENT_TIMESTAMP
