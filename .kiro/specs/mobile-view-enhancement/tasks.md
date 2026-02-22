@@ -134,11 +134,11 @@ This implementation plan transforms the Healtara healthcare application into a m
     - Test scroll-to-hide behavior when enabled
     - _Requirements: 7.1, 7.2, 7.6, 7.7_
 
-- [~] 7. Checkpoint - Ensure all tests pass
+- [ ] 7. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 8. Implement mobile search and filtering
-  - [~] 8.1 Create MobileSearchInterface component
+  - [ ] 8.1 Create MobileSearchInterface component
     - Implement single-column layout
     - Set minimum 48px input height
     - Create collapsible filter accordion
@@ -161,7 +161,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - _Requirements: 4.1, 4.4, 4.5, 4.6, 4.7_
 
 - [ ] 9. Implement mobile card components
-  - [~] 9.1 Create MobileDoctorCard component
+  - [ ] 9.1 Create MobileDoctorCard component
     - Implement single-column layout
     - Use 1:1 aspect ratio image (max 80px)
     - Create vertical information stack with clear hierarchy
@@ -183,7 +183,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - Test text truncation for long names and descriptions
     - _Requirements: 5.1, 5.2, 5.4, 5.6, 5.7_
   
-  - [~] 9.4 Create MobileHospitalCard component
+  - [ ] 9.4 Create MobileHospitalCard component
     - Implement single-column layout
     - Add horizontal scrollable department filters
     - Create swipeable image carousel
@@ -204,7 +204,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - _Requirements: 8.1, 8.2, 8.4, 8.5, 8.6_
 
 - [ ] 10. Implement mobile modal and dialog components
-  - [~] 10.1 Create MobileModal component
+  - [ ] 10.1 Create MobileModal component
     - Implement full-screen overlay on mobile (< 768px)
     - Add swipe-down to dismiss gesture
     - Create fixed bottom action bar
@@ -223,7 +223,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - Test keyboard-aware positioning
     - _Requirements: 6.1_
   
-  - [~] 10.4 Enhance BookAppointmentModal for mobile
+  - [ ] 10.4 Enhance BookAppointmentModal for mobile
     - Make full-screen on mobile (< 768px)
     - Convert to single-column form layout
     - Use native date/time pickers (type="date", type="time")
@@ -248,7 +248,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - Test progress indicator for multi-step booking
     - _Requirements: 6.1, 6.2, 6.3, 6.6, 6.7, 6.8_
 
-- [~] 11. Checkpoint - Ensure all tests pass
+- [ ] 11. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 12. Implement mobile-specific page enhancements
@@ -300,7 +300,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Validates: Requirements 2.5, 14.6, 16.1, 16.2, 16.3**
 
 - [ ] 13. Implement performance optimizations
-  - [~] 13.1 Implement image optimization strategy
+  - [ ] 13.1 Implement image optimization strategy
     - Use Next.js Image component with mobile-optimized sizes
     - Add lazy loading for below-fold images
     - Generate responsive image variants (320w, 640w, 768w, 1024w)
@@ -311,13 +311,13 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 20: Lazy Loading Images**
     - **Validates: Requirements 11.2**
   
-  - [~] 13.3 Implement code splitting and lazy loading
+  - [ ] 13.3 Implement code splitting and lazy loading
     - Add dynamic imports for mobile-only components
     - Implement route prefetching for likely next routes
     - Split mobile-specific bundles with conditional loading
     - _Requirements: 11.4_
   
-  - [~] 13.4 Implement API response caching
+  - [ ] 13.4 Implement API response caching
     - Create mobile cache utility with 10-minute cache duration
     - Cache frequently accessed data (doctors list, hospitals list) in localStorage
     - Add timestamp-based cache invalidation
@@ -327,7 +327,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 23: API Response Caching**
     - **Validates: Requirements 11.6**
   
-  - [~] 13.6 Implement virtual scrolling for large lists
+  - [ ] 13.6 Implement virtual scrolling for large lists
     - Add @tanstack/react-virtual dependency
     - Implement virtual scrolling for lists exceeding 50 items
     - Configure overscan of 5 items
@@ -337,7 +337,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 21: Virtual Scrolling for Large Lists**
     - **Validates: Requirements 11.3**
   
-  - [~] 13.8 Optimize animations for performance
+  - [ ] 13.8 Optimize animations for performance
     - Ensure all animations use only transform and opacity (GPU-accelerated)
     - Add will-change hints for animated elements
     - Implement reduced motion support
@@ -347,11 +347,11 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 22: Animation Performance**
     - **Validates: Requirements 11.5**
 
-- [~] 14. Checkpoint - Ensure all tests pass
+- [ ] 14. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 15. Implement mobile-specific features
-  - [~] 15.1 Implement PWA configuration
+  - [ ] 15.1 Implement PWA configuration
     - Create manifest.json with app metadata, icons, and display settings
     - Add manifest link to document head
     - Generate PWA icons (192x192, 512x512)
@@ -362,7 +362,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - Test manifest.json is linked in document head
     - _Requirements: 17.2_
   
-  - [~] 15.3 Implement native API integrations
+  - [ ] 15.3 Implement native API integrations
     - Create getCurrentLocation function using Geolocation API
     - Create shareContent function using Web Share API with clipboard fallback
     - Create hapticFeedback function using Vibration API
@@ -376,7 +376,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 45: Haptic Feedback**
     - **Validates: Requirements 17.1, 17.4, 17.6, 15.6**
   
-  - [~] 15.5 Implement offline handling
+  - [ ] 15.5 Implement offline handling
     - Create OfflineIndicator component that displays when navigator.onLine is false
     - Add online/offline event listeners
     - Display user-friendly offline message
@@ -388,18 +388,18 @@ This implementation plan transforms the Healtara healthcare application into a m
     - _Requirements: 15.5_
 
 - [ ] 16. Implement error handling and user feedback
-  - [~] 16.1 Create MobileErrorBoundary component
+  - [ ] 16.1 Create MobileErrorBoundary component
     - Implement error boundary with mobile-friendly error UI
     - Add reload button for error recovery
     - Log errors to mobile analytics
     - _Requirements: 15.1_
   
-  - [~] 16.2 Implement mobile error handling utilities
+  - [ ] 16.2 Implement mobile error handling utilities
     - Create handleMobileNetworkError function for network-specific errors
     - Create showMobileFormError function with auto-scroll and haptic feedback
     - _Requirements: 15.1, 15.7_
   
-  - [~] 16.3 Implement user feedback components
+  - [ ] 16.3 Implement user feedback components
     - Create loading states with skeleton screens or spinners
     - Create success confirmations with visual feedback (checkmark, green banner)
     - Create error messages as toast or banner
@@ -413,7 +413,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.7_
 
 - [ ] 17. Implement accessibility enhancements
-  - [~] 17.1 Ensure all interactive elements meet accessibility requirements
+  - [ ] 17.1 Ensure all interactive elements meet accessibility requirements
     - Verify all interactive elements have minimum 44x44px touch targets
     - Add ARIA labels to all interactive elements without visible labels
     - Ensure all images have alt text
@@ -428,7 +428,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 27: Text Scaling Support**
     - **Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7**
   
-  - [~] 17.3 Implement screen reader announcements
+  - [ ] 17.3 Implement screen reader announcements
     - Create announceToScreenReader utility function
     - Add navigation change announcements
     - Add form submission announcements
@@ -442,7 +442,7 @@ This implementation plan transforms the Healtara healthcare application into a m
     - _Requirements: 12.8_
 
 - [ ] 18. Implement typography and content enhancements
-  - [~] 18.1 Apply mobile typography system
+  - [ ] 18.1 Apply mobile typography system
     - Set body text to minimum 16px on mobile
     - Set line-height to 1.5-1.7 for body text
     - Apply mobile type scale (h1: 24-32px, h2: 20-24px, h3: 18-20px)
@@ -458,21 +458,21 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 41: Tabular Figures for Numbers**
     - **Validates: Requirements 16.4, 16.5, 16.6, 16.7**
   
-  - [~] 18.3 Implement content prioritization
+  - [ ] 18.3 Implement content prioritization
     - Hide or collapse less critical sections on mobile
     - Add progressive disclosure (show more/less) for lengthy content
     - Add jump to section navigation
     - _Requirements: 14.2, 14.4, 14.5_
 
 - [ ] 19. Final integration and testing
-  - [~] 19.1 Integrate all mobile components into existing pages
+  - [ ] 19.1 Integrate all mobile components into existing pages
     - Wrap all pages with MobileLayout component
     - Add MobileBottomNavigation to all pages on mobile
     - Add MobileHeader to all pages
     - Replace existing components with mobile-optimized versions on mobile viewports
     - _Requirements: 1.1, 3.1, 7.1_
   
-  - [~] 19.2 Run comprehensive accessibility audit
+  - [ ] 19.2 Run comprehensive accessibility audit
     - Run axe DevTools on all pages at mobile viewport
     - Fix any accessibility violations
     - Verify keyboard navigation works on all pages
@@ -488,14 +488,14 @@ This implementation plan transforms the Healtara healthcare application into a m
     - **Property 47: Lighthouse Performance Score**
     - **Validates: Requirements 18.4**
   
-  - [~] 19.5 Test on real devices
+  - [ ] 19.5 Test on real devices
     - Test on iPhone SE (320px), iPhone 12/13 (390px), iPhone 14 Pro Max (430px)
     - Test on Samsung Galaxy S21 (360px), Google Pixel 6 (412px)
     - Test on iPad Mini (768px), Samsung Galaxy Tab (768px)
     - Verify all functionality works on Safari, Chrome Mobile, and Samsung Internet
     - _Requirements: 18.1, 18.2, 18.3_
 
-- [~] 20. Final checkpoint - Ensure all tests pass
+- [ ] 20. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

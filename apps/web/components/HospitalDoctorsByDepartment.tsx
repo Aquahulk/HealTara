@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import DoctorBookingCTA from "@/components/DoctorBookingCTA";
+import { EnhancedRatingDisplay } from "@/components/SimpleRatingDisplay";
 
 type DoctorProfileLite = {
   slug?: string;
@@ -132,6 +133,9 @@ export default function HospitalDoctorsByDepartment({ doctors, hospitalName }: P
                   {profile.qualifications && <p className="text-gray-600 text-sm mb-4">{profile.qualifications}</p>}
                 </div>
                 <div className="space-y-4 mb-6">
+                  <div className="flex items-center justify-center">
+                    <EnhancedRatingDisplay entityType="doctor" entityId={String(doctor.id)} size="sm" />
+                  </div>
                   {profile.experience && (
                     <div className="flex items-center justify-center"><span className="text-blue-600 mr-2">⏰</span><span className="text-gray-700">{profile.experience}+ Years Experience</span></div>
                   )}
@@ -160,4 +164,3 @@ export default function HospitalDoctorsByDepartment({ doctors, hospitalName }: P
     </div>
   );
 }
-

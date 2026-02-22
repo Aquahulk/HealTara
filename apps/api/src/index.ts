@@ -11,8 +11,8 @@
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
 import 'dotenv/config';
-import express, { Request, Response, NextFunction } from 'express';  // Web framework for building APIs
-import { PrismaClient } from '@prisma/client';                      // Database ORM for easy database operations
+import express, { Request, Response, NextFunction } from 'express';
+import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';                                      // Password hashing for security
 import jwt from 'jsonwebtoken';                                     // JWT tokens for user authentication
 import cors from 'cors';                                            // Allows frontend to communicate with API
@@ -650,6 +650,161 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while fetching doctors.' });
+  }
+});
+
+async function ensureCommentsSchema() {
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "public"."comments" (
+    id SERIAL PRIMARY KEY,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    user_id INTEGER,
+    parent_id INTEGER,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    rating INTEGER,
+    comment TEXT NOT NULL,
+    is_verified BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "public"."comment_reactions" (
+    id SERIAL PRIMARY KEY,
+    comment_id INTEGER NOT NULL,
+    user_id INTEGER,
+    reaction_type TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await prisma.$executeRawUnsafe(`DO $$ BEGIN
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_comment_reaction ON "public"."comment_reactions"(comment_id, user_id, reaction_type);
+  EXCEPTION WHEN others THEN NULL; END $$;`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_comments_entity ON "public"."comments"(entity_type, entity_id, is_active, created_at)`);
+}
+
+app.get('/api/comments', async (req: Request, res: Response) => {
+  try {
+    await ensureCommentsSchema();
+    const entityType = String(req.query.entityType || '');
+    const entityIdRaw = String(req.query.entityId || '');
+    const page = parseInt(String(req.query.page || '1'), 10);
+    const limit = parseInt(String(req.query.limit || '10'), 10);
+    if (!entityType || !entityIdRaw) return res.status(400).json({ error: 'entityType and entityId are required' });
+    const entityId = parseInt(entityIdRaw, 10);
+    const offset = (page - 1) * limit;
+    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT 
+        c.id,
+        c.name,
+        c.email,
+        c.rating,
+        c.comment,
+        c.is_verified,
+        c.created_at,
+        c.parent_id,
+        u."name" as user_name,
+        null::text as user_avatar,
+        (SELECT COUNT(*) FROM "public"."comments" WHERE parent_id = c.id AND is_active = true) as reply_count
+      FROM "public"."comments" c
+      LEFT JOIN "public"."User" u ON c.user_id = u.id
+      WHERE c.entity_type = ${entityType} AND c.entity_id = ${entityId} AND c.is_active = true
+      ORDER BY c.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+    const countRows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      SELECT COUNT(*)::int as total FROM "public"."comments" WHERE entity_type = ${entityType} AND entity_id = ${entityId} AND is_active = true
+    `);
+    const total = countRows[0]?.total ?? 0;
+    return res.json({ success: true, data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (e) {
+    console.error('get comments error', e);
+    return res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+app.post('/api/comments', async (req: Request, res: Response) => {
+  try {
+    await ensureCommentsSchema();
+    const { entityType, entityId, userId, name, email, rating, comment, parentId = null } = req.body || {};
+    if (!entityType || !entityId || !userId || !rating || !comment) return res.status(400).json({ error: 'entityType, entityId, userId, rating, comment are required' });
+    if (!['doctor', 'hospital'].includes(String(entityType))) return res.status(400).json({ error: 'entityType must be "doctor" or "hospital"' });
+    const r = parseInt(String(rating), 10);
+    if (!(r >= 1 && r <= 5)) return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    let finalName = name;
+    let finalEmail = email;
+    if (!finalName || !finalEmail) {
+      try {
+        const u = await prisma.user.findUnique({ where: { id: parseInt(String(userId), 10) }, select: { email: true } });
+        const makeName = (em?: string | null) => {
+          if (!em) return 'Anonymous';
+          const base = String(em).split('@')[0] || '';
+          return base ? base.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Anonymous';
+        };
+        finalEmail = finalEmail || u?.email || 'unknown@example.com';
+        finalName = finalName || makeName(finalEmail);
+      } catch {}
+    }
+    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      INSERT INTO "public"."comments" (entity_type, entity_id, user_id, parent_id, name, email, rating, comment)
+      VALUES (${String(entityType)}, ${parseInt(String(entityId), 10)}, ${parseInt(String(userId), 10)}, ${parentId ? parseInt(String(parentId), 10) : null}, ${String(finalName)}, ${String(finalEmail)}, ${r}, ${String(comment)})
+      RETURNING id, name, email, rating, comment, created_at, is_verified, parent_id
+    `);
+    return res.json({ success: true, data: rows[0], message: 'Comment posted successfully' });
+  } catch (e) {
+    console.error('post comment error', e);
+    return res.status(500).json({ error: 'Failed to post comment' });
+  }
+});
+
+app.patch('/api/comments', async (req: Request, res: Response) => {
+  try {
+    await ensureCommentsSchema();
+    const { commentId, userId, name, email, rating, comment } = req.body || {};
+    if (!commentId || !userId || !comment) return res.status(400).json({ error: 'commentId, userId, and comment are required' });
+    const parentRows = await prisma.$queryRaw<any[]>(Prisma.sql`SELECT entity_type, entity_id FROM "public"."comments" WHERE id = ${parseInt(String(commentId), 10)} AND is_active = true`);
+    if (parentRows.length === 0) return res.status(404).json({ error: 'Parent comment not found' });
+    const { entity_type, entity_id } = parentRows[0];
+    let finalName = name;
+    let finalEmail = email;
+    if (!finalName || !finalEmail) {
+      try {
+        const u = await prisma.user.findUnique({ where: { id: parseInt(String(userId), 10) }, select: { email: true } });
+        const makeName = (em?: string | null) => {
+          if (!em) return 'Anonymous';
+          const base = String(em).split('@')[0] || '';
+          return base ? base.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Anonymous';
+        };
+        finalEmail = finalEmail || u?.email || 'unknown@example.com';
+        finalName = finalName || makeName(finalEmail);
+      } catch {}
+    }
+    const rows = await prisma.$queryRaw<any[]>(Prisma.sql`
+      INSERT INTO "public"."comments" (entity_type, entity_id, parent_id, user_id, name, email, rating, comment)
+      VALUES (${String(entity_type)}, ${parseInt(String(entity_id), 10)}, ${parseInt(String(commentId), 10)}, ${parseInt(String(userId), 10)}, ${String(finalName)}, ${String(finalEmail)}, ${rating ? parseInt(String(rating), 10) : null}, ${String(comment)})
+      RETURNING id, name, email, rating, comment, created_at, parent_id
+    `);
+    return res.json({ success: true, data: rows[0], message: 'Reply posted successfully' });
+  } catch (e) {
+    console.error('reply comment error', e);
+    return res.status(500).json({ error: 'Failed to add reply' });
+  }
+});
+
+app.put('/api/comments', async (req: Request, res: Response) => {
+  try {
+    await ensureCommentsSchema();
+    const { commentId, userId, reactionType } = req.body || {};
+    if (!commentId || !userId || !reactionType) return res.status(400).json({ error: 'commentId, userId, and reactionType are required' });
+    if (!['helpful', 'not_helpful', 'spam'].includes(String(reactionType))) return res.status(400).json({ error: 'reactionType must be "helpful", "not_helpful", or "spam"' });
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "public"."comment_reactions" (comment_id, user_id, reaction_type)
+      VALUES (${parseInt(String(commentId), 10)}, ${parseInt(String(userId), 10)}, ${String(reactionType)})
+      ON CONFLICT (comment_id, user_id, reaction_type) DO UPDATE SET created_at = CURRENT_TIMESTAMP
+    `);
+    return res.json({ success: true, message: 'Reaction added successfully' });
+  } catch (e) {
+    console.error('add reaction error', e);
+    return res.status(500).json({ error: 'Failed to add reaction' });
   }
 });
 

@@ -7,6 +7,7 @@ import { apiClient, Doctor } from '@/lib/api';
 import DoctorOyoCard from '@/components/DoctorOyoCard';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
 import Header from '@/components/Header';
+import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 
 export default function DoctorsPage() {
   return (
@@ -134,134 +135,89 @@ function DoctorsPageContent() {
         </div>
 
         {/* Search and Filters - Mobile optimized */}
-        <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-6 md:mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 md:gap-4">
-            <div className="md:col-span-2">
+        <div className="bg-white rounded-lg shadow p-3 md:p-6 mb-4 md:mb-8">
+          {/* Compact Search Bar with Filter Button */}
+          <div className="flex gap-2 mb-3">
+            <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search by doctor name or specialization..."
+                placeholder="Search doctors..."
                 value={searchQuery}
-                onChange={async (e) => {
-                  const raw = e.target.value;
-                  setSearchQuery(raw);
-                  const q = raw.trim();
-                  const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
-                  const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
-                  const nextSpace = raw.indexOf(' ', caret);
-                  const end = nextSpace === -1 ? raw.length : nextSpace;
-                  const active = raw.substring(start, end).trim();
-
-                  if (!q) {
-                    const seeds = apiClient.getSeedSuggestions();
-                    setSuggestions(seeds);
-                    return;
-                  }
-
-                  let quick: string[] = [];
-                  if (active) {
-                    const cachedTok = apiClient.peekCachedSearch(active);
-                    if (cachedTok && Array.isArray(cachedTok.suggestions)) {
-                      quick = cachedTok.suggestions.slice(0, 6);
-                    } else {
-                      quick = apiClient.getLocalSuggestions(active).slice(0, 6);
-                    }
-                  } else {
-                    quick = apiClient.getSeedSuggestions().slice(0, 6);
-                  }
-                  setSuggestions(quick);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const raw = (e.target as HTMLInputElement).value;
-                    const q = raw.trim();
-                    const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
-                    const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
-                    const nextSpace = raw.indexOf(' ', caret);
-                    const end = nextSpace === -1 ? raw.length : nextSpace;
-                    const active = raw.substring(start, end).trim();
-                    if (q) {
-                      if (active && suggestions.length === 0 && active.length >= 3) {
-                        apiClient.addLocalSuggestion(active, active);
-                      }
-                      apiClient.trackSearch(q, { source: 'enter' });
-                    }
-                  }
-                }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base touch-manipulation"
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 md:px-4 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
               />
-              {suggestions && suggestions.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {suggestions.slice(0, 6).map((s, i) => (
-                    <button
-                      key={i}
-                      className="text-sm px-3 py-2 rounded-full border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 min-h-[44px] touch-manipulation"
-                      onClick={() => {
-                        const picked = s.replace(/ \((specialization)\)$/i, '');
-                        setSearchQuery(picked);
-                        apiClient.addLocalSuggestion(picked, picked);
-                        apiClient.trackSearch(picked, { source: 'suggestion_click', selectedSuggestion: picked }).catch(() => {});
-                      }}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-            <div>
-              <select
-                value={selectedSpecialization}
-                onChange={(e) => setSelectedSpecialization(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base"
-              >
-                <option value="">All Specializations</option>
-                <option value="Cardiology">Cardiology</option>
-                <option value="Dermatology">Dermatology</option>
-                <option value="Neurology">Neurology</option>
-                <option value="Orthopedics">Orthopedics</option>
-                <option value="Pediatrics">Pediatrics</option>
-              </select>
-            </div>
-            <div>
-              <select
-                value={selectedCity}
-                onChange={(e) => setSelectedCity(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base"
-              >
-                <option value="">All Cities</option>
-                <option value="Mumbai">Mumbai</option>
-                <option value="Delhi">Delhi</option>
-                <option value="Bangalore">Bangalore</option>
-                <option value="Chennai">Chennai</option>
-              </select>
-            </div>
-            <div>
-              <select
-                value={sortBy}
-                onChange={(e) => { setSortBy(e.target.value as any); setPage(1); }}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[48px] text-base"
-              >
-                <option value="trending">Popularity</option>
-                <option value="recent">Recently Updated</option>
-                <option value="default">Default</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 min-h-[44px] touch-manipulation flex-1"
-              >
-                Prev
-              </button>
-              <span className="text-sm text-gray-600 whitespace-nowrap">Page {page}</span>
-              <button
-                onClick={() => hasMore && setPage((p) => p + 1)}
-                disabled={!hasMore}
-                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 min-h-[44px] touch-manipulation flex-1"
-              >
-                Next
-              </button>
+            <button
+              onClick={() => {
+                const filtersDiv = document.getElementById('filters-section');
+                if (filtersDiv) {
+                  filtersDiv.classList.toggle('hidden');
+                }
+              }}
+              className="px-3 py-2 md:px-4 md:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 text-sm md:text-base whitespace-nowrap"
+            >
+              🔍 Filters
+            </button>
+          </div>
+
+          {/* Collapsible Filters Section */}
+          <div id="filters-section" className="hidden">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-3 border-t border-gray-200">
+              <div>
+                <select
+                  value={selectedSpecialization}
+                  onChange={(e) => setSelectedSpecialization(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+                >
+                  <option value="">All Specializations</option>
+                  <option value="Cardiology">Cardiology</option>
+                  <option value="Dermatology">Dermatology</option>
+                  <option value="Neurology">Neurology</option>
+                  <option value="Orthopedics">Orthopedics</option>
+                  <option value="Pediatrics">Pediatrics</option>
+                </select>
+              </div>
+              <div>
+                <select
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+                >
+                  <option value="">All Cities</option>
+                  <option value="Mumbai">Mumbai</option>
+                  <option value="Delhi">Delhi</option>
+                  <option value="Bangalore">Bangalore</option>
+                  <option value="Chennai">Chennai</option>
+                </select>
+              </div>
+              <div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => { setSortBy(e.target.value as any); setPage(1); }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+                >
+                  <option value="trending">Popularity</option>
+                  <option value="recent">Recently Updated</option>
+                  <option value="default">Default</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 flex-1 text-sm"
+                >
+                  Prev
+                </button>
+                <span className="text-xs md:text-sm text-gray-600 whitespace-nowrap">Page {page}</span>
+                <button
+                  onClick={() => hasMore && setPage((p) => p + 1)}
+                  disabled={!hasMore}
+                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 flex-1 text-sm"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -304,6 +260,9 @@ function DoctorsPageContent() {
           onClose={() => setShowBookingModal(false)}
         />
       )}
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNavigation />
     </div>
   );
 }

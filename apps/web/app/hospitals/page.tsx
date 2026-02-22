@@ -11,8 +11,10 @@ import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 export default function HospitalsPage() {
   const router = useRouter();
   const [hospitals, setHospitals] = useState<any[]>([]);
+  const [filteredHospitals, setFilteredHospitals] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -21,7 +23,10 @@ export default function HospitalsPage() {
       setLoading(true);
       try {
         const items = await apiClient.getHospitals({ page: 1, limit: 50 });
-        if (!cancelled) setHospitals(items || []);
+        if (!cancelled) {
+          setHospitals(items || []);
+          setFilteredHospitals(items || []);
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Failed to load hospitals');
       } finally {
@@ -32,6 +37,23 @@ export default function HospitalsPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Filter hospitals based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredHospitals(hospitals);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = hospitals.filter((h) => {
+      const name = (h.name || '').toLowerCase();
+      const city = (h.city || '').toLowerCase();
+      const state = (h.state || '').toLowerCase();
+      return name.includes(query) || city.includes(query) || state.includes(query);
+    });
+    setFilteredHospitals(filtered);
+  }, [searchQuery, hospitals]);
+
   return (
     <>
       <div className="min-h-screen bg-gray-50">
@@ -41,6 +63,19 @@ export default function HospitalsPage() {
           <div className="mb-6 md:mb-8 text-center">
             <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Partner Hospitals</h1>
             <p className="text-base md:text-lg text-gray-600">Browse verified hospitals and visit their websites</p>
+          </div>
+
+          {/* Search Bar */}
+          <div className="mb-6 md:mb-8">
+            <div className="max-w-2xl mx-auto">
+              <input
+                type="text"
+                placeholder="Search hospitals by name or location..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
+              />
+            </div>
           </div>
 
           {loading && (
@@ -73,12 +108,12 @@ export default function HospitalsPage() {
             </div>
           )}
 
-          {!loading && !error && hospitals.length > 0 && (
+          {!loading && !error && filteredHospitals.length > 0 && (
             <div className="space-y-6 md:space-y-10">
-              <HorizontalHospitalScroll hospitals={hospitals} />
+              <HorizontalHospitalScroll hospitals={filteredHospitals} />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                {hospitals.map((h) => {
+                {filteredHospitals.map((h) => {
                   const name = h.name || 'Hospital';
                   const city = h.city || '';
                   const state = h.state || '';
@@ -134,11 +169,13 @@ export default function HospitalsPage() {
             </div>
           )}
 
-          {!loading && !error && hospitals.length === 0 && (
+          {!loading && !error && filteredHospitals.length === 0 && (
             <div className="text-center py-16">
-              <div className="text-6xl mb-4">🏥</div>
+              <div className="text-6xl mb-4">🔍</div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">No hospitals found</h2>
-              <p className="text-gray-600">Please check back later.</p>
+              <p className="text-gray-600">
+                {searchQuery ? 'Try adjusting your search criteria' : 'Please check back later.'}
+              </p>
             </div>
           )}
         </div>

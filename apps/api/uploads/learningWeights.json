@@ -9,13 +9,13 @@
     "sdj": 1.96
   },
   "bone": {
-    "Orthopedics": 14.8181654208,
-    "as": 17.846544799999997,
-    "asdf": 17.846544799999997,
-    "Aha": 17.846544799999997,
-    "Zedq1": 17.846544799999997,
+    "Orthopedics": 15.8181654208,
+    "as": 18.846544799999997,
+    "asdf": 18.846544799999997,
+    "Aha": 18.846544799999997,
+    "Zedq1": 18.846544799999997,
     "Asd": 9.374272320000001,
-    "sdj": 3.8808
+    "sdj": 5.8808
   },
   "dr": {
     "Orthopedics": 6.4381297568,
@@ -228,19 +228,45 @@
     "asdf": 1.8823839999999998
   },
   "s": {
-    "General Medicine": 1.9604,
-    "ENT": 1.9604,
-    "Dermatology": 1.9604,
-    "Endocrinology": 1.9604,
-    "Neurology": 1.9604,
-    "Gastroenterology": 1.9604,
-    "sdj": 4.9208,
-    "sdbg": 2,
-    "sdjdhd": 2,
-    "sd": 2
+    "General Medicine": 3.9604,
+    "ENT": 3.9604,
+    "Dermatology": 3.9604,
+    "Endocrinology": 3.9604,
+    "Neurology": 3.9604,
+    "Gastroenterology": 3.9604,
+    "sdj": 10.9208,
+    "sdbg": 8,
+    "sdjdhd": 8,
+    "sd": 8
   },
   "he": {
     "Cardiology": 0.98,
     "Neurology": 0.98
+  },
+  "d": {
+    "Dermatology": 1,
+    "Endocrinology": 1,
+    "Dentistry": 1,
+    "Psychiatry": 1,
+    "Cardiology": 2,
+    "sdj": 2,
+    "sdbg": 2,
+    "sdjdhd": 2,
+    "sd": 2
+  },
+  "der": {
+    "Dermatology": 1
+  },
+  "p": {
+    "Cardiology": 1,
+    "Obstetrics & Gynecology": 1,
+    "Pediatrics": 1,
+    "Psychiatry": 1
+  },
+  "g": {
+    "Endocrinology": 1,
+    "Gastroenterology": 1,
+    "Cardiology": 2,
+    "sdbg": 2
   }
 }

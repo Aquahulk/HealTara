@@ -1,7 +1,7 @@
 "use client";
 
 import { Stethoscope, Building2, Home, Search } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface MobileBottomNavigationProps {
   currentPath?: string;
@@ -13,6 +13,7 @@ export default function MobileBottomNavigation({
   className = "" 
 }: MobileBottomNavigationProps = {}) {
   const pathname = usePathname();
+  const router = useRouter();
   const activePath = currentPath || pathname;
 
   const navItems = [
@@ -50,6 +51,58 @@ export default function MobileBottomNavigation({
     return activePath === href || activePath?.startsWith(href + "/");
   };
 
+  const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    
+    // Special handling for Home button - always check for subdomain or microsite path
+    if (href === "/" && typeof window !== 'undefined') {
+      const currentHost = window.location.hostname;
+      const currentPath = window.location.pathname;
+      
+      console.log('Home clicked - Current host:', currentHost, 'Path:', currentPath);
+      
+      // Check if we're on a hospital/doctor microsite route (path-based)
+      const isOnMicrosite = currentPath.startsWith('/hospital-site/') || 
+                           currentPath.startsWith('/site/') || 
+                           currentPath.startsWith('/doctor-site/');
+      
+      // ALWAYS redirect to homepage if on microsite path
+      if (isOnMicrosite) {
+        console.log('On microsite path, forcing redirect to main homepage');
+        // Force full page reload to ensure we leave the microsite
+        window.location.href = window.location.origin + '/';
+        return;
+      }
+      
+      // For localhost with subdomain simulation (e.g., holaamigo.localhost:3000)
+      if (currentHost.includes('.localhost') && currentHost !== 'localhost') {
+        // Extract just 'localhost' and navigate there
+        const port = window.location.port ? `:${window.location.port}` : '';
+        const mainUrl = `${window.location.protocol}//localhost${port}/`;
+        console.log('Redirecting from subdomain to main localhost:', mainUrl);
+        window.location.href = mainUrl;
+        return;
+      }
+      
+      // For production subdomains (e.g., holaamigo.example.com)
+      const parts = currentHost.split('.');
+      if (parts.length > 2 && parts[0] !== 'www') {
+        // We're on a subdomain, navigate to primary domain
+        const primaryDomain = parts.slice(-2).join('.');
+        const protocol = window.location.protocol;
+        const port = window.location.port ? `:${window.location.port}` : '';
+        const mainUrl = `${protocol}//${primaryDomain}${port}/`;
+        console.log('Redirecting from subdomain to primary domain:', mainUrl);
+        window.location.href = mainUrl;
+        return;
+      }
+    }
+    
+    // For all other navigation, use Next.js router
+    console.log('Using router for:', href);
+    router.push(href);
+  };
+
   return (
     <nav 
       className={`fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg md:hidden z-50 ${className}`}
@@ -65,6 +118,7 @@ export default function MobileBottomNavigation({
             <a
               key={item.href}
               href={item.href}
+              onClick={(e) => handleNavigation(e, item.href)}
               className={`
                 flex flex-col items-center justify-center
                 min-h-[44px] min-w-[44px]

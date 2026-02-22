@@ -8,6 +8,7 @@ import { loadWithCache, PerformanceMonitor, CacheManager } from '@/lib/performan
 import Header from '@/components/Header';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
+import DesktopSidebar from '@/components/DesktopSidebar';
 import { 
   Search, 
   ArrowDown, 
@@ -50,6 +51,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
+import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -331,7 +333,11 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50 to-blue-50 overflow-x-hidden">
       <Header />
       
-      <main className="pt-10 overflow-x-hidden">
+      {/* Desktop Sidebar - Fixed position */}
+      <DesktopSidebar />
+      
+      {/* Main content area - Adjusts margin based on sidebar using CSS variable */}
+      <main className="pt-10 overflow-x-hidden transition-all duration-300" style={{ marginLeft: 'var(--sidebar-width, 16rem)' }}>
         {/* ============================================================================
             🌟 HERO SECTION - Main landing area with search (BLUE GRADIENT)
             ============================================================================ */}
@@ -673,76 +679,95 @@ export default function HomePage() {
               })()}
             </div>
 
-            {/* Vertical Doctor Cards - Compact mobile-friendly design */}
-            <div className="space-y-4">
+            {/* OYO-Style Doctor Cards - Visually engaging design */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredDoctors.map((doctor, index) => (
                 <motion.div 
                   key={doctor.id}
-                  initial={{ opacity: 0, x: -50 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.01 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ y: -4 }}
+                  className="group"
                 >
-                  <div className="group bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 border border-white/30 w-full">
-                    {/* Mobile: Stack vertically, Desktop: Horizontal layout */}
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                      {/* Doctor Info */}
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        {/* Avatar - Smaller on mobile */}
-                        <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden">
-                          {doctor.doctorProfile?.profileImage ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={doctor.doctorProfile.profileImage}
-                              alt={doctor.email.split('@')[0]}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span role="img" aria-label="doctor" className="text-xl">👨‍⚕️</span>
-                          )}
+                  <div className="relative bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100">
+                    {/* Background Gradient Overlay - Medical colors: light green, blue, white */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    {/* Content Container - More compact on mobile */}
+                    <div className="relative p-3 md:p-4">
+                      {/* Top Section: Doctor Info with Image */}
+                      <div className="flex items-start gap-2 md:gap-3 mb-2 md:mb-3">
+                        {/* Doctor Avatar with Badge - Smaller on mobile */}
+                        <div className="relative flex-shrink-0">
+                          <div className="w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-2xl overflow-hidden shadow-md ring-2 ring-white group-hover:ring-emerald-400 transition-all duration-300">
+                            {doctor.doctorProfile?.profileImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={doctor.doctorProfile.profileImage}
+                                alt={doctor.email.split('@')[0]}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-emerald-400 via-cyan-400 to-blue-400 flex items-center justify-center text-xl md:text-2xl">
+                                👨‍⚕️
+                              </div>
+                            )}
+                          </div>
+                          {/* Verified Badge */}
+                          <div className="absolute -bottom-1 -right-1 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-full p-1 shadow-md">
+                            <CheckCircle className="w-3 h-3 md:w-4 md:h-4 text-white" />
+                          </div>
                         </div>
                         
                         {/* Doctor Details */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1 truncate">
+                          <h3 className="text-sm md:text-lg font-bold text-gray-900 mb-1 truncate group-hover:text-emerald-600 transition-colors">
                             Dr. {doctor.email.split('@')[0]}
                           </h3>
-                          <p className="text-emerald-600 font-semibold text-sm md:text-base mb-2 truncate">
-                            {doctor.doctorProfile?.specialization || 'General Practitioner'}
-                          </p>
+                          <div className="inline-flex items-center bg-gradient-to-r from-emerald-50 to-cyan-50 text-emerald-700 px-2 py-0.5 md:py-1 rounded-lg mb-1 md:mb-2 border border-emerald-200">
+                            <Stethoscope className="w-3 h-3 mr-1" />
+                            <span className="text-xs font-semibold truncate">
+                              {doctor.doctorProfile?.specialization || 'General Practitioner'}
+                            </span>
+                          </div>
                           
-                          {/* Info badges - Wrap on mobile */}
-                          <div className="flex flex-wrap gap-3 text-xs md:text-sm">
-                            {doctor.doctorProfile?.city && (
-                              <div className="flex items-center text-gray-600">
-                                <MapPin className="w-4 h-4 text-emerald-500 mr-1" />
-                                <span className="truncate">{doctor.doctorProfile.city}</span>
-                              </div>
-                            )}
-                            
-                            {doctor.doctorProfile?.experience && (
-                              <div className="flex items-center text-gray-600">
-                                <Clock className="w-4 h-4 text-blue-500 mr-1" />
-                                <span>{doctor.doctorProfile.experience}+ Yrs</span>
-                              </div>
-                            )}
-                            
-                            {doctor.doctorProfile?.consultationFee && (
-                              <div className="flex items-center text-gray-600">
-                                <DollarSign className="w-4 h-4 text-green-500 mr-1" />
-                                <span>₹{doctor.doctorProfile.consultationFee}</span>
-                              </div>
-                            )}
+                          <div className="flex items-center gap-0.5">
+                            <EnhancedRatingDisplay entityType="doctor" entityId={String(doctor.id)} size="sm" />
                           </div>
                         </div>
                       </div>
 
-                      {/* Action Buttons - Stack on mobile, horizontal on desktop */}
-                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:ml-4">
+                      {/* Info Grid - More compact on mobile */}
+                      <div className="grid grid-cols-3 gap-1.5 md:gap-2 mb-2 md:mb-3">
+                        {doctor.doctorProfile?.city && (
+                          <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg p-1.5 md:p-2 text-center border border-cyan-200">
+                            <MapPin className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 mx-auto mb-0.5 md:mb-1" />
+                            <p className="text-xs font-medium text-gray-700 truncate">{doctor.doctorProfile.city}</p>
+                          </div>
+                        )}
+                        
+                        {doctor.doctorProfile?.experience && (
+                          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg p-1.5 md:p-2 text-center border border-emerald-200">
+                            <Award className="w-3 h-3 md:w-4 md:h-4 text-emerald-600 mx-auto mb-0.5 md:mb-1" />
+                            <p className="text-xs font-medium text-gray-700">{doctor.doctorProfile.experience}+ Yrs</p>
+                          </div>
+                        )}
+                        
+                        {doctor.doctorProfile?.consultationFee && (
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-1.5 md:p-2 text-center border border-green-200">
+                            <p className="text-xs text-gray-600">Fee</p>
+                            <p className="text-xs md:text-sm font-bold text-green-600">₹{doctor.doctorProfile.consultationFee}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Buttons - More compact on mobile */}
+                      <div className="flex gap-1.5 md:gap-2">
                         {doctor.doctorProfile?.slug ? (
                           <Link
                             href={`/doctor-site/${doctor.doctorProfile.slug}`}
-                            className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-2 px-4 rounded-xl transition-all text-center text-sm md:text-base min-h-[44px] flex items-center justify-center whitespace-nowrap"
+                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-center text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center"
                             onClick={(e) => {
                               if (shouldUseSubdomainNav()) {
                                 e.preventDefault();
@@ -753,11 +778,12 @@ export default function HomePage() {
                               });
                             }}
                           >
-                            Visit Website
+                            <Globe className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                            <span className="hidden sm:inline">Visit</span>
                           </Link>
                         ) : doctor.managedHospitalId != null ? (
                           <button
-                            className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-2 px-4 rounded-xl transition-all text-sm md:text-base min-h-[44px] whitespace-nowrap"
+                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center"
                             onClick={() => {
                               import('@/lib/api').then(({ apiClient }) => {
                                 apiClient
@@ -783,13 +809,15 @@ export default function HomePage() {
                               });
                             }}
                           >
-                            Visit Hospital
+                            <Building2 className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                            <span className="hidden sm:inline">Hospital</span>
                           </button>
                         ) : null}
                         <button 
                           onClick={() => handleBookAppointment(doctor)}
-                          className="btn-brand font-bold py-2 px-4 rounded-xl transition-all text-sm md:text-base min-h-[44px] whitespace-nowrap"
+                          className="flex-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500 hover:from-emerald-600 hover:via-cyan-600 hover:to-blue-600 text-white font-bold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center shadow-md hover:shadow-lg"
                         >
+                          <Calendar className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                           Book Now
                         </button>
                       </div>
@@ -820,8 +848,8 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Compact Hospital Cards */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* OYO-Style Hospital Cards - Visually engaging design */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {hospitals.map((hospital, index) => {
                 const name = hospital.name || '';
                 const location = hospital.address ? `${hospital.city || ''}, ${hospital.state || ''}`.trim() : 'Location';
@@ -829,78 +857,122 @@ export default function HomePage() {
                 return (
                   <motion.div 
                     key={hospital.id}
-                    initial={{ opacity: 0, x: 50 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.01 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ y: -4 }}
+                    className="group"
                   >
-                    <div className="group bg-white/95 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-4 border border-white/30 w-full">
-                      <div className="flex items-center gap-3 mb-3">
-                        {/* Hospital Logo - Compact */}
-                        <div className="w-12 h-12 gradient-brand rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden">
-                          {(() => {
-                            const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
-                            if (logoUrl) {
-                              return (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={logoUrl} alt={name} className="w-full h-full object-contain" />
-                              );
-                            }
-                            return <span role="img" aria-label="hospital" className="text-xl">🏥</span>;
-                          })()}
-                        </div>
-                        
-                        {/* Hospital Info - Compact */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base md:text-lg font-bold text-gray-900 mb-1 truncate">{name}</h3>
-                          <p className="text-blue-600 font-semibold text-xs md:text-sm mb-1 truncate">Multi-Specialty Hospital</p>
-                          
-                          {/* Location */}
-                          {location && (
-                            <div className="flex items-center text-gray-600 text-xs">
-                              <MapPin className="w-3 h-3 text-blue-500 mr-1 flex-shrink-0" />
-                              <span className="truncate">{location}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                    <div className="relative bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100">
+                      {/* Background Pattern */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                       
-                      {/* Stats - Compact */}
-                      <div className="flex gap-3 mb-3 text-xs">
-                        <div className="flex items-center text-gray-600">
-                          <Building2 className="w-4 h-4 text-emerald-500 mr-1" />
-                          <span>{hospital._count?.departments || 0} Depts</span>
+                      {/* Content Container - More compact on mobile */}
+                      <div className="relative p-3 md:p-4">
+                        {/* Top Section: Hospital Info with Logo */}
+                        <div className="flex items-start gap-2 md:gap-3 mb-2 md:mb-3">
+                          {/* Hospital Logo with Badge - Smaller on mobile */}
+                          <div className="relative flex-shrink-0">
+                            <div className="w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-2xl overflow-hidden shadow-md ring-2 ring-white group-hover:ring-blue-400 transition-all duration-300 bg-gradient-to-br from-blue-400 to-purple-500">
+                              {(() => {
+                                const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
+                                if (logoUrl) {
+                                  return (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={logoUrl} alt={name} className="w-full h-full object-contain p-2 bg-white" />
+                                  );
+                                }
+                                return (
+                                  <div className="w-full h-full flex items-center justify-center text-xl md:text-2xl">
+                                    🏥
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {/* Verified Badge */}
+                            <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1 shadow-md">
+                              <Shield className="w-3 h-3 md:w-4 md:h-4 text-white" />
+                            </div>
+                          </div>
+                          
+                          {/* Hospital Details */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm md:text-lg font-bold text-gray-900 mb-1 truncate group-hover:text-blue-600 transition-colors">
+                              {name}
+                            </h3>
+                            <div className="inline-flex items-center bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-700 px-2 py-0.5 md:py-1 rounded-lg mb-1 md:mb-2 border border-blue-200">
+                              <Hospital className="w-3 h-3 mr-1" />
+                              <span className="text-xs font-semibold">Multi-Specialty</span>
+                            </div>
+                            
+                            {/* Location */}
+                            {location && (
+                              <div className="flex items-center text-gray-600 text-xs">
+                                <MapPin className="w-3 h-3 text-blue-500 mr-1 flex-shrink-0" />
+                                <span className="truncate">{location}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        
-                        <div className="flex items-center text-gray-600">
-                          <Users className="w-4 h-4 text-green-500 mr-1" />
-                          <span>{hospital._count?.doctors || 0} Doctors</span>
-                        </div>
-                      </div>
 
-                      {/* Visit Button - Full width */}
-                      <a
-                        href={`/hospital-site/${hospital.id}`}
-                        className="btn-brand font-bold py-2 px-4 rounded-lg block text-center text-sm min-h-[44px] flex items-center justify-center"
-                        onClick={(e) => {
-                          try {
-                            if (shouldUseSubdomainNav()) {
-                              e.preventDefault();
-                              const sub = (hospital as any).subdomain as string | undefined;
-                              if (sub && sub.length > 1) {
-                                window.location.href = customSubdomainUrl(sub);
+                        {/* Stats Grid - More compact on mobile */}
+                        <div className="grid grid-cols-3 gap-1.5 md:gap-2 mb-2 md:mb-3">
+                          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg p-1.5 md:p-2 text-center border border-emerald-200">
+                            <Building2 className="w-3 h-3 md:w-4 md:h-4 text-emerald-600 mx-auto mb-0.5 md:mb-1" />
+                            <p className="text-xs font-bold text-emerald-700">{hospital._count?.departments || 0}</p>
+                            <p className="text-xs text-gray-600">Depts</p>
+                          </div>
+                          
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-1.5 md:p-2 text-center border border-blue-200">
+                            <Users className="w-3 h-3 md:w-4 md:h-4 text-blue-600 mx-auto mb-0.5 md:mb-1" />
+                            <p className="text-xs font-bold text-blue-700">{hospital._count?.doctors || 0}</p>
+                            <p className="text-xs text-gray-600">Doctors</p>
+                          </div>
+                          
+                          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-1.5 md:p-2 text-center border border-yellow-200">
+                            <div className="flex items-center justify-center">
+                              <EnhancedRatingDisplay entityType="hospital" entityId={String(hospital.id)} size="sm" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Features Tags - Smaller on mobile */}
+                        <div className="flex flex-wrap gap-1 md:gap-1.5 mb-2 md:mb-3">
+                          <span className="inline-flex items-center bg-purple-50 text-purple-700 px-1.5 md:px-2 py-0.5 md:py-1 rounded-md text-xs font-medium border border-purple-200">
+                            <Activity className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1" />
+                            24/7
+                          </span>
+                          <span className="inline-flex items-center bg-green-50 text-green-700 px-1.5 md:px-2 py-0.5 md:py-1 rounded-md text-xs font-medium border border-green-200">
+                            <CheckCircle className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1" />
+                            ICU
+                          </span>
+                        </div>
+
+                        {/* Visit Button - More compact on mobile */}
+                        <a
+                          href={`/hospital-site/${hospital.id}`}
+                          className="block w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 md:py-2.5 px-3 md:px-4 rounded-lg md:rounded-xl transition-all text-center text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center shadow-md hover:shadow-lg"
+                          onClick={(e) => {
+                            try {
+                              if (shouldUseSubdomainNav()) {
+                                e.preventDefault();
+                                const sub = (hospital as any).subdomain as string | undefined;
+                                if (sub && sub.length > 1) {
+                                  window.location.href = customSubdomainUrl(sub);
+                                } else {
+                                  const hospitalSlug = slugifyName(hospital.name);
+                                  window.location.href = hospitalMicrositeUrl(hospitalSlug);
+                                }
                               } else {
-                                const hospitalSlug = slugifyName(hospital.name);
-                                window.location.href = hospitalMicrositeUrl(hospitalSlug);
+                                router.push(`/hospital-site/${hospital.id}`);
                               }
-                            } else {
-                              router.push(`/hospital-site/${hospital.id}`);
-                            }
-                          } catch {}
-                        }}
-                      >
-                        Visit Hospital
-                      </a>
+                            } catch {}
+                          }}
+                        >
+                          <ArrowRight className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                          Visit Hospital
+                        </a>
+                      </div>
                     </div>
                   </motion.div>
                 );

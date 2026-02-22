@@ -18,6 +18,7 @@ import HospitalDepartments from "@/components/HospitalDepartments";
 import { SidebarToggle, SidebarOverlay } from '@/components/SidebarToggle';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import Script from 'next/script';
+import { CommentsSection } from '@/components/CommentsSection';
 
 interface HospitalProfileGeneral {
   legalName?: string;
@@ -707,187 +708,16 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         </section>
         )}
 
-        {/* ============================================================================
-            📞 CONTACT & EMERGENCY SECTION - Multiple contact methods and emergency info - Compact on mobile
-            ============================================================================ */}
-        <section className="relative">
-          <div className="text-center mb-4 md:mb-16">
-            <h2 className="text-2xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-6">Contact & Emergency</h2>
-            <p className="text-sm md:text-xl text-gray-600 max-w-3xl mx-auto">
-              We're here for you 24/7. Contact us through any of these convenient methods.
-            </p>
-          </div>
-          
-          {/* Emergency Services - 2 columns on mobile */}
-          <div className="grid grid-cols-2 lg:grid-cols-2 gap-3 md:gap-12 mb-4 md:mb-16">
-            <div className="bg-gradient-to-br from-red-50 to-pink-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg border-l-4 border-red-500">
-              <div className="text-center mb-3 md:mb-6">
-                <div className="text-3xl md:text-6xl mb-2 md:mb-4">🚑</div>
-                <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4">Emergency Services</h3>
-                <p className="text-sm md:text-lg text-gray-700 mb-3 md:mb-6">24/7 emergency care when you need it most</p>
-              </div>
-              
-              <div className="space-y-2 md:space-y-4">
-                {contacts.emergency && (
-                  <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
-                      <div className="flex-1">
-                        <h4 className="text-base md:text-xl font-bold text-red-600 mb-1 md:mb-2">Emergency Hotline</h4>
-                        <p className="text-xs md:text-base text-gray-700">Call immediately for life-threatening emergencies</p>
-                      </div>
-                      <a 
-                        href={`tel:${contacts.emergency}`}
-                        className="bg-red-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold text-sm md:text-lg hover:bg-red-700 transition-all duration-200 shadow-lg hover:shadow-xl text-center min-h-[44px] flex items-center justify-center"
-                      >
-                        {contacts.emergency}
-                      </a>
-                    </div>
-                  </div>
-                )}
-                
-                {contacts.ambulance && (
-                  <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
-                      <div className="flex-1">
-                        <h4 className="text-base md:text-xl font-bold text-orange-600 mb-1 md:mb-2">Ambulance Service</h4>
-                        <p className="text-xs md:text-base text-gray-700">Fast response medical transport</p>
-                      </div>
-                      <a 
-                        href={`tel:${contacts.ambulance}`}
-                        className="bg-orange-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold text-sm md:text-lg hover:bg-orange-700 transition-all duration-200 shadow-lg hover:shadow-xl text-center min-h-[44px] flex items-center justify-center"
-                      >
-                        {contacts.ambulance}
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* General Contact - Compact on mobile */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg border-l-4 border-blue-500">
-              <div className="text-center mb-3 md:mb-6">
-                <div className="text-3xl md:text-6xl mb-2 md:mb-4">📞</div>
-                <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4">General Contact</h3>
-                <p className="text-sm md:text-lg text-gray-700 mb-3 md:mb-6">Get in touch for appointments and inquiries</p>
-              </div>
-              
-              <div className="space-y-2 md:space-y-4">
-                {contacts.reception && (
-                  <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
-                      <div className="flex-1">
-                        <h4 className="text-base md:text-xl font-bold text-blue-600 mb-1 md:mb-2">Reception</h4>
-                        <p className="text-xs md:text-base text-gray-700">General inquiries and information</p>
-                      </div>
-                      <a 
-                        href={`tel:${contacts.reception}`}
-                        className="bg-blue-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold text-sm md:text-lg hover:bg-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl text-center min-h-[44px] flex items-center justify-center"
-                      >
-                        {contacts.reception}
-                      </a>
-                    </div>
-                  </div>
-                )}
-                
-                {contacts.appointment && (
-                  <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
-                      <div className="flex-1">
-                        <h4 className="text-base md:text-xl font-bold text-green-600 mb-1 md:mb-2">Appointments</h4>
-                        <p className="text-xs md:text-base text-gray-700">Schedule your consultation</p>
-                      </div>
-                      <a 
-                        href={`tel:${contacts.appointment}`}
-                        className="bg-green-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold text-sm md:text-lg hover:bg-green-700 transition-all duration-200 shadow-lg hover:shadow-xl text-center min-h-[44px] flex items-center justify-center"
-                      >
-                        {contacts.appointment}
-                      </a>
-                    </div>
-                  </div>
-                )}
-                
-                {contacts.healthCheckups && (
-                  <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
-                      <div className="flex-1">
-                        <h4 className="text-base md:text-xl font-bold text-purple-600 mb-1 md:mb-2">Health Checkups</h4>
-                        <p className="text-xs md:text-base text-gray-700">Preventive care and screenings</p>
-                      </div>
-                      <a 
-                        href={`tel:${contacts.healthCheckups}`}
-                        className="bg-purple-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg md:rounded-xl font-bold text-sm md:text-lg hover:bg-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl text-center min-h-[44px] flex items-center justify-center"
-                      >
-                        {contacts.healthCheckups}
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Location & Hours - 2 columns on mobile */}
-          <div className="grid grid-cols-2 lg:grid-cols-2 gap-3 md:gap-12">
-            <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg">
-              <div className="text-center mb-3 md:mb-6">
-                <div className="text-3xl md:text-6xl mb-2 md:mb-4">📍</div>
-                <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4">Visit Us</h3>
-              </div>
-              
-              <div className="space-y-3 md:space-y-6">
-                {address && (
-                  <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md">
-                    <h4 className="text-base md:text-xl font-bold text-gray-900 mb-2 md:mb-3">Address</h4>
-                    <p className="text-sm md:text-lg text-gray-700 leading-relaxed">{address}</p>
-                    {general.pincode && (
-                      <p className="text-xs md:text-base text-gray-600 mt-2">Pincode: {general.pincode}</p>
-                    )}
-          </div>
-                )}
-                
-                {general.googleMapsLink && (
-              <div className="text-center">
-                    <a 
-                      href={general.googleMapsLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-block btn-brand text-white px-4 py-2 md:px-8 md:py-4 rounded-lg md:rounded-2xl font-bold text-sm md:text-lg transition-all duration-200 shadow-lg hover:shadow-xl min-h-[44px] flex items-center justify-center"
-                    >
-                      📍 Get Directions
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-purple-50 to-violet-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg">
-              <div className="text-center mb-3 md:mb-6">
-                <div className="text-3xl md:text-6xl mb-2 md:mb-4">⏰</div>
-                <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4">Operating Hours</h3>
-              </div>
-              
-              <div className="bg-white p-3 md:p-6 rounded-xl md:rounded-2xl shadow-md">
-                <div className="space-y-2 md:space-y-3">
-                  <div className="flex justify-between items-center py-1 md:py-2 border-b border-gray-100">
-                    <span className="font-semibold text-gray-900 text-xs md:text-base">Monday - Friday</span>
-                    <span className="text-gray-700 text-xs md:text-base">9:00 AM - 9:00 PM</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 md:py-2 border-b border-gray-100">
-                    <span className="font-semibold text-gray-900 text-xs md:text-base">Saturday</span>
-                    <span className="text-gray-700 text-xs md:text-base">9:00 AM - 5:00 PM</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1 md:py-2 border-b border-gray-100">
-                    <span className="font-semibold text-gray-900">Sunday</span>
-                    <span className="text-gray-700">10:00 AM - 4:00 PM</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="font-bold text-red-600">Emergency</span>
-                    <span className="text-red-600 font-bold">24/7 Available</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* Comments Section */}
+        <section className="py-8">
+          <div className="max-w-4xl mx-auto px-4">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Patient Reviews & Comments</h2>
+            <p className="text-gray-600 mb-8">Share your experience and help others make informed decisions</p>
+            <CommentsSection 
+              entityType="hospital" 
+              entityId={String(details.id)} 
+              entityName={name} 
+            />
           </div>
         </section>
 

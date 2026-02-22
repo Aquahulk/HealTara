@@ -402,6 +402,51 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
     return () => { es.close(); };
   }, [socketReady, hospitalId, token]);
 
+  // Auto-update expired appointments to PENDING status
+  useEffect(() => {
+    if (!token) return;
+    
+    const checkExpiredAppointments = async () => {
+      const now = getISTNow();
+      const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+      
+      // Find appointments that have passed their time and are not COMPLETED or CANCELLED
+      const expiredAppointments = appointments.filter((a) => {
+        if (a.status === 'COMPLETED' || a.status === 'CANCELLED') return false;
+        
+        try {
+          const dateStr = a.date.includes('T') ? a.date.split('T')[0] : a.date;
+          const timeStr = a.time || '00:00';
+          const appointmentTime = istDateTimeFromDateAndTime(dateStr, timeStr);
+          
+          // Check if appointment time has passed
+          return appointmentTime.getTime() < now.getTime();
+        } catch {
+          return false;
+        }
+      });
+
+      // Update expired appointments to PENDING status
+      for (const appt of expiredAppointments) {
+        if (appt.status !== 'PENDING') {
+          try {
+            await updateAppointmentStatus(appt.id, 'PENDING');
+          } catch (e) {
+            console.error('Failed to auto-update appointment', appt.id, e);
+          }
+        }
+      }
+    };
+
+    // Check immediately on mount
+    checkExpiredAppointments();
+
+    // Check every 5 minutes
+    const interval = setInterval(checkExpiredAppointments, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [token, appointments]);
+
   // Load working hours; for hospital-managed admins, doctorId is required
   const loadWorkingHours = async (tkn: string, docId?: number) => {
     try {
@@ -573,8 +618,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
       const dateStr = fmtDate.format(targetStart);
       const timeStr = fmtTime.format(targetStart);
 
-      // Optimistic UI update
-      setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, date: dateStr, time: timeStr } : a)));
+      console.log('Rescheduling appointment:', appointment.id, 'to', dateStr, timeStr);
 
       const res = await fetch(`/api/slot-admin/appointments/${appointment.id}`, {
         method: 'PATCH',
@@ -584,16 +628,27 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         },
         body: JSON.stringify({ date: dateStr, time: timeStr }),
       });
+      
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Failed to reschedule appointment' }));
+        console.error('Reschedule failed:', err);
         throw new Error(err.message || 'Failed to reschedule appointment');
       }
+      
       const json = await res.json();
-      const updated = json?.appointment || json;
-      setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? updated : a)));
-      setMessage('Appointment rescheduled');
+      console.log('Reschedule response:', json);
+      
+      // Manually refresh to get the updated data from server
+      await loadAppointments(token);
+      await loadSlots(token);
+      
+      setMessage('✓ Appointment rescheduled successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setMessage(null), 3000);
     } catch (e: any) {
-      setMessage(e?.message || 'Failed to reschedule appointment');
+      console.error('Reschedule error:', e);
+      setMessage('✗ ' + (e?.message || 'Failed to reschedule appointment'));
     }
   };
 
@@ -611,14 +666,19 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         const appt = JSON.parse(raw);
         const candidates = Array.from(document.querySelectorAll('[data-seg-start], [data-hour-start]')) as HTMLElement[];
         if (candidates.length === 0) return;
+        const x = ev.clientX;
         const y = ev.clientY;
         let nearest: HTMLElement | null = null;
         let best = Number.POSITIVE_INFINITY;
         for (const el of candidates) {
           const r = el.getBoundingClientRect();
           if (r.width <= 0 || r.height <= 0) continue;
+          // Calculate distance from drop point to center of slot box (both X and Y)
+          const cx = r.left + r.width / 2;
           const cy = r.top + r.height / 2;
-          const d = Math.abs(y - cy);
+          const dx = x - cx;
+          const dy = y - cy;
+          const d = Math.sqrt(dx * dx + dy * dy); // Euclidean distance
           if (d < best) { best = d; nearest = el; }
         }
         if (!nearest) return;
@@ -865,37 +925,90 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="bg-white shadow">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">🕒</div>
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex">
+      {/* Sidebar Navigation */}
+      <aside className="hidden lg:block w-64 bg-white border-r border-gray-200 fixed h-screen overflow-y-auto">
+        <div className="p-6">
+          <div className="text-lg font-bold text-gray-900 mb-6">Quick Navigation</div>
+          <nav className="space-y-2">
+            <a 
+              href="#appointments" 
+              className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+            >
+              📅 Doctor Appointments
+            </a>
+            <a 
+              href="#pending-bookings" 
+              className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-yellow-50 hover:text-yellow-700 transition-colors"
+            >
+              ⏳ Pending Bookings
+            </a>
+            <a 
+              href="#emergency-requests" 
+              className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors"
+            >
+              🚨 Emergency Requests
+            </a>
+            <a 
+              href="#completed-bookings" 
+              className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
+            >
+              ✅ Completed Bookings
+            </a>
+            <a 
+              href="#time-off" 
+              className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+            >
+              � Doctor Time-Off
+            </a>
+            <a 
+              href="#assigned-slots" 
+              className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+            >
+              📋 Assigned Slots
+            </a>
+            <a 
+              href="#doctor-timing" 
+              className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
+            >
+              ⏰ Doctor Timing
+            </a>
+          </nav>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 lg:ml-64">
+      <header className="bg-white shadow-md sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="text-3xl">🕒</div>
             <div>
-              <h1 className="text-xl font-semibold">Doctors Management Panel</h1>
-              <p className="text-gray-600 text-sm">Manage scheduling for assigned doctor</p>
+              <h1 className="text-2xl font-bold text-gray-900">Doctors Management Panel</h1>
+              <p className="text-gray-600 text-sm mt-1">Manage scheduling for assigned doctor</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href="/slot-admin/login" className="text-sm text-gray-600 underline">Switch Account</Link>
-            <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Logout</button>
+          <div className="flex items-center gap-3">
+            <Link href="/slot-admin/login" className="text-sm text-blue-600 hover:text-blue-700 underline font-medium">Switch Account</Link>
+            <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors">Logout</button>
           </div>
         </div>
         {/* Context bar */}
-        <div className="max-w-6xl mx-auto px-4 pb-4 text-sm text-gray-700">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-            <div>
-              <div><span className="font-semibold">Doctor:</span> {doctorName ? `Dr. ${doctorName}` : 'Unknown'}</div>
+        <div className="max-w-7xl mx-auto px-6 pb-5">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex-1">
+              <div className="text-sm mb-1"><span className="font-semibold text-gray-700">Doctor:</span> <span className="text-gray-900">{doctorName ? `Dr. ${doctorName}` : 'Unknown'}</span></div>
               {doctorId && <div className="text-xs text-gray-500">ID: {doctorId}</div>}
             </div>
-            <div>
-              <div><span className="font-semibold">Hospital:</span> {hospitalName || 'Unknown'}</div>
+            <div className="flex-1">
+              <div className="text-sm"><span className="font-semibold text-gray-700">Hospital:</span> <span className="text-gray-900">{hospitalName || 'Unknown'}</span></div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600">Slot Period</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-700">Slot Period</span>
               <select
                 value={String(slotPeriodMinutes)}
                 onChange={(e) => saveSlotPeriod(Number(e.target.value))}
-                className="border rounded px-2 py-1 text-sm"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium bg-white hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
               >
                 {[10,15,20,30,60].map((m) => (
                   <option key={m} value={m}>{m} min</option>
@@ -906,27 +1019,29 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-6 py-8">
         {message && (
-          <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
+          <div className="mb-6 p-4 rounded-lg bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 font-medium shadow-sm">{message}</div>
         )}
 
         {/* Appointments for managed doctor */}
-        <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div id="appointments" className="bg-white shadow-lg rounded-xl overflow-hidden mb-8 scroll-mt-20">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Doctor Appointments</h2>
-              <div className="flex items-center gap-2">
-                <button onClick={() => token && loadAppointments(token)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">Refresh</button>
-                <button onClick={() => setShowHistory((v) => !v)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">{showHistory ? 'Hide History' : 'Show History'}</button>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Doctor Appointments</h2>
+                <p className="mt-1 text-sm text-gray-600">Capacity per hour: <span className="font-semibold">{Math.max(1, Math.floor(60 / Math.max(1, slotPeriodMinutes)))}</span> slots • Period <span className="font-semibold">{slotPeriodMinutes}</span> min</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => token && loadAppointments(token)} className="text-sm bg-white hover:bg-gray-50 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors">Refresh</button>
+                <button onClick={() => setShowHistory((v) => !v)} className="text-sm bg-white hover:bg-gray-50 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors">{showHistory ? 'Hide History' : 'Show History'}</button>
               </div>
             </div>
-            <p className="mt-1 text-xs text-gray-500">Capacity per hour: {Math.max(1, Math.floor(60 / Math.max(1, slotPeriodMinutes)))} slots • Period {slotPeriodMinutes} min</p>
             {/* Filters */}
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Status</label>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full border rounded px-3 py-2 text-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all">
                   <option value="">All</option>
                   <option value="PENDING">Pending</option>
                   <option value="EMERGENCY">Emergency</option>
@@ -936,27 +1051,27 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-1">From date</label>
-                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">From date</label>
+                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
               </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-1">To date</label>
-                <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">To date</label>
+                <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
               </div>
               <div className="flex items-end">
-                <button onClick={() => { setStatusFilter(''); setFromDate(''); setToDate(''); }} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded">Clear</button>
+                <button onClick={() => { setStatusFilter(''); setFromDate(''); setToDate(''); }} className="text-sm bg-gray-100 hover:bg-gray-200 border border-gray-300 px-4 py-2.5 rounded-lg font-medium transition-colors">Clear</button>
               </div>
             </div>
             {/* View mode toggle */}
-            <div className="mt-3 inline-flex rounded-md border overflow-hidden">
+            <div className="mt-4 inline-flex rounded-lg border border-gray-300 overflow-hidden shadow-sm">
               <button
-                className={`px-3 py-1 text-sm ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border-r`}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${viewMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'} border-r border-gray-300`}
                 onClick={() => setViewMode('day')}
               >
                 Whole Day
               </button>
               <button
-                className={`px-3 py-1 text-sm ${viewMode === 'grouped' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${viewMode === 'grouped' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
                 onClick={() => setViewMode('grouped')}
               >
                 Grouped
@@ -964,10 +1079,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
             </div>
             {/* Slot Boxes (Grouped by appointment hour) */}
             <div className="mt-6">
-              <div className="text-sm font-medium text-gray-700 mb-2">Slot Boxes (Capacity)</div>
+              <div className="text-base font-semibold text-gray-800 mb-4">Slot Boxes (Capacity)</div>
               {(() => { if (viewMode !== 'grouped') return null;
                 const filtered = appointments
                   .filter((a) => {
+                    // Exclude completed appointments from slot views
+                    if (a.status === 'COMPLETED') return false;
                     const okStatus = statusFilter ? a.status === statusFilter : true;
                     const dt = new Date(a.date);
                     const okFrom = fromDate ? dt >= new Date(`${fromDate}T00:00:00`) : true;
@@ -999,7 +1116,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                 const segCount = Math.max(1, Math.floor(60 / period));
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-6">
                     {entries.map(([key, list]) => {
                       // Compute slotStart/end from first appointment in group
                       const first = list[0];
@@ -1020,38 +1137,90 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                       });
 
                       return (
-                        <div key={key} className={`rounded-lg ${getSlotBoxColors(list.length, slotStart, segCount)}`}>
-                          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                            <div className="text-sm text-gray-800">
+                        <div key={key} className="rounded-xl shadow-md border border-gray-200 bg-white overflow-hidden">
+                          <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex items-center justify-between">
+                            <div className="text-base font-semibold text-gray-900">
                               {formatIST(slotStart, { dateStyle: 'medium', timeStyle: 'short', hour12: false })} to {formatIST(slotEnd, { timeStyle: 'short', hour12: false })}
                             </div>
-                            <div className="text-xs text-gray-600">Bookings: {list.length}</div>
+                            <div className="text-sm font-semibold text-blue-700 bg-blue-100 px-4 py-1.5 rounded-full">
+                              {list.length} {list.length === 1 ? 'Booking' : 'Bookings'}
+                            </div>
                           </div>
-                          <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {segments.map((seg, i) => (
-                               <div key={i} className={`rounded p-2 flex flex-col h-24 md:h-28 ${getSlotBoxColors(seg.inSeg.length, seg.segStart, 1)}`}>
-                                 <div className="text-[11px] text-gray-700">
-                                   {formatIST(seg.segStart, { timeStyle: 'short', hour12: false })} – {formatIST(seg.segEnd, { timeStyle: 'short', hour12: false })}
-                                 </div>
-                                 <div className="text-[11px] text-gray-600">Users: {seg.inSeg.length}</div>
-                                 {seg.inSeg.length > 0 && (
-                                    <ul className="mt-1 space-y-1 overflow-y-auto">
-                                    {seg.inSeg.map((a) => (
-                                      <li key={a.id} className="flex items-center justify-between">
-                                        <div className="text-xs text-gray-800">
-                                          {a.patient?.email || a.patientId} <span className="ml-1 uppercase bg-blue-50 border border-blue-200 px-1 rounded">{a.status}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                          <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Confirm</button>
-                                          <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">Complete</button>
-                                          <button onClick={() => cancelAppointment(a.id)} className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">Cancel</button>
-                                        </div>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-                            ))}
+                          <div className="p-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+                              {segments.map((seg, i) => (
+                                <div 
+                                  key={i} 
+                                  className={`rounded-lg border-2 ${getSlotBoxColors(seg.inSeg.length, seg.segStart, 1)} overflow-hidden`}
+                                  data-seg-start={seg.segStart.toISOString()}
+                                  onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                  onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                  onDrop={(ev) => {
+                                    ev.preventDefault();
+                                    try {
+                                      const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
+                                      if (!raw) return;
+                                      const appt = JSON.parse(raw);
+                                      rescheduleAppointment(appt as Appointment, seg.segStart);
+                                    } catch {}
+                                  }}
+                                >
+                                  <div className="px-4 py-3 bg-white bg-opacity-60 border-b border-gray-300">
+                                    <div className="text-sm font-bold text-gray-900 mb-1">
+                                      {formatIST(seg.segStart, { timeStyle: 'short', hour12: false })} – {formatIST(seg.segEnd, { timeStyle: 'short', hour12: false })}
+                                    </div>
+                                    <div className="text-xs font-medium text-gray-600">
+                                      {seg.inSeg.length === 0 ? '✓ Available' : `${seg.inSeg.length} ${seg.inSeg.length === 1 ? 'patient' : 'patients'}`}
+                                    </div>
+                                  </div>
+                                  <div className="p-3 max-h-[400px] overflow-y-auto">
+                                    {seg.inSeg.length === 0 ? (
+                                      <div className="text-center py-8 text-gray-400">
+                                        <div className="text-3xl mb-2">📅</div>
+                                        <div className="text-xs">No bookings</div>
+                                      </div>
+                                    ) : (
+                                      <ul className="space-y-3">
+                                        {seg.inSeg.map((a) => (
+                                          <li key={a.id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                            <div className="flex items-start justify-between mb-2">
+                                              <div className="text-xs font-bold text-gray-900 truncate flex-1 mr-2">
+                                                {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}
+                                              </div>
+                                              <span className="text-[10px] uppercase bg-blue-600 text-white px-2 py-1 rounded-full font-bold whitespace-nowrap">{a.status}</span>
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 mb-2">ID: #{a.id}</div>
+                                            <div className="grid grid-cols-3 gap-1">
+                                              <button 
+                                                onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} 
+                                                className="text-[10px] bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
+                                                title="Confirm"
+                                              >
+                                                ✓
+                                              </button>
+                                              <button 
+                                                onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} 
+                                                className="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
+                                                title="Complete"
+                                              >
+                                                ✓✓
+                                              </button>
+                                              <button 
+                                                onClick={() => cancelAppointment(a.id)} 
+                                                className="text-[10px] bg-red-600 hover:bg-red-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
+                                                title="Cancel"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       );
@@ -1065,6 +1234,8 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
               if (viewMode !== 'day') return null;
               const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
               const filtered = appointments.filter((a) => {
+                // Exclude completed appointments from slot views
+                if (a.status === 'COMPLETED') return false;
                 const okStatus = statusFilter ? a.status === statusFilter : true;
                 const dateStr = a.date.includes('T') ? a.date.split('T')[0] : a.date;
                 const timeStr = a.time || '00:00';
@@ -1083,8 +1254,8 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
               const segCount = Math.max(1, Math.floor(60 / Math.max(1, period)));
               return (
                 <div className="mt-6">
-                  <div className="text-sm font-medium text-gray-700 mb-2">Whole Day (Dashboard-style)</div>
-                  <div className="space-y-4">
+                  <div className="text-base font-semibold text-gray-800 mb-4">Whole Day (Dashboard-style)</div>
+                  <div className="space-y-6">
                     {dateKeys.map((dateKey) => {
                       const dayDate = new Date(`${dateKey}T00:00:00`);
                       const dayIdx = getISTDayIndex(dayDate);
@@ -1094,8 +1265,10 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                       const hoursList = Array.from({ length: Math.max(0, endHour - startHour) }, (_, i) => startHour + i);
                       return (
                         <div key={dateKey}>
-                          <div className="text-sm font-medium text-gray-800 mb-1">{formatIST(dayDate, { dateStyle: 'full' })}</div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="text-lg font-bold text-gray-900 mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 rounded-lg border border-blue-200">
+                            {formatIST(dayDate, { dateStyle: 'full' })}
+                          </div>
+                          <div className="space-y-6">
                             {hoursList.map((h) => {
                               const hourStart = new Date(`${dateKey}T00:00:00`);
                               hourStart.setHours(h, 0, 0, 0);
@@ -1121,7 +1294,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                               return (
                                 <div
                                   key={`${dateKey}-${h}`}
-                                  className={`rounded-lg ${getSlotBoxColors(inHour.length, hourStart, segCount)}`}
+                                  className="rounded-xl shadow-md border border-gray-200 bg-white overflow-hidden"
                                   data-hour-start={hourStart.toISOString()}
                                   onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
                                   onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
@@ -1135,47 +1308,86 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                                     } catch {}
                                   }}
                                 >
-                                  <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                                    <div className="text-sm text-gray-800">{formatIST(hourStart, { timeStyle: 'short', hour12: false })} to {formatIST(hourEnd, { timeStyle: 'short', hour12: false })}</div>
-                                    <div className="text-xs text-gray-600">Bookings: {inHour.length} · Cap: {segCount}</div>
+                                  <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex items-center justify-between">
+                                    <div className="text-base font-semibold text-gray-900">{formatIST(hourStart, { timeStyle: 'short', hour12: false })} to {formatIST(hourEnd, { timeStyle: 'short', hour12: false })}</div>
+                                    <div className="text-sm font-semibold text-blue-700 bg-blue-100 px-4 py-1.5 rounded-full">
+                                      {inHour.length} / {segCount}
+                                    </div>
                                   </div>
-                                  <div className="p-3 grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    {segments.map(({ idx, segStart, segEnd, inSeg }) => (
-                                      <div
-                                        key={idx}
-                                        className={`rounded p-2 flex flex-col h-24 md:h-28 ${getSlotBoxColors(inSeg.length, segStart, 1)}`}
-                                        data-seg-start={segStart.toISOString()}
-                                        data-doctor-id={doctorId ?? undefined}
-                                        onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
-                                        onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
-                                        onDrop={(ev) => {
-                                          ev.preventDefault();
-                                          try {
-                                            const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
-                                            if (!raw) return;
-                                            const appt = JSON.parse(raw);
-                                            rescheduleAppointment(appt as Appointment, segStart);
-                                          } catch {}
-                                        }}
-                                      >
-                                        <div className="text-[11px] text-gray-700">{formatIST(segStart, { timeStyle: 'short', hour12: false })} – {formatIST(segEnd, { timeStyle: 'short', hour12: false })}</div>
-                                        <div className="text-[11px] text-gray-600">Users: {inSeg.length} · Cap: 1</div>
-                                        {inSeg.length > 0 && (
-                                          <ul className="mt-1 space-y-1 overflow-y-auto">
-                                            {inSeg.map((a) => (
-                                              <li key={a.id} className="flex items-center justify-between" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
-                                                <div className="text-xs text-gray-800 truncate">Appt #{a.id} — {formatISTTime(istDateTimeFromDateAndTime(a.date.includes('T') ? a.date.split('T')[0] : a.date, a.time || '00:00'))}</div>
-                                                <div className="flex items-center gap-1">
-                                                  <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-0.5 rounded">Confirm</button>
-                                                  <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">Complete</button>
-                                                  <button onClick={() => cancelAppointment(a.id)} className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">Cancel</button>
-                                                </div>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        )}
-                                      </div>
-                                    ))}
+                                  <div className="p-6">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+                                      {segments.map(({ idx, segStart, segEnd, inSeg }) => (
+                                        <div
+                                          key={idx}
+                                          className={`rounded-lg border-2 ${getSlotBoxColors(inSeg.length, segStart, 1)} overflow-hidden`}
+                                          data-seg-start={segStart.toISOString()}
+                                          data-doctor-id={doctorId ?? undefined}
+                                          onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                          onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                          onDrop={(ev) => {
+                                            ev.preventDefault();
+                                            try {
+                                              const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
+                                              if (!raw) return;
+                                              const appt = JSON.parse(raw);
+                                              rescheduleAppointment(appt as Appointment, segStart);
+                                            } catch {}
+                                          }}
+                                        >
+                                          <div className="px-4 py-3 bg-white bg-opacity-60 border-b border-gray-300">
+                                            <div className="text-sm font-bold text-gray-900 mb-1">{formatIST(segStart, { timeStyle: 'short', hour12: false })} – {formatIST(segEnd, { timeStyle: 'short', hour12: false })}</div>
+                                            <div className="text-xs font-medium text-gray-600">
+                                              {inSeg.length === 0 ? '✓ Available' : `${inSeg.length} ${inSeg.length === 1 ? 'patient' : 'patients'}`}
+                                            </div>
+                                          </div>
+                                          <div className="p-3 max-h-[400px] overflow-y-auto">
+                                            {inSeg.length === 0 ? (
+                                              <div className="text-center py-8 text-gray-400">
+                                                <div className="text-3xl mb-2">📅</div>
+                                                <div className="text-xs">No bookings</div>
+                                              </div>
+                                            ) : (
+                                              <ul className="space-y-3">
+                                                {inSeg.map((a) => (
+                                                  <li key={a.id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                                    <div className="flex items-start justify-between mb-2">
+                                                      <div className="text-xs font-bold text-gray-900 truncate flex-1 mr-2">
+                                                        {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}
+                                                      </div>
+                                                      <span className="text-[10px] uppercase bg-blue-600 text-white px-2 py-1 rounded-full font-bold whitespace-nowrap">{a.status}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-500 mb-2">ID: #{a.id}</div>
+                                                    <div className="grid grid-cols-3 gap-1">
+                                                      <button 
+                                                        onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} 
+                                                        className="text-[10px] bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
+                                                        title="Confirm"
+                                                      >
+                                                        ✓
+                                                      </button>
+                                                      <button 
+                                                        onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} 
+                                                        className="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
+                                                        title="Complete"
+                                                      >
+                                                        ✓✓
+                                                      </button>
+                                                      <button 
+                                                        onClick={() => cancelAppointment(a.id)} 
+                                                        className="text-[10px] bg-red-600 hover:bg-red-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
+                                                        title="Cancel"
+                                                      >
+                                                        ✕
+                                                      </button>
+                                                    </div>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -1211,7 +1423,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                             <div>
                               <div className="font-mono text-sm text-gray-700">ID: {a.id}</div>
                               <div className="text-gray-800">{fmtDateTime.format(new Date(a.date))} — <span className="uppercase text-xs bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">{a.status}</span></div>
-                              <div className="text-sm text-gray-600">Patient: {a.patient?.email || a.patientId}</div>
+                              <div className="text-sm text-gray-600">Patient: {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || a.patientId}</div>
                               {a.reason && <div className="text-sm text-gray-600">{a.reason}</div>}
                             </div>
                           </li>
@@ -1227,9 +1439,11 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
             {appointments.length === 0 ? (
               <div className="text-center text-gray-600">No appointments found.</div>
             ) : (
-              <ul className="divide-y">
+              <ul className="divide-y divide-gray-200">
                 {appointments
                   .filter((a) => {
+                    // Exclude completed appointments from main list
+                    if (a.status === 'COMPLETED') return false;
                     const okStatus = statusFilter ? a.status === statusFilter : true;
                     const dt = new Date(a.date);
                     const okFrom = fromDate ? dt >= new Date(`${fromDate}T00:00:00`) : true;
@@ -1237,17 +1451,20 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                     return okStatus && okFrom && okTo;
                   })
                   .map((a) => (
-                  <li key={a.id} className="py-3 flex items-center justify-between">
-                    <div>
-                      <div className="font-mono text-sm text-gray-700">ID: {a.id}</div>
-                      <div className="text-gray-800">{formatIST(new Date(a.date))} — <span className="uppercase text-xs bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">{a.status}</span></div>
-                      <div className="text-sm text-gray-600">{a.reason || "No reason provided"}</div>
-                      <div className="text-sm text-gray-600">Patient: {a.patient?.email || a.patientId}</div>
+                  <li key={a.id} className="py-4 px-2 flex items-center justify-between hover:bg-gray-50 rounded-lg transition-colors">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="font-mono text-sm font-semibold text-gray-700">#{a.id}</div>
+                        <span className="uppercase text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">{a.status}</span>
+                      </div>
+                      <div className="text-sm text-gray-800 mb-1 font-medium">{formatIST(new Date(a.date))}</div>
+                      <div className="text-sm text-gray-600 mb-1">{a.reason || "No reason provided"}</div>
+                      <div className="text-sm text-gray-600">Patient: <span className="font-medium">{(a.patient as any)?.name || a.patient?.email?.split('@')[0] || a.patientId}</span></div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded">Confirm</button>
-                      <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 rounded">Complete</button>
-                      <button onClick={() => cancelAppointment(a.id)} className="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded">Cancel</button>
+                      <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Confirm</button>
+                      <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Complete</button>
+                      <button onClick={() => cancelAppointment(a.id)} className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Cancel</button>
                     </div>
                   </li>
                 ))}
@@ -1257,10 +1474,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         </div>
 
         {/* Pending Bookings Panel - expired PENDING appointments to allot */}
-        <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pending Bookings (Expired Today)</h2>
-            <span className="text-sm text-gray-600">Admin can allot slot by setting date/time</span>
+        <div id="pending-bookings" className="bg-white shadow-lg rounded-xl overflow-hidden mb-8 scroll-mt-20">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-orange-50 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Pending Bookings (Expired Today)</h2>
+              <p className="text-sm text-gray-600 mt-1">Admin can allot slot by setting date/time</p>
+            </div>
           </div>
           <div className="p-6">
             {(() => {
@@ -1337,10 +1556,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         </div>
 
         {/* Emergency Requests - EMERGENCY appointments to allot immediately */}
-        <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Emergency Requests</h2>
-            <span className="text-sm text-gray-600">Prioritize by allotting a slot and confirming</span>
+        <div id="emergency-requests" className="bg-white shadow-lg rounded-xl overflow-hidden mb-8 scroll-mt-20">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-red-50 to-pink-50 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Emergency Requests</h2>
+              <p className="text-sm text-gray-600 mt-1">Prioritize by allotting a slot and confirming</p>
+            </div>
           </div>
           <div className="p-6">
             {(() => {
@@ -1366,7 +1587,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                       <tr key={a.id}>
                         <td className="px-4 py-2 text-sm text-gray-900">#{a.id}</td>
                         <td className="px-4 py-2 text-sm text-gray-700">{(a.doctor as any)?.doctorProfile?.slug || a.doctor?.email?.split('@')[0] || a.doctorId}</td>
-                        <td className="px-4 py-2 text-sm text-gray-700">{a.patient?.email || a.patientId}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{a.patient?.email?.split('@')[0] || (a.patient as any)?.name || a.patientId}</td>
                         <td className="px-4 py-2 text-sm text-gray-700">{a.reason || '—'}</td>
                         <td className="px-4 py-2">
                           <input
@@ -1401,19 +1622,73 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
             })()}
           </div>
         </div>
-        {/* Time-Off (Blackout) management */}
-        <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold">Doctor Time-Off (Booking Stopper)</h2>
-          </div>
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Completed Bookings - COMPLETED appointments */}
+        <div id="completed-bookings" className="bg-white shadow-lg rounded-xl overflow-hidden mb-8 scroll-mt-20">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex items-center justify-between">
             <div>
-              <h3 className="font-medium mb-2">Create Time-Off</h3>
-              <div className="space-y-3">
+              <h2 className="text-xl font-bold text-gray-900">Completed Bookings</h2>
+              <p className="text-sm text-gray-600 mt-1">All appointments marked as completed</p>
+            </div>
+          </div>
+          <div className="p-6">
+            {(() => {
+              const items = appointments.filter((a) => a.status === 'COMPLETED');
+              if (items.length === 0) {
+                return <div className="text-gray-600">No completed bookings yet.</div>;
+              }
+              return (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead>
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appt</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {items.map((a) => {
+                        const dateStr = a.date.includes('T') ? a.date.split('T')[0] : a.date;
+                        const timeStr = a.time || '00:00';
+                        const dt = istDateTimeFromDateAndTime(dateStr, timeStr);
+                        return (
+                          <tr key={a.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-900 font-medium">#{a.id}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{formatIST(dt)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{a.reason || '—'}</td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                ✓ Completed
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+        {/* Time-Off (Blackout) management */}
+        <div id="time-off" className="bg-white shadow-lg rounded-xl overflow-hidden mb-8 scroll-mt-20">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+            <h2 className="text-xl font-bold text-gray-900">Doctor Time-Off (Booking Stopper)</h2>
+            <p className="text-sm text-gray-600 mt-1">Block time periods when appointments cannot be booked</p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="font-semibold text-lg text-gray-900 mb-4">Create Time-Off</h3>
+              <div className="space-y-4">
                 {/* Doctor selector for hospital-managed admins */}
                 {doctorOptions.length > 0 && (
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Doctor</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Doctor</label>
                     <select
                       value={doctorProfileId ?? ''}
                       onChange={async (e) => {
@@ -1433,7 +1708,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                           setDoctorProfileId(null);
                         }
                       }}
-                      className="w-full border rounded px-3 py-2"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                     >
                       <option value="">Select a doctor</option>
                       {doctorOptions.map((d) => (
@@ -1443,25 +1718,25 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">Start</label>
-                  <input type="datetime-local" value={timeOffStart} onChange={(e) => setTimeOffStart(e.target.value)} className="w-full border rounded px-3 py-2" />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Start</label>
+                  <input type="datetime-local" value={timeOffStart} onChange={(e) => setTimeOffStart(e.target.value)} className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">End</label>
-                  <input type="datetime-local" value={timeOffEnd} onChange={(e) => setTimeOffEnd(e.target.value)} className="w-full border rounded px-3 py-2" />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">End</label>
+                  <input type="datetime-local" value={timeOffEnd} onChange={(e) => setTimeOffEnd(e.target.value)} className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">Reason (optional)</label>
-                  <input type="text" value={timeOffReason} onChange={(e) => setTimeOffReason(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="e.g., Conference, Leave" />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Reason (optional)</label>
+                  <input type="text" value={timeOffReason} onChange={(e) => setTimeOffReason(e.target.value)} className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" placeholder="e.g., Conference, Leave" />
                 </div>
                 <div>
-                  <button onClick={createTimeOff} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Add Time-Off</button>
+                  <button onClick={createTimeOff} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors w-full">Add Time-Off</button>
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Appointments cannot be booked within these time ranges.</p>
+              <p className="text-xs text-gray-500 mt-3">Appointments cannot be booked within these time ranges.</p>
             </div>
             <div>
-              <h3 className="font-medium mb-2">Existing Time-Off</h3>
+              <h3 className="font-semibold text-lg text-gray-900 mb-4">Existing Time-Off</h3>
               {timeOff.length === 0 ? (
                 <div className="text-gray-600">No time-off set.</div>
               ) : (
@@ -1507,9 +1782,10 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
           </div>
         </div>
 
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold">Assigned Slots</h2>
+        <div id="assigned-slots" className="bg-white shadow-lg rounded-xl overflow-hidden scroll-mt-20">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+            <h2 className="text-xl font-bold text-gray-900">Assigned Slots</h2>
+            <p className="text-sm text-gray-600 mt-1">View and manage all assigned time slots</p>
           </div>
           <div className="p-6">
             {loading ? (
@@ -1524,6 +1800,8 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                     const slotStart = istDateTimeFromDateAndTime(slot.date, String(slot.time).slice(0,5));
                     const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
                     const inSlot = appointments.filter((a) => {
+                      // Exclude completed appointments from slot views
+                      if (a.status === 'COMPLETED') return false;
                       const t = new Date(a.date).getTime();
                       return t >= slotStart.getTime() && t <= slotEnd.getTime();
                     });
@@ -1552,45 +1830,81 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                       return { idx, segStart, segEnd, inSeg };
                     });
                     return (
-                      <li key={slot.id} className="py-3 flex items-start justify-between gap-4">
+                      <li key={slot.id} className="py-6 px-5 flex items-start justify-between gap-6 hover:bg-gray-50 rounded-xl transition-colors border border-gray-200">
                         <div className="flex-1">
-                          <div className="font-mono text-sm text-gray-700">Slot #{slot.id}</div>
-                          <div className="text-gray-800">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="font-mono text-base font-bold text-gray-900 bg-blue-100 px-3 py-1 rounded-lg">Slot #{slot.id}</div>
+                            {hasTiming && !within && (
+                              <div className="inline-block px-3 py-1 text-xs rounded-full bg-red-100 text-red-700 font-semibold">Not available</div>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-800 font-semibold mb-3">
                             {formatIST(slotStart)} to {formatIST(slotEnd)}
                           </div>
-                          <div className="text-sm text-gray-600 mb-2">
+                          <div className="text-sm text-gray-600 mb-5">
                             {slot.doctorProfileId ? `DoctorProfile: ${slot.doctorProfileId}` : ''}
                             {slot.hospitalId ? ` Hospital: ${slot.hospitalId}` : ''}
                             {slot.status ? ` Status: ${slot.status}` : ''}
                           </div>
-                          {hasTiming && !within && (
-                            <div className="mb-2 inline-block px-2 py-0.5 text-xs rounded bg-red-100 text-red-700">Not available</div>
-                          )}
                           {/* Render computed sub-slots */}
                           <div>
-                            <div className="text-sm font-medium text-gray-700 mb-1">Sub-slots ({period} min): {count} per hour</div>
-                            <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <div className="text-sm font-bold text-gray-800 mb-4">Sub-slots ({period} min): {count} per hour</div>
+                            <ul className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
                               {segments.map(({ idx, segStart, segEnd, inSeg }) => (
-                                <li key={idx} className={`rounded px-3 py-2 flex flex-col h-24 md:h-28 ${getSlotBoxColors(inSeg.length, segStart, 1)}`}>
-                                  <div className="text-xs font-medium text-gray-800">
-                                    {formatISTTime(segStart)} {' '}to{' '} {formatISTTime(segEnd)}
+                                <li key={idx} className={`rounded-lg border-2 ${getSlotBoxColors(inSeg.length, segStart, 1)} overflow-hidden`}>
+                                  <div className="px-4 py-3 bg-white bg-opacity-60 border-b border-gray-300">
+                                    <div className="text-sm font-bold text-gray-900 mb-1">
+                                      {formatISTTime(segStart)} to {formatISTTime(segEnd)}
+                                    </div>
+                                    <div className="text-xs font-medium text-gray-600">
+                                      {inSeg.length === 0 ? '✓ Available' : `${inSeg.length} ${inSeg.length === 1 ? 'patient' : 'patients'}`}
+                                    </div>
                                   </div>
-                                  {inSeg.length === 0 ? (
-                                    <div className="text-xs text-gray-500 mt-1">Empty</div>
-                                  ) : (
-                                    <ul className="mt-1 space-y-1 overflow-y-auto">
-                                      {inSeg.map((a) => (
-                                        <li key={a.id} className="flex items-center justify-between">
-                                          <div className="text-xs text-gray-800 truncate">Appt #{a.id} — {formatISTTime(new Date(a.date))}</div>
-                                          <div className="flex items-center gap-2">
-                                            <button onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Confirm</button>
-                                            <button onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1 px-2 rounded">Complete</button>
-                                            <button onClick={() => cancelAppointment(a.id)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-2 rounded">Cancel</button>
-                                          </div>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
+                                  <div className="p-3 max-h-[400px] overflow-y-auto">
+                                    {inSeg.length === 0 ? (
+                                      <div className="text-center py-8 text-gray-400">
+                                        <div className="text-3xl mb-2">📅</div>
+                                        <div className="text-xs">No bookings</div>
+                                      </div>
+                                    ) : (
+                                      <ul className="space-y-3">
+                                        {inSeg.map((a) => (
+                                          <li key={a.id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                            <div className="flex items-start justify-between mb-2">
+                                              <div className="text-xs font-bold text-gray-900 truncate flex-1 mr-2">
+                                                {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}
+                                              </div>
+                                              <span className="text-[10px] uppercase bg-blue-600 text-white px-2 py-1 rounded-full font-bold whitespace-nowrap">{a.status}</span>
+                                            </div>
+                                            <div className="text-[10px] text-gray-500 mb-2">ID: #{a.id}</div>
+                                            <div className="grid grid-cols-3 gap-1">
+                                              <button 
+                                                onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} 
+                                                className="bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold py-1.5 px-2 rounded transition-colors"
+                                                title="Confirm"
+                                              >
+                                                ✓
+                                              </button>
+                                              <button 
+                                                onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} 
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-1.5 px-2 rounded transition-colors"
+                                                title="Complete"
+                                              >
+                                                ✓✓
+                                              </button>
+                                              <button 
+                                                onClick={() => cancelAppointment(a.id)} 
+                                                className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold py-1.5 px-2 rounded transition-colors"
+                                                title="Cancel"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
                                 </li>
                               ))}
                             </ul>
@@ -1599,7 +1913,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                         <div>
                           <button
                             onClick={() => cancelSlot(slot.id)}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg"
+                            className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-colors whitespace-nowrap"
                           >
                             Cancel Slot
                           </button>
@@ -1613,16 +1927,19 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         </div>
 
         {/* Doctor Timing */}
-        <div className="bg-white shadow rounded-lg overflow-hidden mt-6">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Doctor Timing</h2>
-            <button onClick={() => token && loadWorkingHours(token, doctorProfileId ?? undefined)} className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded">Refresh</button>
+        <div id="doctor-timing" className="bg-white shadow-lg rounded-xl overflow-hidden mt-8 scroll-mt-20">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-teal-50 to-cyan-50 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Doctor Timing</h2>
+              <p className="text-sm text-gray-600 mt-1">Set working hours for each day of the week</p>
+            </div>
+            <button onClick={() => token && loadWorkingHours(token, doctorProfileId ?? undefined)} className="text-sm bg-white hover:bg-gray-50 border border-gray-300 px-4 py-2 rounded-lg font-medium transition-colors">Refresh</button>
           </div>
           <div className="p-6">
             {/* Doctor selector for hospital-managed admins */}
             {doctorOptions.length > 0 && (
-              <div className="mb-4">
-                <label className="block text-sm text-gray-700 mb-1">Doctor</label>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Doctor</label>
                 <select
                   value={doctorProfileId ?? ''}
                   onChange={async (e) => {
@@ -1640,7 +1957,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                       setDoctorProfileId(null);
                     }
                   }}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                 >
                   <option value="">Select a doctor</option>
                   {doctorOptions.map((d) => (
@@ -1649,30 +1966,31 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                 </select>
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day, idx) => (
-                <div key={idx} className="border border-gray-200 rounded p-3 bg-gray-50">
-                  <div className="font-medium mb-2">{day}</div>
-                  <div className="grid grid-cols-2 gap-2">
+                <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-br from-gray-50 to-white hover:shadow-md transition-shadow">
+                  <div className="font-semibold text-gray-900 mb-3">{day}</div>
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Start</label>
-                      <input type="time" value={hoursInputs[idx]?.start ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: e.target.value, end: prev[idx]?.end ?? '' } }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400" />
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Start</label>
+                      <input type="time" value={hoursInputs[idx]?.start ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: e.target.value, end: prev[idx]?.end ?? '' } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">End</label>
-                      <input type="time" value={hoursInputs[idx]?.end ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: prev[idx]?.start ?? '', end: e.target.value } }))} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400" />
+                      <label className="block text-xs font-medium text-gray-600 mb-2">End</label>
+                      <input type="time" value={hoursInputs[idx]?.end ?? ''} onChange={(e) => setHoursInputs((prev) => ({ ...prev, [idx]: { start: prev[idx]?.start ?? '', end: e.target.value } }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="mt-4">
-              <button onClick={saveWorkingHours} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Save Timing</button>
+            <div className="mt-6">
+              <button onClick={saveWorkingHours} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">Save Timing</button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">These hours define when bookings are allowed, per day.</p>
+            <p className="text-xs text-gray-500 mt-3">These hours define when bookings are allowed, per day.</p>
           </div>
         </div>
       </main>
+      </div>
     </div>
   );
 }
