@@ -666,13 +666,13 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         )}
 
         {/* Comments Section - Compact and Modern */}
-        <section className="relative bg-gradient-to-br from-gray-50 to-blue-50 py-6 md:py-10 rounded-3xl">
-          <div className="max-w-4xl mx-auto px-4">
-            <div className="text-center mb-4 md:mb-6">
-              <h2 className="text-xl md:text-3xl font-bold text-gray-900 mb-2">Patient Reviews</h2>
-              <p className="text-xs md:text-base text-gray-600">Share your experience with us</p>
+        <section className="relative bg-gradient-to-br from-gray-50 to-blue-50 py-4 md:py-6 rounded-2xl">
+          <div className="max-w-3xl mx-auto px-3 md:px-4">
+            <div className="text-center mb-3 md:mb-4">
+              <h2 className="text-lg md:text-2xl font-bold text-gray-900 mb-1">Patient Reviews</h2>
+              <p className="text-xs md:text-sm text-gray-600">Share your experience</p>
             </div>
-            <div className="bg-white rounded-2xl shadow-lg p-3 md:p-6">
+            <div className="bg-white rounded-xl shadow-md p-3 md:p-4">
               <CommentsSection 
                 entityType="hospital" 
                 entityId={String(details.id)} 

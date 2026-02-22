@@ -24,27 +24,11 @@ export default function HospitalsPage() {
       try {
         const items = await apiClient.getHospitals({ page: 1, limit: 50 });
         if (!cancelled) {
-          const list = Array.isArray(items) ? items : [];
-          const fallback = [
-            { id: 101, name: 'City Care Hospital', city: 'Pune', state: 'MH', profile: { logoUrl: '' } },
-            { id: 102, name: 'Green Valley Medical Center', city: 'Bengaluru', state: 'KA', profile: { logoUrl: '' } },
-            { id: 103, name: 'Sunrise Multispeciality', city: 'Hyderabad', state: 'TS', profile: { logoUrl: '' } },
-          ];
-          const finalItems = list.length ? list : fallback;
-          setHospitals(finalItems);
-          setFilteredHospitals(finalItems);
+          setHospitals(items || []);
+          setFilteredHospitals(items || []);
         }
       } catch (e: any) {
-        if (!cancelled) {
-          const fallback = [
-            { id: 101, name: 'City Care Hospital', city: 'Pune', state: 'MH', profile: { logoUrl: '' } },
-            { id: 102, name: 'Green Valley Medical Center', city: 'Bengaluru', state: 'KA', profile: { logoUrl: '' } },
-            { id: 103, name: 'Sunrise Multispeciality', city: 'Hyderabad', state: 'TS', profile: { logoUrl: '' } },
-          ];
-          setHospitals(fallback);
-          setFilteredHospitals(fallback);
-          setError(null);
-        }
+        if (!cancelled) setError(e?.message || 'Failed to load hospitals');
       } finally {
         if (!cancelled) setLoading(false);
       }

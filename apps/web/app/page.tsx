@@ -103,17 +103,12 @@ export default function HomePage() {
           setHospitals([]);
         }
         if (doctorsData.status === 'fulfilled') {
-          const list = doctorsData.value || [];
+          const list = Array.isArray(doctorsData.value) ? doctorsData.value : [];
           setDoctors(list);
           try { sessionStorage.setItem('last_doctors', JSON.stringify(list)); } catch {}
         } else {
-          try {
-            const raw = sessionStorage.getItem('last_doctors');
-            if (raw) {
-              const list = JSON.parse(raw);
-              if (Array.isArray(list) && list.length) setDoctors(list);
-            }
-          } catch {}
+          // Fallback: ensure doctors array is never empty
+          setDoctors([]);
         }
 
         const duration = PerformanceMonitor.endTiming('homepage-data-load');
@@ -337,11 +332,11 @@ export default function HomePage() {
       <DesktopSidebar />
       
       {/* Main content area - Adjusts margin based on sidebar using CSS variable */}
-      <main className="pt-10 overflow-x-hidden transition-all duration-300" style={{ marginLeft: 'var(--sidebar-width, 16rem)' }}>
+      <main className="pt-10 overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,16rem)]">
         {/* ============================================================================
             🌟 HERO SECTION - Main landing area with search (BLUE GRADIENT)
             ============================================================================ */}
-        <section className="relative py-8 md:py-16 px-4 overflow-visible bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 max-h-[60vh] md:max-h-none">
+        <section className="relative py-6 md:py-16 px-4 overflow-visible bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 max-h-[50vh] md:max-h-none">
           {/* Enhanced Background Pattern */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-blue-500/95 to-cyan-500/90" />
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.1%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
@@ -369,14 +364,14 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <h1 className="text-2xl md:text-4xl lg:text-6xl font-black text-white mb-4 md:mb-6 leading-tight drop-shadow-lg">
+              <h1 className="text-xl md:text-4xl lg:text-6xl font-black text-white mb-2 md:mb-6 leading-tight drop-shadow-lg">
                 Find Trusted Doctors
                 <span className="block bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
                   Near You
                 </span>
               </h1>
               
-              <p className="text-base md:text-lg lg:text-xl text-blue-100 mb-4 md:mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-md">
+              <p className="text-sm md:text-lg lg:text-xl text-blue-100 mb-3 md:mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-md">
                 Book in seconds. Get the best healthcare with our verified network of doctors and hospitals.
               </p>
             </motion.div>
@@ -386,13 +381,13 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="max-w-4xl mx-auto mb-4 md:mb-8"
+              className="max-w-4xl mx-auto mb-3 md:mb-8"
             >
-              <div className="bg-white/95 backdrop-blur-sm border border-white/20 rounded-2xl md:rounded-3xl p-4 md:p-8 shadow-2xl">
-                <div className="space-y-4 md:space-y-6">
+              <div className="bg-white/95 backdrop-blur-sm border border-white/20 rounded-2xl md:rounded-3xl p-3 md:p-8 shadow-2xl">
+                <div className="space-y-3 md:space-y-6">
                   {/* Main Search */}
                   <div className="relative z-30">
-                    <Search className="absolute left-4 md:left-6 top-1/2 transform -translate-y-1/2 w-5 h-5 md:w-6 md:h-6 text-gray-400" />
+                    <Search className="absolute left-3 md:left-6 top-1/2 transform -translate-y-1/2 w-4 h-4 md:w-6 md:h-6 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search by Doctor / Specialty / Location"
@@ -465,7 +460,7 @@ export default function HomePage() {
                           }
                         }
                       }}
-                      className="w-full pl-12 md:pl-16 pr-4 md:pr-6 py-2.5 md:py-3 bg-white border-2 border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="w-full pl-9 md:pl-16 pr-3 md:pr-6 py-2 md:py-3 bg-white border-2 border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     />
                     {showSuggestions && suggestions.length > 0 && (
                       <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl shadow-lg z-50 max-h-60 overflow-auto">
@@ -499,11 +494,11 @@ export default function HomePage() {
                   </div>
 
                   {/* Filters Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                     <select
                       value={selectedSpecialization}
                       onChange={(e) => setSelectedSpecialization(e.target.value)}
-                      className="px-3 md:px-4 py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-sm md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-2 md:px-4 py-1.5 md:py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-xs md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">Specialization</option>
                       <option value="cardiology">Cardiology</option>
@@ -515,7 +510,7 @@ export default function HomePage() {
                     <select
                       value={selectedCity}
                       onChange={(e) => setSelectedCity(e.target.value)}
-                      className="px-3 md:px-4 py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-sm md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-2 md:px-4 py-1.5 md:py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-xs md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">City/Town</option>
                       <option value="mumbai">Mumbai</option>
@@ -527,7 +522,7 @@ export default function HomePage() {
                     <select
                       value={selectedAvailability}
                       onChange={(e) => setSelectedAvailability(e.target.value)}
-                      className="px-3 md:px-4 py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-sm md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-2 md:px-4 py-1.5 md:py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-xs md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
                     >
                       <option value="">Availability</option>
                       <option value="today">Today</option>
@@ -535,18 +530,18 @@ export default function HomePage() {
                       <option value="week">This Week</option>
                     </select>
 
-                    <label className="flex items-center justify-center px-3 md:px-4 py-2.5 md:py-3 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl cursor-pointer hover:bg-emerald-50 transition-all duration-300">
+                    <label className="flex items-center justify-center px-2 md:px-4 py-1.5 md:py-3 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl cursor-pointer hover:bg-emerald-50 transition-all duration-300">
                       <input
                         type="checkbox"
                         checked={isOnline}
                         onChange={(e) => setIsOnline(e.target.checked)}
-                        className="mr-2 w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                        className="mr-1 md:mr-2 w-3 h-3 md:w-4 md:h-4 text-emerald-600 focus:ring-emerald-500"
                       />
-                      <span className="text-sm md:text-base text-gray-700 font-medium">Online</span>
+                      <span className="text-xs md:text-base text-gray-700 font-medium">Online</span>
                     </label>
                   </div>
 
-                  <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-xl md:rounded-2xl hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-base md:text-lg">
+                  <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-2.5 md:py-4 px-4 md:px-8 rounded-xl md:rounded-2xl hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-sm md:text-lg">
                     Find a Doctor Now
                   </button>
                 </div>

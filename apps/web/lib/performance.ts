@@ -103,6 +103,10 @@ export async function loadWithCache<T>(
   requestFn: () => Promise<T>,
   ttl: number = CACHE_CONFIG.HOMEPAGE.TTL
 ): Promise<T> {
+  const disable = String(process.env.NEXT_PUBLIC_DISABLE_CACHE || '').toLowerCase() === 'true';
+  if (disable) {
+    return requestFn();
+  }
   // Check cache first
   const cached = CacheManager.get(cacheKey);
   if (cached) {
@@ -121,6 +125,8 @@ export async function loadWithCache<T>(
 export function prefetchData() {
   // Prefetch homepage data on app start
   if (typeof window !== 'undefined') {
+    const disable = String(process.env.NEXT_PUBLIC_DISABLE_CACHE || '').toLowerCase() === 'true';
+    if (disable) return;
     // Only prefetch if not already cached
     const homepageCache = CacheManager.get('homepage_doctors');
     const hospitalsCache = CacheManager.get('homepage_hospitals');

@@ -4,7 +4,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database-pool';
-import { memoryStore, k } from '../comments/route';
 
 // ============================================================================
 // 🌟 GET AVERAGE RATING
@@ -13,7 +12,7 @@ import { memoryStore, k } from '../comments/route';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const entityType = searchParams.get('entityType');
+    const entityType = searchParams.get('entityType'); // 'doctor' or 'hospital'
     const entityId = searchParams.get('entityId');
 
     if (!entityType || !entityId) {
@@ -30,6 +29,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get average rating and total count
     const sql = `
       SELECT 
         AVG(rating) as average_rating,
@@ -46,58 +46,42 @@ export async function GET(request: NextRequest) {
         AND rating IS NOT NULL
     `;
 
-    try {
-      const result = await executeQuery(sql, [entityType, entityId]);
-      if (result.length === 0) {
-        return NextResponse.json({
-          success: true,
-          data: {
-            averageRating: 0,
-            totalReviews: 0,
-            ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-          }
-        });
-      }
-      const row = result[0];
-      const ratingData = {
-        averageRating: parseFloat(row.average_rating) || 0,
-        totalReviews: parseInt(row.total_reviews) || 0,
-        ratingDistribution: {
-          1: parseInt(row.rating_1) || 0,
-          2: parseInt(row.rating_2) || 0,
-          3: parseInt(row.rating_3) || 0,
-          4: parseInt(row.rating_4) || 0,
-          5: parseInt(row.rating_5) || 0
-        }
-      };
-      return NextResponse.json({
-        success: true,
-        data: ratingData
-      }, {
-        headers: {
-          'Cache-Control': 'public, max-age=300',
-        }
-      });
-    } catch {
-      const list = memoryStore.get(k(String(entityType), String(entityId))) || [];
-      const ratings = list
-        .map((x: any) => Number(x?.rating))
-        .filter((n: number) => Number.isFinite(n) && n >= 1 && n <= 5) as number[];
-      const dist: Record<1|2|3|4|5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-      for (const r of ratings) {
-        dist[r as 1|2|3|4|5] = (dist[r as 1|2|3|4|5] || 0) + 1;
-      }
-      const avg = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+    const result = await executeQuery(sql, [entityType, entityId]);
+    
+    if (result.length === 0) {
       return NextResponse.json({
         success: true,
         data: {
-          averageRating: Number(avg.toFixed(2)),
-          totalReviews: ratings.length,
-          ratingDistribution: dist
+          averageRating: 0,
+          totalReviews: 0,
+          ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
         }
       });
     }
-  } catch {
+
+    const row = result[0];
+    const ratingData = {
+      averageRating: parseFloat(row.average_rating) || 0,
+      totalReviews: parseInt(row.total_reviews) || 0,
+      ratingDistribution: {
+        1: parseInt(row.rating_1) || 0,
+        2: parseInt(row.rating_2) || 0,
+        3: parseInt(row.rating_3) || 0,
+        4: parseInt(row.rating_4) || 0,
+        5: parseInt(row.rating_5) || 0
+      }
+    };
+
+    return NextResponse.json({
+      success: true,
+      data: ratingData
+    }, {
+      headers: {
+        'Cache-Control': 'public, max-age=300', // 5 minutes cache
+      }
+    });
+
+  } catch (error) {
     return NextResponse.json({
       success: true,
       data: { averageRating: 0, totalReviews: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } }

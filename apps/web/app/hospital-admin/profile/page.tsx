@@ -519,23 +519,113 @@ export default function HospitalAdminProfilePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 rounded-2xl overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 shadow-xl">
-          <div className="flex items-center gap-4">
-            {profile.general?.logoUrl ? (
-              <img src={profile.general.logoUrl} alt="Logo" className="w-20 h-20 rounded-full border-4 border-white/30 object-cover" />
-            ) : (
-              <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-white text-3xl font-bold">
-                🏥
+        {/* Modern Header with Analytics */}
+        <div className="mb-8">
+          <div className="rounded-2xl overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 shadow-xl">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+              {profile.general?.logoUrl ? (
+                <img src={profile.general.logoUrl} alt="Logo" className="w-24 h-24 rounded-2xl border-4 border-white/30 object-cover shadow-lg" />
+              ) : (
+                <div className="w-24 h-24 rounded-2xl bg-white/20 flex items-center justify-center text-white text-4xl font-bold backdrop-blur-sm shadow-lg">
+                  🏥
+                </div>
+              )}
+              <div className="flex-1">
+                <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+                  {profile.general?.brandName || profile.general?.legalName || 'Hospital Dashboard'}
+                </h1>
+                <p className="text-blue-100 text-lg">{profile.general?.tagline || 'Manage your hospital information and doctor team'}</p>
               </div>
-            )}
-            <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl font-bold text-white">
-                {profile.general?.brandName || profile.general?.legalName || 'Hospital Profile'}
-              </h1>
-              <p className="mt-2 text-blue-100">{profile.general?.tagline || 'Manage your hospital information and doctor team'}</p>
             </div>
           </div>
+
+          {/* Analytics Cards */}
+          {hospitalId && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+              {/* Total Doctors */}
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Total Doctors</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">{(profile.doctors || []).length}</p>
+                    <p className="text-green-600 text-xs mt-1 font-semibold">
+                      {(profile.doctors || []).filter((d: any) => d.doctorId).length} Active
+                    </p>
+                  </div>
+                  <div className="bg-blue-100 rounded-full p-4">
+                    <span className="text-3xl">👨‍⚕️</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Departments */}
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Departments</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">{(profile.departments || []).length}</p>
+                    <p className="text-gray-500 text-xs mt-1">Medical Specialties</p>
+                  </div>
+                  <div className="bg-green-100 rounded-full p-4">
+                    <span className="text-3xl">🏥</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Services */}
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Total Services</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">
+                      {(profile.departments || []).reduce((acc: number, d: any) => acc + (d.services || []).length, 0)}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-1">Across all departments</p>
+                  </div>
+                  <div className="bg-purple-100 rounded-full p-4">
+                    <span className="text-3xl">💊</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Profile Completion */}
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600 text-sm font-medium">Profile Status</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">
+                      {(() => {
+                        let score = 0;
+                        if (profile.general?.brandName) score += 20;
+                        if (profile.general?.address) score += 20;
+                        if ((profile.departments || []).length > 0) score += 20;
+                        if ((profile.doctors || []).length > 0) score += 20;
+                        if (profile.about?.mission) score += 20;
+                        return score;
+                      })()}%
+                    </p>
+                    <p className="text-orange-600 text-xs mt-1 font-semibold">
+                      {(() => {
+                        const score = (() => {
+                          let s = 0;
+                          if (profile.general?.brandName) s += 20;
+                          if (profile.general?.address) s += 20;
+                          if ((profile.departments || []).length > 0) s += 20;
+                          if ((profile.doctors || []).length > 0) s += 20;
+                          if (profile.about?.mission) s += 20;
+                          return s;
+                        })();
+                        return score === 100 ? 'Complete' : 'In Progress';
+                      })()}
+                    </p>
+                  </div>
+                  <div className="bg-orange-100 rounded-full p-4">
+                    <span className="text-3xl">📊</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {message && (
