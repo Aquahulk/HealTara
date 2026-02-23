@@ -6,7 +6,7 @@ import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
 // Subdomain helpers for name-only microsite URLs
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName } from "@/lib/subdomain";
+import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from "@/lib/subdomain";
 
 interface DoctorOyoCardProps {
   doctor: Doctor;
@@ -130,8 +130,13 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                         }
                         if (resp && resp.id) {
                           const hId = resp.id;
+                          const sub = (resp as any)?.subdomain as string | undefined;
                           if (shouldUseSubdomainNav()) {
-                            window.location.href = hospitalIdMicrositeUrl(hId);
+                            if (sub && sub.length > 1) {
+                              window.location.href = customSubdomainUrl(sub);
+                            } else {
+                              window.location.href = hospitalIdMicrositeUrl(hId);
+                            }
                           } else {
                             router.push(`/hospital-site/${String(hId)}`);
                           }
@@ -164,12 +169,21 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                 className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors text-sm"
                 onClick={() => {
                   import("@/lib/api").then(({ apiClient }) => {
-                    apiClient
-                      .getHospitalByDoctorId(doctor.id)
+                apiClient
+                  .getHospitalByDoctorId(doctor.id)
                   .then((resp) => {
                         const hId = resp?.id;
+                        const sub = (resp as any)?.subdomain as string | undefined;
                         if (hId != null) {
-                          window.location.href = hospitalIdMicrositeUrl(hId);
+                          if (shouldUseSubdomainNav()) {
+                            if (sub && sub.length > 1) {
+                              window.location.href = customSubdomainUrl(sub);
+                            } else {
+                              window.location.href = hospitalIdMicrositeUrl(hId);
+                            }
+                          } else {
+                            router.push(`/hospital-site/${String(hId)}`);
+                          }
                         }
                       })
                       .catch(() => {
@@ -223,8 +237,13 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                     }
                     if (resp && resp.id) {
                       const hId = resp.id;
+                      const sub = (resp as any)?.subdomain as string | undefined;
                       if (shouldUseSubdomainNav()) {
-                        window.location.href = hospitalIdMicrositeUrl(hId);
+                        if (sub && sub.length > 1) {
+                          window.location.href = customSubdomainUrl(sub);
+                        } else {
+                          window.location.href = hospitalIdMicrositeUrl(hId);
+                        }
                       } else {
                         router.push(`/hospital-site/${String(hId)}`);
                       }
@@ -259,8 +278,17 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                   .getHospitalByDoctorId(doctor.id)
               .then((resp) => {
                     const hId = resp?.id;
+                    const sub = (resp as any)?.subdomain as string | undefined;
                     if (hId != null) {
-                      window.location.href = hospitalIdMicrositeUrl(hId);
+                      if (shouldUseSubdomainNav()) {
+                        if (sub && sub.length > 1) {
+                          window.location.href = customSubdomainUrl(sub);
+                        } else {
+                          window.location.href = hospitalIdMicrositeUrl(hId);
+                        }
+                      } else {
+                        router.push(`/hospital-site/${String(hId)}`);
+                      }
                     }
                   })
                   .catch(() => {});

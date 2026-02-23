@@ -1,11 +1,11 @@
 // ============================================================================
-// 🏥 DOCTOR DASHBOARD - Modern Practice Management System
+// 🏥 GENERAL DASHBOARD - Role-aware Operations
 // ============================================================================
-// This is the main dashboard for doctors to manage their practice
-// It includes appointment management, website customization, and practice analytics
-// Features a modern, professional interface with comprehensive functionality
-// 
-// IMPORTANT: This dashboard provides doctors with complete control over their practice
+// Purpose: One dashboard for multiple roles
+// - DOCTOR: manage appointments, slots, and practice analytics
+// - HOSPITAL_ADMIN: view hospital info and manage doctor appointments per doctor
+// - SLOT_ADMIN/ADMIN: supervisory controls and status updates
+// This file contains role detection and renders appropriate operational views.
 // ============================================================================
 
 // ============================================================================
@@ -27,9 +27,11 @@ import {
   ClockIcon,
   MapPinIcon,
   PhoneIcon,
-  EnvelopeIcon
+  EnvelopeIcon,
+  BuildingOffice2Icon,
+  ChartBarSquareIcon
 } from '@heroicons/react/24/outline';                      // Heroicons for beautiful icons
-import { doctorMicrositeUrl, hospitalMicrositeUrl } from '@/lib/subdomain';
+import { doctorMicrositeUrl, customSubdomainUrl, shouldUseSubdomainNav } from '@/lib/subdomain';
 import { getDoctorLabel, getPatientLabel, getUserLabel } from '@/lib/utils';
 import { io } from 'socket.io-client';
 
@@ -66,6 +68,7 @@ interface DashboardStats {
   totalPatients: number;
   monthlyRevenue: number;
   websiteViews: number;
+  todaysBookings?: number;
 }
 
 // ============================================================================
@@ -146,6 +149,7 @@ export default function DashboardPage() {
   const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any; departmentId?: number | null; departmentName?: string | null }>>([]);
   const [hospitalDoctorSearch, setHospitalDoctorSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('All');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Sidebar collapse state
   const [deptCollapsed, setDeptCollapsed] = useState<Record<string, boolean>>({});
   const [deptSortMode, setDeptSortMode] = useState<'alpha' | 'activity'>('alpha');
   const deferredHospitalDoctorSearch = useDeferredValue(hospitalDoctorSearch);
@@ -238,6 +242,12 @@ export default function DashboardPage() {
   const [selectedHospitalDate, setSelectedHospitalDate] = useState<string>('');
   const isDoctorLike = !!(user && (user.role === 'DOCTOR' || user.role === 'HOSPITAL_ADMIN'));
 const [socketReady, setSocketReady] = useState(false);
+
+  const recentHospitalAppointments = useMemo(() => {
+    const list = Object.values(doctorAppointmentsMap).flat();
+    const sorted = list.slice().sort((a, b) => getAppointmentISTDate(b).getTime() - getAppointmentISTDate(a).getTime());
+    return sorted.slice(0, 5);
+  }, [doctorAppointmentsMap]);
 
   // IST date/time helpers for consistent display
   const formatIST = (date: Date, opts?: Intl.DateTimeFormatOptions) => {
@@ -353,10 +363,34 @@ const [socketReady, setSocketReady] = useState(false);
             setSlots([]);
           }
         } else if (user.role === 'HOSPITAL_ADMIN') {
+          let didSetHStats = false;
           // Fetch hospital info for admin
           try {
             const myHospital = await apiClient.getMyHospital();
-            setHospitalProfile(myHospital || null);
+            if (myHospital?.id) {
+              try {
+                const [profileJson, details] = await Promise.all([
+                  apiClient.getHospitalProfile(myHospital.id),
+                  apiClient.getHospitalDetails(myHospital.id)
+                ]);
+                setHospitalProfile({ ...(myHospital as any), profile: profileJson, subdomain: (details as any)?.subdomain } as any);
+              } catch (_) {
+                setHospitalProfile(myHospital || null);
+              }
+            } else {
+              setHospitalProfile(myHospital || null);
+            }
+            let gotHStats = false;
+            if (myHospital?.id) {
+              try {
+                const hstats = await apiClient.getHospitalStats(myHospital.id);
+                setStats(hstats as any);
+                gotHStats = true;
+                didSetHStats = true;
+              } catch (e) {
+                console.warn('Failed to load hospital stats:', e);
+              }
+            }
           } catch (e) {
             console.warn('Failed to load hospital profile:', e);
             setHospitalProfile(null);
@@ -364,14 +398,17 @@ const [socketReady, setSocketReady] = useState(false);
 
           // Hospital admins: doctor-specific profile not applicable
           setDoctorProfile(null);
-          setStats({
-            totalAppointments: appointmentsResult.length,
-            pendingAppointments: appointmentsResult.filter(a => a.status === 'PENDING').length,
-            completedAppointments: appointmentsResult.filter(a => a.status === 'COMPLETED').length,
-            totalPatients: 0,
-            monthlyRevenue: 0,
-            websiteViews: 0,
-          });
+          if (!didSetHStats) {
+            setStats({
+              totalAppointments: appointmentsResult.length,
+              pendingAppointments: appointmentsResult.filter(a => a.status === 'PENDING').length,
+              completedAppointments: appointmentsResult.filter(a => a.status === 'COMPLETED').length,
+              totalPatients: 0,
+              monthlyRevenue: 0,
+              websiteViews: 0,
+              todaysBookings: 0,
+            });
+          }
           // Slots are doctor-scoped; leave empty for hospital admins for now
           setSlots([]);
         } else {
@@ -1467,65 +1504,171 @@ useEffect(() => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex">
       {/* ============================================================================
-          🎨 HEADER SECTION - Dashboard header with navigation
+          📂 COLLAPSEABLE SIDEBAR - Navigation sidebar
           ============================================================================ */}
-      {activeTab === 'overview' && (
-      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-8">
-            <div className="flex items-center space-x-4">
-              <div className="text-3xl">🏥</div>
+      <aside className={`fixed left-0 top-0 h-full bg-blue-900 border-r border-blue-800 transition-all duration-300 z-50 shadow-lg ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
+        {/* Toggle Button */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="absolute -right-3 top-6 bg-blue-800 border border-blue-700 text-white rounded-full p-1.5 shadow-md hover:shadow-lg transition-all hover:scale-110 hover:bg-blue-700"
+        >
+          {sidebarCollapsed ? (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          )}
+        </button>
+
+        {/* Logo/Brand */}
+        <div className="p-4 border-b border-blue-800">
+          <div className="flex items-center space-x-3">
+            <div className="text-2xl">🏥</div>
+            {!sidebarCollapsed && (
               <div>
-                <h1 className="text-2xl font-bold">
-                  {isDoctorLike ? 'Doctor Dashboard' : 'Patient Dashboard'}
-                </h1>
-                <p className="opacity-90">
-                  Welcome back, {user.role === 'DOCTOR' ? 'Dr. ' : ''}{getUserLabel(user as any, { doctorProfile: doctorProfile as any, hospitalProfile: hospitalProfile as any })}
-                </p>
+                <h2 className="font-bold text-lg text-white">Healtara</h2>
+                <p className="text-xs text-blue-300">Dashboard</p>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation Links */}
+        <nav className="p-4 space-y-2">
+          <Link
+            href="/dashboard"
+            className="flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-blue-800 transition-all text-blue-100 hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            {!sidebarCollapsed && <span className="font-medium">Dashboard</span>}
+          </Link>
+
+          {user?.role === 'HOSPITAL_ADMIN' && (
+            <Link
+              href="/hospital-admin/profile"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-blue-800 transition-all text-blue-100 hover:text-white"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              {!sidebarCollapsed && <span className="font-medium">Profile</span>}
+            </Link>
+          )}
+
+          {user?.role === 'DOCTOR' && (
+            <Link
+              href="/dashboard/profile"
+              className="flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-blue-800 transition-all text-blue-100 hover:text-white"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              {!sidebarCollapsed && <span className="font-medium">Profile</span>}
+            </Link>
+          )}
+
+          <button
+            onClick={() => setActiveTab('appointments')}
+            className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-blue-800 transition-all text-blue-100 hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {!sidebarCollapsed && <span className="font-medium">Appointments</span>}
+          </button>
+
+          <Link
+            href="/slot-admin"
+            className="flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-blue-800 transition-all text-blue-100 hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {!sidebarCollapsed && <span className="font-medium">Slot Admin</span>}
+          </Link>
+
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-blue-800 transition-all text-blue-100 hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {!sidebarCollapsed && <span className="font-medium">Settings</span>}
+          </button>
+
+          <button
+            onClick={logout}
+            className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg hover:bg-red-700 transition-all text-blue-100 hover:text-white"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            {!sidebarCollapsed && <span className="font-medium">Logout</span>}
+          </button>
+        </nav>
+
+        {/* User Info at Bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-blue-800 bg-blue-950">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-blue-700 text-blue-100 flex items-center justify-center font-bold">
+              {user?.email?.charAt(0).toUpperCase()}
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 opacity-90">
-                <BellIcon className="h-6 w-6" />
-                <span className="text-sm">Notifications</span>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate text-white">{user?.email?.split('@')[0]}</p>
+                <p className="text-xs text-blue-300">{user?.role}</p>
               </div>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+      {/* ============================================================================
+          🎨 TOP BAR - Dark blue header with dashboard title and conditional logout
+          ============================================================================ */}
+      <header className="bg-blue-900 border-b border-blue-800 shadow-lg sticky top-0 z-40">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <h1 className="text-2xl font-bold text-white">
+              {user.role === 'HOSPITAL_ADMIN' ? 'Hospital Dashboard' : isDoctorLike ? 'Doctor Dashboard' : 'Patient Dashboard'}
+            </h1>
+            
+            {/* Logout button - only shows when sidebar is collapsed */}
+            {sidebarCollapsed && (
               <button
                 onClick={logout}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
+                className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
               >
-                Logout
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="font-medium">Logout</span>
               </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-6">
-            <div className="rounded-lg bg-white/10 backdrop-blur p-4">
-              <div className="text-sm opacity-80">Appointments</div>
-              <div className="text-2xl font-semibold">{(appointments || []).length}</div>
-            </div>
-            <div className="rounded-lg bg-white/10 backdrop-blur p-4">
-              <div className="text-sm opacity-80">Linked Doctors</div>
-              <div className="text-2xl font-semibold">{(hospitalDoctors || []).length}</div>
-            </div>
-            <div className="rounded-lg bg-white/10 backdrop-blur p-4">
-              <div className="text-sm opacity-80">Pending</div>
-              <div className="text-2xl font-semibold">{(appointments || []).filter((a: any) => a?.status === 'pending').length}</div>
-            </div>
+            )}
           </div>
         </div>
       </header>
-      )}
 
       {/* ============================================================================
           📊 MAIN CONTENT - Dashboard content with tabs
           ============================================================================ */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ============================================================================
-            🧭 NAVIGATION TABS - Tab navigation for different sections
+            🧭 NAVIGATION TABS - Tab navigation with smooth transitions
             ============================================================================ */}
-        <div className="border-b border-gray-200 mb-8">
-          <nav className="-mb-px flex space-x-8">
+        <div className="bg-white rounded-2xl shadow-xl mb-8 overflow-hidden">
+          <nav className="flex space-x-2 p-2">
           {[
             { id: 'overview', name: '📊 Overview', icon: ChartBarIcon },
             { id: 'appointments', name: '📅 Appointments', icon: CalendarIcon },
@@ -1540,10 +1683,10 @@ useEffect(() => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                className={`flex-1 py-3 px-4 font-bold text-sm flex items-center justify-center space-x-2 rounded-xl transition-all duration-300 transform ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
                 <tab.icon className="h-5 w-5" />
@@ -1578,80 +1721,86 @@ useEffect(() => {
                 ============================================================================ */}
             {stats && (
               <div className={`grid grid-cols-1 md:grid-cols-2 ${user.role === 'DOCTOR' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6`}>
-                <div className="bg-white overflow-hidden shadow-lg rounded-lg">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
                   <div className="p-6">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <CalendarIcon className="h-8 w-8 text-blue-600" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                        <CalendarIcon className="h-8 w-8 text-white" />
                       </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">Total Appointments</dt>
-                          <dd className="text-2xl font-bold text-gray-900">{stats.totalAppointments}</dd>
-                        </dl>
+                      <div className="text-right">
+                        <dt className="text-sm font-medium text-blue-100 truncate">Total Appointments</dt>
+                        <dd className="text-3xl font-black text-white mt-1">{stats.totalAppointments}</dd>
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-white overflow-hidden shadow-lg rounded-lg">
-                  <div className="p-6">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <ClockIcon className="h-8 w-8 text-yellow-600" />
-                      </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">Pending</dt>
-                          <dd className="text-2xl font-bold text-gray-900">{stats.pendingAppointments}</dd>
-                        </dl>
-                      </div>
-                    </div>
+                  <div className="bg-white/10 px-6 py-2">
+                    <div className="text-xs text-blue-100">All time bookings</div>
                   </div>
                 </div>
 
-                <div className="bg-white overflow-hidden shadow-lg rounded-lg">
+                <div className="bg-gradient-to-br from-yellow-500 to-orange-500 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
                   <div className="p-6">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <UserGroupIcon className="h-8 w-8 text-green-600" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                        <ClockIcon className="h-8 w-8 text-white" />
                       </div>
-                      <div className="ml-5 w-0 flex-1">
-                        <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
-                            {user.role === 'DOCTOR'
-                              ? 'Total Patients'
-                              : user.role === 'HOSPITAL_ADMIN'
-                                ? 'Total Doctors'
-                                : 'Doctors Visited'}
-                          </dt>
-                          <dd className="text-2xl font-bold text-gray-900">
-                            {user.role === 'DOCTOR'
-                              ? stats.totalPatients
-                              : user.role === 'HOSPITAL_ADMIN'
-                                ? hospitalDoctors.length
-                                : (new Set(appointments.map((a: any) => a?.doctorId)).size)}
-                          </dd>
-                        </dl>
+                      <div className="text-right">
+                        <dt className="text-sm font-medium text-yellow-100 truncate">Pending</dt>
+                        <dd className="text-3xl font-black text-white mt-1">{stats.pendingAppointments}</dd>
                       </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 px-6 py-2">
+                    <div className="text-xs text-yellow-100">Awaiting confirmation</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                        <UserGroupIcon className="h-8 w-8 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <dt className="text-sm font-medium text-green-100 truncate">
+                          {user.role === 'DOCTOR'
+                            ? 'Total Patients'
+                            : user.role === 'HOSPITAL_ADMIN'
+                              ? 'Total Doctors'
+                              : 'Doctors Visited'}
+                        </dt>
+                        <dd className="text-3xl font-black text-white mt-1">
+                          {user.role === 'DOCTOR'
+                            ? stats.totalPatients
+                            : user.role === 'HOSPITAL_ADMIN'
+                              ? hospitalDoctors.length
+                              : (new Set(appointments.map((a: any) => a?.doctorId)).size)}
+                        </dd>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 px-6 py-2">
+                    <div className="text-xs text-green-100">
+                      {user.role === 'DOCTOR' ? 'Unique patients' : user.role === 'HOSPITAL_ADMIN' ? 'Active doctors' : 'Unique doctors'}
                     </div>
                   </div>
                 </div>
 
                 {user.role === 'DOCTOR' && (
-                  <div className="bg-white overflow-hidden shadow-lg rounded-lg">
+                  <div className="bg-gradient-to-br from-purple-500 to-pink-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
                     <div className="p-6">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <CurrencyDollarIcon className="h-8 w-8 text-purple-600" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                          <CurrencyDollarIcon className="h-8 w-8 text-white" />
                         </div>
-                        <div className="ml-5 w-0 flex-1">
-                          <dl>
-                            <dt className="text-sm font-medium text-gray-500 truncate">Monthly Revenue</dt>
-                            <dd className="text-2xl font-bold text-gray-900">₹{stats.monthlyRevenue}</dd>
-                          </dl>
+                        <div className="text-right">
+                          <dt className="text-sm font-medium text-purple-100 truncate">Monthly Revenue</dt>
+                          <dd className="text-3xl font-black text-white mt-1">₹{stats.monthlyRevenue}</dd>
                         </div>
                       </div>
+                    </div>
+                    <div className="bg-white/10 px-6 py-2">
+                      <div className="text-xs text-purple-100">This month's earnings</div>
                     </div>
                   </div>
                 )}
@@ -1659,40 +1808,177 @@ useEffect(() => {
             )}
 
             {/* ============================================================================
-                🏥 PROFILE SUMMARY - Doctor profile information
+                🏥 HOSPITAL-SPECIFIC ANALYTICS - Additional metrics for hospitals
                 ============================================================================ */}
-            {doctorProfile && (
-              <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Practice Information</h3>
+            {user.role === 'HOSPITAL_ADMIN' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+                <div className="bg-gradient-to-br from-cyan-500 to-blue-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                        <ChartBarIcon className="h-8 w-8 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <dt className="text-sm font-medium text-cyan-100 truncate">Completed</dt>
+                        <dd className="text-3xl font-black text-white mt-1">{stats?.completedAppointments || 0}</dd>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 px-6 py-2">
+                    <div className="text-xs text-cyan-100">Successfully completed</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-pink-500 to-rose-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                        <UserGroupIcon className="h-8 w-8 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <dt className="text-sm font-medium text-pink-100 truncate">Total Patients</dt>
+                        <dd className="text-3xl font-black text-white mt-1">{stats?.totalPatients ?? new Set(appointments.map((a: any) => a?.patientId)).size}</dd>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 px-6 py-2">
+                    <div className="text-xs text-pink-100">Unique patients served</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                        <BuildingOffice2Icon className="h-8 w-8 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <dt className="text-sm font-medium text-indigo-100 truncate">Departments</dt>
+                        <dd className="text-3xl font-black text-white mt-1">{new Set(hospitalDoctors.map((d: any) => d?.departmentName || 'General')).size}</dd>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 px-6 py-2">
+                    <div className="text-xs text-indigo-100">Active departments</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-teal-500 to-emerald-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
+                        <ChartBarSquareIcon className="h-8 w-8 text-white" />
+                      </div>
+                      <div className="text-right">
+                        <dt className="text-sm font-medium text-teal-100 truncate">Today's Bookings</dt>
+                        <dd className="text-3xl font-black text-white mt-1">{stats?.todaysBookings ?? 0}</dd>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 px-6 py-2">
+                    <div className="text-xs text-teal-100">Appointments today</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================================
+                🏥 HOSPITAL PROFILE SUMMARY - Hospital information
+                ============================================================================ */}
+            {user.role === 'HOSPITAL_ADMIN' && hospitalProfile && (
+              <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100 mt-8">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+                  <h3 className="text-xl font-bold text-white flex items-center">
+                    <span className="mr-2">🏥</span>
+                    Hospital Information
+                  </h3>
                 </div>
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="text-lg font-medium text-gray-900 mb-4">{doctorProfile.clinicName}</h4>
+                    <div className="space-y-4">
+                      <h4 className="text-2xl font-bold text-gray-900 mb-4">{(hospitalProfile as any)?.profile?.general?.name || (hospitalProfile as any)?.name || 'Hospital Name'}</h4>
                       <div className="space-y-3">
-                        <div className="flex items-center text-gray-600">
-                          <MapPinIcon className="h-5 w-5 mr-3" />
-                          <span>{doctorProfile.clinicAddress}, {doctorProfile.city}, {doctorProfile.state}</span>
+                        <div className="flex items-start text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                          <MapPinIcon className="h-5 w-5 mr-3 mt-0.5 text-indigo-600 flex-shrink-0" />
+                          <span className="text-sm">{(hospitalProfile as any)?.profile?.general?.address || (hospitalProfile as any)?.address || 'Address not set'}</span>
                         </div>
-                        <div className="flex items-center text-gray-600">
-                          <PhoneIcon className="h-5 w-5 mr-3" />
-                          <span>{doctorProfile.phone}</span>
+                        <div className="flex items-center text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                          <PhoneIcon className="h-5 w-5 mr-3 text-green-600 flex-shrink-0" />
+                          <span className="text-sm font-medium">{(hospitalProfile as any)?.profile?.general?.phone || (hospitalProfile as any)?.phone || 'Phone not set'}</span>
                         </div>
-                        <div className="flex items-center text-gray-600">
-                          <EnvelopeIcon className="h-5 w-5 mr-3" />
-                          <span>{user.role === 'HOSPITAL_ADMIN' ? ((hospitalProfile as any)?.general?.name || (user.email?.split('@')[0])) : (user.role === 'DOCTOR' ? (doctorProfile?.slug || (user.email?.split('@')[0])) : (user.email?.split('@')[0]))}</span>
+                        <div className="flex items-center text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                          <EnvelopeIcon className="h-5 w-5 mr-3 text-blue-600 flex-shrink-0" />
+                          <span className="text-sm">{user.email}</span>
                         </div>
                       </div>
                     </div>
-                    <div>
-                      <div className="bg-blue-50 p-4 rounded-lg">
-                        <h5 className="font-medium text-blue-900 mb-2">Specialization</h5>
-                        <p className="text-blue-800">{doctorProfile.specialization}</p>
-                        <div className="mt-3">
-                          <h5 className="font-medium text-blue-900 mb-2">Consultation Fee</h5>
-                          <p className="text-2xl font-bold text-blue-800">₹{doctorProfile.consultationFee}</p>
+                    <div className="space-y-4">
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">
+                        <h5 className="font-bold text-indigo-900 mb-3 flex items-center">
+                          <span className="bg-indigo-200 p-2 rounded-lg mr-2">👨‍⚕️</span>
+                          Active Doctors
+                        </h5>
+                        <p className="text-4xl font-black text-indigo-800">{hospitalDoctors.length}</p>
+                      </div>
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200 shadow-sm">
+                        <h5 className="font-bold text-green-900 mb-3 flex items-center">
+                          <span className="bg-green-200 p-2 rounded-lg mr-2">📊</span>
+                          Status
+                        </h5>
+                        <p className="text-lg font-semibold text-green-800">
+                          {(hospitalProfile as any)?.profile?.serviceStatus === 'APPROVED' ? '✅ Approved' : '⏳ Pending Approval'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================================
+                🏥 PROFILE SUMMARY - Doctor profile information
+                ============================================================================ */}
+            {doctorProfile && (
+              <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+                  <h3 className="text-xl font-bold text-white flex items-center">
+                    <span className="mr-2">🏥</span>
+                    Practice Information
+                  </h3>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <h4 className="text-2xl font-bold text-gray-900 mb-4">{doctorProfile.clinicName}</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-start text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                          <MapPinIcon className="h-5 w-5 mr-3 mt-0.5 text-indigo-600 flex-shrink-0" />
+                          <span className="text-sm">{doctorProfile.clinicAddress}, {doctorProfile.city}, {doctorProfile.state}</span>
                         </div>
+                        <div className="flex items-center text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                          <PhoneIcon className="h-5 w-5 mr-3 text-green-600 flex-shrink-0" />
+                          <span className="text-sm font-medium">{doctorProfile.phone}</span>
+                        </div>
+                        <div className="flex items-center text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
+                          <EnvelopeIcon className="h-5 w-5 mr-3 text-blue-600 flex-shrink-0" />
+                          <span className="text-sm">{user.role === 'HOSPITAL_ADMIN' ? ((hospitalProfile as any)?.general?.name || (user.email?.split('@')[0])) : (user.role === 'DOCTOR' ? (doctorProfile?.slug || (user.email?.split('@')[0])) : (user.email?.split('@')[0]))}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">
+                        <h5 className="font-bold text-indigo-900 mb-3 flex items-center">
+                          <span className="bg-indigo-200 p-2 rounded-lg mr-2">🩺</span>
+                          Specialization
+                        </h5>
+                        <p className="text-lg font-semibold text-indigo-800">{doctorProfile.specialization}</p>
+                      </div>
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200 shadow-sm">
+                        <h5 className="font-bold text-green-900 mb-3 flex items-center">
+                          <span className="bg-green-200 p-2 rounded-lg mr-2">💰</span>
+                          Consultation Fee
+                        </h5>
+                        <p className="text-3xl font-black text-green-800">₹{doctorProfile.consultationFee}</p>
                       </div>
                     </div>
                   </div>
@@ -1708,17 +1994,17 @@ useEffect(() => {
                 <h3 className="text-lg font-semibold text-gray-900">Recent Appointments</h3>
               </div>
               <div className="p-6">
-                {appointments.length > 0 ? (
+                {(() => { const recents = user.role === 'HOSPITAL_ADMIN' ? recentHospitalAppointments : appointments.slice(0, 5); return recents.length > 0 ? (
                   <div className="space-y-4">
-                    {appointments.slice(0, 5).map((appointment) => (
+                    {recents.map((appointment) => (
                       <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div>
                           <p className="font-medium text-gray-900">
                             {formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium' })} at {formatISTTime(getAppointmentISTDate(appointment))}
                           </p>
-                                                     <p className="text-gray-600">
-                             {user.role === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || appointment.patient?.email?.split('@')[0] || appointment.patientId)}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || appointment.doctor?.email?.split('@')[0] || 'Unknown Doctor')}`}
-                           </p>
+                                                       <p className="text-gray-600">
+                            {user.role === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || appointment.patient?.email?.split('@')[0] || appointment.patientId)}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || appointment.doctor?.email?.split('@')[0] || 'Unknown Doctor')}`}
+                          </p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
@@ -1732,9 +2018,7 @@ useEffect(() => {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-8">No appointments found</p>
-                )}
+                ) : (<p className="text-gray-500 text-center py-8">No appointments found</p>); })()}
               </div>
             </div>
           </div>
@@ -1747,37 +2031,44 @@ useEffect(() => {
         {activeTab === 'slots' && isDoctorLike && (
           <div className="space-y-8">
             {/* Create Slot */}
-            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Create Availability Slot</h3>
-                <p className="text-sm text-gray-600 mt-1">Publish times patients can book</p>
+            <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-5">
+                <h3 className="text-xl font-bold text-white flex items-center">
+                  <span className="mr-2">🕒</span>
+                  Create Availability Slot
+                </h3>
+                <p className="text-sm text-green-100 mt-1">Publish times patients can book</p>
               </div>
-              <div className="p-6">
+              <div className="p-6 bg-gradient-to-br from-gray-50 to-white">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+                      <span className="mr-1">📅</span> Date
+                    </label>
                     <input
                       type="date"
                       value={slotDate}
                       onChange={(e) => setSlotDate(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2"
+                      className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+                      <span className="mr-1">⏰</span> Time
+                    </label>
                     <input
                       type="time"
                       value={slotTime}
                       onChange={(e) => setSlotTime(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2"
+                      className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
                     />
                   </div>
                   <div className="flex items-end">
                     <button
                       onClick={handleCreateSlot}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
+                      className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                     >
-                      Publish Slot
+                      ✨ Publish Slot
                     </button>
                   </div>
                 </div>
@@ -1785,32 +2076,35 @@ useEffect(() => {
             </div>
 
             {/* Slot List */}
-            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">My Slots</h3>
+            <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-5">
+                <h3 className="text-xl font-bold text-white flex items-center">
+                  <span className="mr-2">📋</span>
+                  My Slots
+                </h3>
               </div>
               <div className="p-6">
                 {slots.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">📅 Date</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">⏰ Time</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">📊 Status</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">⚡ Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white divide-y divide-gray-100">
                         {slots.map((slot, idx) => (
-                          <tr key={slot.id ?? `${String(slot.date ?? '')}-${String(slot.time ?? '')}-${idx}`}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{slot.date}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{slot.time}</td>
+                          <tr key={slot.id ?? `${String(slot.date ?? '')}-${String(slot.time ?? '')}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{slot.date}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{slot.time}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                slot.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' :
-                                slot.status === 'BOOKED' ? 'bg-blue-100 text-blue-800' :
-                                'bg-red-100 text-red-800'
+                              <span className={`inline-flex px-3 py-1.5 text-xs font-bold rounded-full shadow-sm ${
+                                slot.status === 'AVAILABLE' ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200' :
+                                slot.status === 'BOOKED' ? 'bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 border border-blue-200' :
+                                'bg-gradient-to-r from-red-100 to-pink-100 text-red-800 border border-red-200'
                               }`}>
                                 {slot.status}
                               </span>
@@ -1819,9 +2113,9 @@ useEffect(() => {
                               {slot.status === 'AVAILABLE' && (
                                 <button
                                   onClick={() => handleCancelSlot(slot.id)}
-                                  className="text-red-600 hover:text-red-900"
+                                  className="text-red-600 hover:text-red-800 font-semibold hover:underline transition-all"
                                 >
-                                  Cancel
+                                  ❌ Cancel
                                 </button>
                               )}
                             </td>
@@ -1831,7 +2125,11 @@ useEffect(() => {
                     </table>
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-8">No slots published yet</p>
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">📭</div>
+                    <p className="text-gray-500 text-lg font-medium">No slots published yet</p>
+                    <p className="text-gray-400 text-sm mt-2">Create your first slot above to get started</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -1911,29 +2209,32 @@ useEffect(() => {
             📅 APPOINTMENTS TAB - Appointment management interface
             ============================================================================ */}
         {activeTab === 'appointments' && (
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {user.role === 'DOCTOR' ? 'Appointment Management' : user.role === 'HOSPITAL_ADMIN' ? 'Hospital Bookings by Doctor' : 'My Appointments'}
-              </h3>
-              {user.role === 'DOCTOR' && (
-                <div className="mt-3 inline-flex rounded-md border overflow-hidden">
-                  <button
-                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'grouped' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'} border-r`}
-                    onClick={() => setAppointmentViewMode('grouped')}
-                  >
-                    Grouped
-                  </button>
-                  <button
-                    className={`px-3 py-1 text-sm ${appointmentViewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
-                    onClick={() => setAppointmentViewMode('list')}
-                  >
-                    List
-                  </button>
-                </div>
-              )}
+          <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+            <div className="bg-gradient-to-r from-blue-500 to-cyan-600 px-6 py-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-white flex items-center">
+                  <span className="mr-2">📅</span>
+                  {user.role === 'DOCTOR' ? 'Appointment Management' : user.role === 'HOSPITAL_ADMIN' ? 'Hospital Bookings by Doctor' : 'My Appointments'}
+                </h3>
+                {user.role === 'DOCTOR' && (
+                  <div className="inline-flex rounded-lg overflow-hidden shadow-md">
+                    <button
+                      className={`px-4 py-2 text-sm font-medium transition-all ${appointmentViewMode === 'grouped' ? 'bg-white text-blue-600' : 'bg-blue-400/30 text-white hover:bg-blue-400/50'}`}
+                      onClick={() => setAppointmentViewMode('grouped')}
+                    >
+                      📊 Grouped
+                    </button>
+                    <button
+                      className={`px-4 py-2 text-sm font-medium transition-all ${appointmentViewMode === 'list' ? 'bg-white text-blue-600' : 'bg-blue-400/30 text-white hover:bg-blue-400/50'}`}
+                      onClick={() => setAppointmentViewMode('list')}
+                    >
+                      📋 List
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="p-6">
+            <div className="p-6 bg-gray-50">
               {user.role === 'HOSPITAL_ADMIN' ? (
                 <div>
                   {loadingHospitalBookings && (
@@ -3113,36 +3414,50 @@ useEffect(() => {
             👥 PATIENTS TAB - Patient management interface (DOCTORS ONLY)
             ============================================================================ */}
         {activeTab === 'patients' && isDoctorLike && (
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Patients</h3>
+          <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+            <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-5">
+              <h3 className="text-xl font-bold text-white flex items-center">
+                <span className="mr-2">👥</span>
+                Patients
+              </h3>
             </div>
             <div className="p-6">
               {patientsLoading ? (
-                <div className="text-center py-8 text-gray-600">Loading patients…</div>
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+                  <p className="text-gray-600 mt-4">Loading patients…</p>
+                </div>
               ) : patients.length === 0 ? (
-                <div className="text-center py-8 text-gray-600">No patients yet</div>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">👤</div>
+                  <p className="text-gray-500 text-lg font-medium">No patients yet</p>
+                  <p className="text-gray-400 text-sm mt-2">Your patient list will appear here once you have appointments</p>
+                </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-xl border border-gray-200">
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Visits</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">👤 Name</th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">📧 Email</th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">📊 Total Visits</th>
+                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">📅 Last Visit</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white divide-y divide-gray-100">
                       {patients.map((p) => {
                         const name = p.email ? p.email.split('@')[0] : p.patientId;
                         const dt = new Date(p.lastDate);
                         const last = isNaN(dt.getTime()) ? '' : new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', hour12: false }).format(dt);
                         return (
-                          <tr key={p.patientId}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{String(name)}</td>
+                          <tr key={p.patientId} className="hover:bg-purple-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{String(name)}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{p.email || '-'}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{p.count}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 border border-blue-200">
+                                {p.count} visits
+                              </span>
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{last}</td>
                           </tr>
                         );
@@ -3160,21 +3475,27 @@ useEffect(() => {
             ============================================================================ */}
         {activeTab === 'website' && isDoctorLike && (
           <div className="space-y-8">
-            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Website Management</h3>
-                <p className="text-sm text-gray-600 mt-1">Customize your professional website</p>
+            <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+              <div className="bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-5">
+                <h3 className="text-xl font-bold text-white flex items-center">
+                  <span className="mr-2">🌐</span>
+                  Website Management
+                </h3>
+                <p className="text-sm text-cyan-100 mt-1">Customize your professional website</p>
               </div>
-              <div className="p-6">
+              <div className="p-6 bg-gradient-to-br from-gray-50 to-white">
                 {user.role === 'DOCTOR' ? (
                   doctorProfile ? (
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                          <h4 className="text-lg font-medium text-gray-900 mb-4">Website Preview</h4>
-                          <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
-                            <p className="text-sm text-gray-600 mb-2">Your website URL:</p>
-                            <p className="font-mono text-blue-600">
+                          <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                            <span className="bg-blue-100 p-2 rounded-lg mr-2">🔗</span>
+                            Website Preview
+                          </h4>
+                          <div className="border-2 border-blue-200 rounded-xl p-6 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm">
+                            <p className="text-sm font-semibold text-gray-700 mb-3">Your website URL:</p>
+                            <p className="font-mono text-blue-600 font-bold text-lg break-all">
                               {doctorProfile.slug ? doctorMicrositeUrl(doctorProfile.slug) : 'No website yet'}
                             </p>
                           </div>
@@ -3229,7 +3550,11 @@ useEffect(() => {
                           <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
                             <p className="text-sm text-gray-600 mb-2">Your hospital site URL:</p>
                             <p className="font-mono text-blue-600">
-                              {hospitalMicrositeUrl((hospitalProfile as any)?.general?.name || String(hospitalProfile.id))}
+                              {(() => {
+                                const sub = (hospitalProfile as any)?.subdomain as string | undefined;
+                                if (sub && sub.length > 1) return customSubdomainUrl(sub);
+                                return `${typeof window !== 'undefined' ? window.location.origin : ''}/hospital-site/${hospitalProfile.id}`;
+                              })()}
                             </p>
                           </div>
                           <div className="mt-4">
@@ -3238,8 +3563,12 @@ useEffect(() => {
                               target="_blank"
                               onClick={(e) => {
                                 e.preventDefault();
-                                const name = (hospitalProfile as any)?.general?.name || String(hospitalProfile.id);
-                                window.open(hospitalMicrositeUrl(name), '_blank');
+                                const sub = (hospitalProfile as any)?.subdomain as string | undefined;
+                                if (shouldUseSubdomainNav() && sub && sub.length > 1) {
+                                  window.open(customSubdomainUrl(sub), '_blank');
+                                } else {
+                                  window.open(`/hospital-site/${hospitalProfile.id}`, '_blank');
+                                }
                               }}
                               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
                             >
@@ -3294,6 +3623,7 @@ useEffect(() => {
             />
           )
         )}
+      </div>
       </div>
     </div>
   );
@@ -3424,27 +3754,33 @@ function DoctorSettings() {
   };
 
   return (
-    <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Settings</h3>
+    <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+      <div className="bg-gradient-to-r from-orange-500 to-red-600 px-6 py-5">
+        <h3 className="text-xl font-bold text-white flex items-center">
+          <span className="mr-2">⚙️</span>
+          Settings
+        </h3>
       </div>
-      <div className="p-6 space-y-8">
+      <div className="p-6 space-y-8 bg-gradient-to-br from-gray-50 to-white">
         {/* Clinic Logo / Profile Photo */}
         {user?.role === 'DOCTOR' && (
-          <section>
-            <h4 className="text-md font-semibold text-gray-900 mb-2">Clinic Logo / Profile Photo</h4>
+          <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
+              <span className="bg-blue-100 p-2 rounded-lg mr-2">📸</span>
+              Clinic Logo / Profile Photo
+            </h4>
             <p className="text-sm text-gray-600 mb-4">Upload your clinic logo or profile photo.</p>
             {profileImageUrl && (
-              <div className="mb-3">
-                <img src={profileImageUrl} alt="Current profile" className="w-24 h-24 object-cover rounded" />
+              <div className="mb-4">
+                <img src={profileImageUrl} alt="Current profile" className="w-32 h-32 object-cover rounded-xl border-4 border-blue-200 shadow-md" />
               </div>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-                className="border rounded-lg px-3 py-2 w-full"
+                className="border-2 border-gray-300 rounded-xl px-4 py-3 w-full focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
               />
               <button
                 onClick={async () => {
@@ -3462,19 +3798,22 @@ function DoctorSettings() {
                   }
                 }}
                 disabled={!photoFile || uploadingPhoto}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50"
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-bold py-3 px-6 rounded-xl disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all whitespace-nowrap"
               >
-                {uploadingPhoto ? 'Uploading…' : 'Upload'}
+                {uploadingPhoto ? '⏳ Uploading…' : '📤 Upload'}
               </button>
             </div>
           </section>
         )}
         {/* Bookable ON/OFF */}
-        <section>
-          <h4 className="text-md font-semibold text-gray-900 mb-2">Make Bookable</h4>
+        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+          <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
+            <span className="bg-green-100 p-2 rounded-lg mr-2">🔔</span>
+            Make Bookable
+          </h4>
           <p className="text-sm text-gray-600 mb-4">Turn patient booking on or off for your profile.</p>
-          <div className="flex items-center justify-between bg-gray-50 border rounded-lg px-4 py-3">
-            <span className="text-gray-800">Currently {isBookable ? 'ON' : 'OFF'}</span>
+          <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200 rounded-xl px-6 py-4 shadow-sm">
+            <span className="text-gray-800 font-semibold">Currently <span className={isBookable ? 'text-green-600' : 'text-red-600'}>{isBookable ? 'ON ✅' : 'OFF ❌'}</span></span>
             <label className="inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -3482,21 +3821,24 @@ function DoctorSettings() {
                 onChange={(e) => handleToggleBookable(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
-              <div className="-ml-8 w-5 h-5 bg-white rounded-full shadow transform peer-checked:translate-x-5 transition-transform"></div>
+              <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-200 rounded-full peer peer-checked:bg-green-500 transition-colors shadow-inner"></div>
+              <div className="-ml-12 w-6 h-6 bg-white rounded-full shadow-lg transform peer-checked:translate-x-7 transition-transform"></div>
             </label>
           </div>
-          {savingBookable && <p className="text-xs text-gray-500 mt-2">Saving…</p>}
+          {savingBookable && <p className="text-xs text-blue-600 mt-2 font-medium">💾 Saving…</p>}
         </section>
         {/* Slot Period Preference */}
-        <section>
-          <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Period</h4>
+        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+          <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
+            <span className="bg-purple-100 p-2 rounded-lg mr-2">⏱️</span>
+            Slot Period
+          </h4>
           <p className="text-sm text-gray-600 mb-4">
             Choose how your schedule groups bookings. Patients select an hour; you can view bookings as {slotPeriodMinutes}-minute slots. This preference affects dashboard display only.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Slot period (minutes)</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Slot period (minutes)</label>
               <select
                 value={slotPeriodMinutes}
                 onChange={async (e) => {
@@ -3509,78 +3851,84 @@ function DoctorSettings() {
                     setMessage(err?.message || 'Failed to save slot period');
                   }
                 }}
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-medium"
               >
                 {[10, 15, 20, 30, 60].map((m) => (
                   <option key={m} value={m}>{m} minutes</option>
                 ))}
               </select>
             </div>
-            <div className="col-span-2 text-sm text-gray-600">
-              Tip: We currently assign patients to the next available 15‑minute slot inside the chosen hour. Custom periods will be honored in a future backend update.
+            <div className="col-span-2 text-sm text-gray-600 bg-blue-50 p-4 rounded-xl border border-blue-200">
+              <span className="font-semibold text-blue-800">💡 Tip:</span> We currently assign patients to the next available 15‑minute slot inside the chosen hour. Custom periods will be honored in a future backend update.
             </div>
           </div>
         </section>
 
         {/* Doctors Management Credentials */}
-        <section>
-          <h4 className="text-md font-semibold text-gray-900 mb-2">Doctors Management</h4>
+        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+          <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
+            <span className="bg-indigo-100 p-2 rounded-lg mr-2">👨‍⚕️</span>
+            Doctors Management
+          </h4>
           <p className="text-sm text-gray-600 mb-4">
             Create or update a dedicated Doctors Management login for managing your slots.
           </p>
           {message && (
-            <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
+            <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 text-yellow-900 font-medium shadow-sm">{message}</div>
           )}
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Current Slot Admin</label>
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Current Slot Admin</label>
               <div className="text-gray-800">
                 {currentSlotAdminEmail ? (
-                  <span className="font-mono">{currentSlotAdminEmail}</span>
+                  <span className="font-mono bg-blue-100 px-3 py-1.5 rounded-lg text-blue-800 font-semibold">{currentSlotAdminEmail}</span>
                 ) : (
-                  <span className="text-gray-500">No Slot Admin configured yet</span>
+                  <span className="text-gray-500 italic">No Slot Admin configured yet</span>
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Slot Admin Email</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+                  <span className="mr-2">📧</span> Slot Admin Email
+                </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="slot-admin@example.com"
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+                  <span className="mr-2">🔒</span> New Password
+                </label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter new password"
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
                 />
               </div>
             </div>
-            <div>
+            <div className="flex items-center justify-between pt-4">
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 disabled:opacity-50"
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 px-8 rounded-xl transition-all duration-200 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
-                {loading ? 'Saving...' : (currentSlotAdminEmail ? 'Update Slot Admin' : 'Create Slot Admin')}
+                {loading ? '⏳ Saving...' : (currentSlotAdminEmail ? '✏️ Update Slot Admin' : '➕ Create Slot Admin')}
               </button>
+              <Link 
+                href="/slot-admin/login" 
+                className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-2 hover:underline transition-all"
+              >
+                <span>🔗</span> Slot Admin Login
+              </Link>
             </div>
           </div>
-        </section>
-
-        {/* Helpful Link */}
-        <section className="pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-600">
-            After configuring, share the login URL with your staff: <Link href="/slot-admin/login" className="text-blue-600 underline">Slot Admin Login</Link>
-          </p>
         </section>
       </div>
     </div>

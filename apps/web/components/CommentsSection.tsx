@@ -404,7 +404,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   const loadComments = async (pageNum = 1) => {
     try {
       const response = await fetch(
-        `/api/comments?entityType=${entityType}&entityId=${entityId}&page=${pageNum}&limit=10`
+        `/api/comments?entityType=${entityType}&entityId=${entityId}&page=${pageNum}&limit=10`,
+        { cache: 'no-store' }
       );
       const result = await response.json();
       
@@ -428,6 +429,15 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
   const handleCommentPosted = (newComment: any) => {
     setComments([newComment, ...comments]);
+    try {
+      window.dispatchEvent(new CustomEvent('rating:updated', { detail: { entityType, entityId } }));
+      try {
+        const bc = new BroadcastChannel('entity_updates');
+        bc.postMessage({ type: 'rating:updated', entityType, entityId });
+        try { localStorage.setItem('entity_updated', JSON.stringify({ type: 'rating:updated', entityType, entityId, ts: Date.now() })); } catch {}
+        try { bc.close(); } catch {}
+      } catch {}
+    } catch {}
   };
 
   const loadMoreComments = () => {

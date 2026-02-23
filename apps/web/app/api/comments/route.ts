@@ -14,6 +14,8 @@ export const k = (t: string, id: string) => `${t}:${id}`;
 // 📝 GET COMMENTS - Fetch comments for entity
 // ============================================================================
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -77,7 +79,7 @@ export async function GET(request: NextRequest) {
       }
     }, {
       headers: {
-        'Cache-Control': 'public, max-age=300', // 5 minutes cache
+        'Cache-Control': 'no-store',
       }
     });
 

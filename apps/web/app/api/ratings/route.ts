@@ -4,10 +4,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/database-pool';
+import type { NextRequest as _NR } from 'next/server';
+// Import in-memory fallback from comments route for environments without DB
+// This ensures ratings reflect immediately when comments are stored in memory
+import { memoryStore, k } from '../comments/route';
 
 // ============================================================================
 // 🌟 GET AVERAGE RATING
 // ============================================================================
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -60,7 +66,7 @@ export async function GET(request: NextRequest) {
     }
 
     const row = result[0];
-    const ratingData = {
+    let ratingData = {
       averageRating: parseFloat(row.average_rating) || 0,
       totalReviews: parseInt(row.total_reviews) || 0,
       ratingDistribution: {
@@ -70,14 +76,42 @@ export async function GET(request: NextRequest) {
         4: parseInt(row.rating_4) || 0,
         5: parseInt(row.rating_5) || 0
       }
+    } as {
+      averageRating: number;
+      totalReviews: number;
+      ratingDistribution: { 1: number; 2: number; 3: number; 4: number; 5: number };
     };
+
+    try {
+      if (!ratingData.totalReviews || Number.isNaN(ratingData.totalReviews)) {
+        const key = k(String(entityType), String(entityId));
+        const list = memoryStore.get(key) || [];
+        const ratings: number[] = list
+          .map((c: any) => Number(c?.rating))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        if (ratings.length > 0) {
+          const total = ratings.length;
+          const sum = ratings.reduce((a, b) => a + b, 0);
+          const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<1|2|3|4|5, number>;
+          ratings.forEach((r) => {
+            const v = Math.max(1, Math.min(5, Math.round(r)));
+            dist[v as 1|2|3|4|5] += 1;
+          });
+          ratingData = {
+            averageRating: sum / total,
+            totalReviews: total,
+            ratingDistribution: dist as any,
+          };
+        }
+      }
+    } catch {}
 
     return NextResponse.json({
       success: true,
       data: ratingData
     }, {
       headers: {
-        'Cache-Control': 'public, max-age=300', // 5 minutes cache
+        'Cache-Control': 'no-store',
       }
     });
 

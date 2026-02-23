@@ -527,7 +527,11 @@ class ApiClient {
   }
 
   async getHospitalDetails(hospitalId: number): Promise<any> {
-    return this.request(`/api/hospitals/${hospitalId}`);
+    return this.request(`/api/hospitals/${hospitalId}/details`);
+  }
+
+  async getHospitalStats(hospitalId: number): Promise<{ totalAppointments: number; pendingAppointments: number; completedAppointments: number; totalPatients: number; todaysBookings: number; monthlyRevenue: number; websiteViews: number }> {
+    return this.request(`/api/hospitals/${hospitalId}/stats`);
   }
 
   async getHospitalProfile(hospitalId: number): Promise<any> {

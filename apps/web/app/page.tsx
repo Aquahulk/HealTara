@@ -131,6 +131,51 @@ export default function HomePage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    const refreshHospitals = async () => {
+      try { CacheManager.clear('homepage_hospitals'); } catch {}
+      try {
+        const items = await apiClient.getHospitals();
+        setHospitals(items || []);
+      } catch {}
+    };
+    const onCustom = (e: any) => {
+      const d = e?.detail;
+      if (d?.entityType === 'hospital') {
+        refreshHospitals();
+      }
+    };
+    window.addEventListener('rating:updated', onCustom as EventListener);
+    const onMsg = (msg: MessageEvent) => {
+      const d = msg?.data || {};
+      if (d.type === 'rating:updated' && d.entityType === 'hospital') {
+        refreshHospitals();
+      }
+    };
+    try {
+      bc = new BroadcastChannel('entity_updates');
+      bc.addEventListener('message', onMsg as EventListener);
+    } catch {}
+    const onStorage = (ev: StorageEvent) => {
+      try {
+        if (ev.key === 'entity_updated' && ev.newValue) {
+          const d = JSON.parse(ev.newValue);
+          if (d.type === 'rating:updated' && d.entityType === 'hospital') {
+            refreshHospitals();
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('rating:updated', onCustom as EventListener);
+      window.removeEventListener('storage', onStorage);
+      try { bc && bc.removeEventListener('message', onMsg as EventListener); } catch {}
+      try { bc && bc.close && bc.close(); } catch {}
+    };
+  }, []);
+
   // Rotate testimonials
   useEffect(() => {
     const interval = setInterval(() => {
@@ -784,20 +829,9 @@ export default function HomePage() {
                                 apiClient
                                   .getHospitalByDoctorId(doctor.id)
                                   .then((resp) => {
-                                    const hName = (resp as any)?.name || '';
                                     const hId = (resp as any)?.id ?? (resp as any)?.hospitalId;
-                                    if (hName) {
-                                      if (shouldUseSubdomainNav()) {
-                                        window.location.href = hospitalMicrositeUrl(hName);
-                                      } else {
-                                        router.push(`/hospital-site/${slugifyName(hName)}`);
-                                      }
-                                    } else if (Number.isFinite(hId)) {
-                                      if (shouldUseSubdomainNav()) {
-                                        window.location.href = hospitalIdMicrositeUrl(hId);
-                                      } else {
-                                        router.push(`/hospital-site/${String(hId)}`);
-                                      }
+                                    if (Number.isFinite(hId)) {
+                                      router.push(`/hospital-site/${String(hId)}`);
                                     }
                                   })
                                   .catch(() => {});
@@ -955,8 +989,7 @@ export default function HomePage() {
                                 if (sub && sub.length > 1) {
                                   window.location.href = customSubdomainUrl(sub);
                                 } else {
-                                  const hospitalSlug = slugifyName(hospital.name);
-                                  window.location.href = hospitalMicrositeUrl(hospitalSlug);
+                                  router.push(`/hospital-site/${hospital.id}`);
                                 }
                               } else {
                                 router.push(`/hospital-site/${hospital.id}`);

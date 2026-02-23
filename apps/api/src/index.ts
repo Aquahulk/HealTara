@@ -62,6 +62,7 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
       city: true,
       state: true,
       phone: true,
+      subdomain: true,
       profile: true,
       createdAt: true,
       updatedAt: true,
@@ -2734,6 +2735,7 @@ app.get('/api/me/hospital', authMiddleware, async (req: Request, res: Response) 
       city: hospital.city ?? undefined,
       state: hospital.state ?? undefined,
       phone: hospital.phone ?? undefined,
+      subdomain: hospital.subdomain ?? undefined,
     });
   } catch (error) {
     console.error(error);
@@ -3019,6 +3021,7 @@ app.get('/api/hospitals/:hospitalId/details', async (req: Request, res: Response
             city: true,
             state: true,
             phone: true,
+            subdomain: true,
             profile: true,
           }
         });
@@ -3530,6 +3533,78 @@ app.get('/api/hospitals/:hospitalId/doctors/:doctorId/appointments', authMiddlew
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'An error occurred while fetching appointments.' });
+  }
+});
+
+// --- Hospital: Aggregate stats (Protected: Admin / Hospital Admin / Slot Admin) ---
+app.get('/api/hospitals/:hospitalId/stats', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+
+  if (!['ADMIN', 'HOSPITAL_ADMIN', 'SLOT_ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Unauthorized role' });
+  }
+
+  try {
+    if (user.role !== 'ADMIN') {
+      const [hospital, userRecord] = await Promise.all([
+        prisma.hospital.findUnique({ where: { id: hospitalId }, select: { adminId: true, slotAdmins: { select: { id: true } } } }),
+        prisma.user.findUnique({ where: { id: user.userId }, select: { managedHospitalId: true } }),
+      ]);
+      const isManager = !!hospital && (hospital.adminId === user.userId || (hospital.slotAdmins || []).some((sa: { id: number }) => sa.id === user.userId));
+      const hasManagedRelation = userRecord?.managedHospitalId === hospitalId;
+      if (!isManager && !hasManagedRelation) {
+        return res.status(403).json({ message: 'Forbidden: You do not manage this hospital.' });
+      }
+    }
+
+    const links = await prisma.hospitalDoctor.findMany({ where: { hospitalId }, select: { doctorId: true } });
+    const doctorIds = links.map(l => l.doctorId).filter((id): id is number => Number.isFinite(id as any));
+    if (doctorIds.length === 0) {
+      return res.status(200).json({
+        totalAppointments: 0,
+        pendingAppointments: 0,
+        completedAppointments: 0,
+        totalPatients: 0,
+        todaysBookings: 0,
+        monthlyRevenue: 0,
+        websiteViews: 0,
+      });
+    }
+
+    const now = new Date();
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    const { start: dayStart, end: dayEnd } = dayWindowUtc(todayStr);
+
+    const [
+      totalAppointments,
+      pendingAppointments,
+      completedAppointments,
+      distinctPatients,
+      todaysBookings
+    ] = await Promise.all([
+      prisma.appointment.count({ where: { doctorId: { in: doctorIds } } }),
+      prisma.appointment.count({ where: { doctorId: { in: doctorIds }, status: 'PENDING' } }),
+      prisma.appointment.count({ where: { doctorId: { in: doctorIds }, status: 'COMPLETED' } }),
+      prisma.appointment.findMany({ where: { doctorId: { in: doctorIds }, status: { not: 'CANCELLED' } }, distinct: ['patientId'], select: { patientId: true } }),
+      prisma.appointment.count({ where: { doctorId: { in: doctorIds }, status: { not: 'CANCELLED' }, date: { gte: dayStart, lte: dayEnd } } }),
+    ]);
+
+    return res.status(200).json({
+      totalAppointments,
+      pendingAppointments,
+      completedAppointments,
+      totalPatients: distinctPatients.length,
+      todaysBookings,
+      monthlyRevenue: 0,
+      websiteViews: 0,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'An error occurred while fetching hospital stats.' });
   }
 });
 

@@ -37,6 +37,45 @@ export default function HospitalsPage() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    const refresh = async () => {
+      try {
+        const items = await apiClient.getHospitals({ page: 1, limit: 50 });
+        setHospitals(items || []);
+        setFilteredHospitals(items || []);
+      } catch {}
+    };
+    const onCustom = (e: any) => {
+      const d = e?.detail;
+      if (d?.entityType === 'hospital') refresh();
+    };
+    window.addEventListener('rating:updated', onCustom as EventListener);
+    const onMsg = (msg: MessageEvent) => {
+      const d = msg?.data || {};
+      if (d.type === 'rating:updated' && d.entityType === 'hospital') refresh();
+    };
+    try {
+      bc = new BroadcastChannel('entity_updates');
+      bc.addEventListener('message', onMsg as EventListener);
+    } catch {}
+    const onStorage = (ev: StorageEvent) => {
+      try {
+        if (ev.key === 'entity_updated' && ev.newValue) {
+          const d = JSON.parse(ev.newValue);
+          if (d.type === 'rating:updated' && d.entityType === 'hospital') refresh();
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('rating:updated', onCustom as EventListener);
+      window.removeEventListener('storage', onStorage);
+      try { bc && bc.removeEventListener('message', onMsg as EventListener); } catch {}
+      try { bc && bc.close && bc.close(); } catch {}
+    };
+  }, []);
+
   // Filter hospitals based on search query
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -159,15 +198,11 @@ export default function HospitalsPage() {
                                 e.preventDefault();
                                 const sub = (h as any).subdomain as string | undefined;
                                 if (sub && sub.length > 1) {
-                                  // Use window.location.href for cross-domain navigation
                                   window.location.href = customSubdomainUrl(sub);
                                 } else {
-                                  // Use slugified name for subdomain routing
-                                  const hospitalSlug = slugifyName(h.name);
-                                  window.location.href = hospitalMicrositeUrl(hospitalSlug);
+                                  router.push(`/hospital-site/${h.id}`);
                                 }
                               } else {
-                                // Direct navigation without subdomain routing
                                 router.push(`/hospital-site/${h.id}`);
                               }
                             } catch {}

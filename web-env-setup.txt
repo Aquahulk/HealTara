@@ -1,0 +1,24 @@
+# ============================================================================
+# 🛡️ WEB ENVIRONMENT - Development Setup  
+# This fixes localhost issues while protecting live website
+# ============================================================================
+
+# Environment
+NEXT_PUBLIC_ENV=development
+
+# API Configuration (Local Development)
+NEXT_PUBLIC_API_URL=http://localhost:3001
+
+# Feature Flags (Development)
+NEXT_PUBLIC_ENABLE_DEV_TOOLS=true
+NEXT_PUBLIC_USE_MOCK_DATA=false
+
+# Debug Settings (Development)
+NEXT_PUBLIC_DEBUG_MODE=true
+NEXT_PUBLIC_LOG_LEVEL=debug
+
+# Cache Settings (Development)
+NEXT_PUBLIC_DISABLE_CACHE=true
+
+# Database (Local Development - matches API)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/docproc_dev?sslmode=disable

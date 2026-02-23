@@ -7,7 +7,7 @@ import LiveStatusBar from "@/components/LiveStatusBar";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const hideHeader = pathname?.startsWith("/slot-admin");
+  const hideHeader = pathname?.startsWith("/slot-admin") || pathname === "/dashboard";
 
   return (
     <>

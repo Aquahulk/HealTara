@@ -64,25 +64,70 @@ export const EnhancedRatingDisplay: React.FC<EnhancedRatingDisplayProps> = ({
   });
   const [loading, setLoading] = useState(true);
 
+  const fetchRating = async () => {
+    try {
+      const response = await fetch(
+        `/api/ratings?entityType=${entityType}&entityId=${entityId}`,
+        { cache: 'no-store' }
+      );
+      const result = await response.json();
+      if (result.success) {
+        setRatingData(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch rating:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchRating = async () => {
-      try {
-        const response = await fetch(
-          `/api/ratings?entityType=${entityType}&entityId=${entityId}`
-        );
-        const result = await response.json();
-        
-        if (result.success) {
-          setRatingData(result.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch rating:', error);
-      } finally {
-        setLoading(false);
+    fetchRating();
+  }, [entityType, entityId]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const d = e?.detail;
+      if (!d) return;
+      if (d.entityType === entityType && String(d.entityId) === String(entityId)) {
+        setLoading(true);
+        fetchRating();
       }
     };
+    window.addEventListener('rating:updated', handler as EventListener);
 
-    fetchRating();
+    let bc: BroadcastChannel | null = null;
+    const onMsg = (msg: MessageEvent) => {
+      const d = msg?.data || {};
+      if (d.type === 'rating:updated' && d.entityType === entityType && String(d.entityId) === String(entityId)) {
+        setLoading(true);
+        fetchRating();
+      }
+    };
+    try {
+      bc = new BroadcastChannel('entity_updates');
+      bc.addEventListener('message', onMsg as EventListener);
+    } catch {}
+
+    const onStorage = (ev: StorageEvent) => {
+      try {
+        if (ev.key === 'entity_updated' && ev.newValue) {
+          const d = JSON.parse(ev.newValue);
+          if (d.type === 'rating:updated' && d.entityType === entityType && String(d.entityId) === String(entityId)) {
+            setLoading(true);
+            fetchRating();
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('rating:updated', handler as EventListener);
+      window.removeEventListener('storage', onStorage);
+      try { bc && bc.removeEventListener('message', onMsg as EventListener); } catch {}
+      try { bc && bc.close && bc.close(); } catch {}
+    };
   }, [entityType, entityId]);
 
   const sizeClasses = {

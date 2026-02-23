@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import BookAppointmentModal from "@/components/BookAppointmentModal";
-import { hospitalMicrositeUrl, shouldUseSubdomainNav } from "@/lib/subdomain";
+import { shouldUseSubdomainNav } from "@/lib/subdomain";
 
 interface DoctorProfileLite {
   slug?: string;
@@ -74,11 +74,7 @@ export default function HospitalDoctorsRoster({ doctors, profileDoctors }: Hospi
                     type="button"
                     onClick={() => {
                       const slug = String(hospitalId);
-                      if (shouldUseSubdomainNav()) {
-                        window.location.href = hospitalMicrositeUrl(slug);
-                      } else {
-                        router.push(`/hospital-site/${slug}`);
-                      }
+                      router.push(`/hospital-site/${slug}`);
                     }}
                     className="inline-block bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold px-4 py-2 rounded-lg"
                   >

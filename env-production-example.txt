@@ -1,0 +1,24 @@
+# ============================================================================
+# 🛡️ PRODUCTION ENVIRONMENT - Live Website Only
+# This file keeps your live website safe and separate
+# ============================================================================
+
+# Environment
+NEXT_PUBLIC_ENV=production
+
+# API Configuration (Production)
+NEXT_PUBLIC_API_URL=https://your-live-api-domain.com
+
+# Database (Production)
+DATABASE_URL=postgresql://your-production-db-connection
+
+# Feature Flags (Production)
+NEXT_PUBLIC_ENABLE_DEV_TOOLS=false
+NEXT_PUBLIC_USE_MOCK_DATA=false
+
+# Security Settings
+NEXT_PUBLIC_DEBUG_MODE=false
+NEXT_PUBLIC_LOG_LEVEL=error
+
+# Performance Settings (Production)
+NEXT_PUBLIC_DISABLE_CACHE=false

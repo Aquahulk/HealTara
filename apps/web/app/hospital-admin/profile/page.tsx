@@ -1,4 +1,9 @@
 "use client";
+// Hospital Admin Dashboard: Profile & Team Management
+// Route: /hospital-admin/profile
+// Purpose: Manage hospital profile JSON (general, about, departments, doctors),
+// link real doctors (bookable ON/OFF), assign departments, set microsite subdomain,
+// and upload branding assets like logo.
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -192,17 +197,11 @@ export default function HospitalAdminProfilePage() {
     const v = (s || '').toLowerCase().trim();
     if (!v) return '';
     if (v.length < 2 || v.length > 63) return 'Must be 2-63 characters';
-    if (!/^[a-z0-9.-]+$/.test(v)) return 'Only lowercase letters, numbers, dots, and hyphens';
-    if (v.startsWith('.') || v.endsWith('.')) return 'Cannot start or end with dot';
+    if (v.includes('.')) return 'Enter only the name, not .healtara.com';
+    if (!/^[a-z0-9-]+$/.test(v)) return 'Only lowercase letters, numbers, and hyphens';
     if (v.startsWith('-') || v.endsWith('-')) return 'Cannot start or end with hyphen';
-    if (v.includes('.')) {
-      const parts = v.split('.');
-      if (parts.length < 2) return 'Invalid domain format';
-      if (parts.some(part => part.length === 0)) return 'Invalid domain format';
-      if (parts.some(part => !/^[a-z0-9-]+$/.test(part))) return 'Invalid domain format';
-    }
     const reserved = new Set(['www','api','admin','doctor','doctors','hospital','hospitals']);
-    if (reserved.has(v.split('.')[0])) return 'Reserved subdomain';
+    if (reserved.has(v)) return 'Reserved subdomain';
     return '';
   };
 
@@ -418,6 +417,30 @@ export default function HospitalAdminProfilePage() {
       setMessage(`Doctors saved.${count > 0 ? ` Synced departments for ${count} doctors.` : ''}`);
     } catch (e: any) {
       setMessage(e?.message || 'Failed to save doctors');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const bulkSyncDoctorDepartments = async () => {
+    try {
+      if (!hospitalId) return;
+      setSaving(true);
+      let count = 0;
+      const myHospital = await apiClient.getMyHospital();
+      const hId = myHospital?.id || hospitalId;
+      for (const d of (profile.doctors || [])) {
+        const did = (d as any)?.doctorId;
+        const deptName = Array.isArray((d as any)?.departments) && (d as any).departments[0] ? String((d as any).departments[0]) : '';
+        if (!did || !deptName) continue;
+        try {
+          await apiClient.updateHospitalDoctorDepartment(hId, did, { departmentName: deptName });
+          count++;
+        } catch {}
+      }
+      setMessage(count > 0 ? `Synced departments for ${count} doctors.` : 'No linked doctors to sync');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to sync departments');
     } finally {
       setSaving(false);
     }
@@ -832,19 +855,19 @@ export default function HospitalAdminProfilePage() {
                   </div>
                 </div>
 
-                {/* Microsite Domain */}
+                {/* Hospital Website Domain */}
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Microsite Custom Domain</h2>
-                    <p className="text-sm text-gray-600 mt-1">Your hospital's web address {initialSubdomain && <span className="text-red-600 font-semibold">(Cannot be changed once set)</span>}</p>
+                    <h2 className="text-xl font-bold text-gray-900">Hospital’s Website Domain</h2>
+                    <p className="text-sm text-gray-600 mt-1">One-time setup for your hospital website domain {initialSubdomain && <span className="text-red-600 font-semibold">(Cannot be changed once set)</span>}</p>
                   </div>
                   <div className="p-6">
                     {initialSubdomain ? (
                       <div className="bg-gray-100 border-2 border-gray-300 rounded-xl p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
-                            <p className="text-sm text-gray-600 mb-1">Your Custom Domain:</p>
-                            <p className="text-xl font-bold text-gray-900">{initialSubdomain}</p>
+                            <p className="text-sm text-gray-600 mb-1">Hospital Website Domain:</p>
+                            <p className="text-xl font-bold text-gray-900">{`${initialSubdomain}.`}{process.env.NEXT_PUBLIC_PRIMARY_DOMAIN || 'healtara.com'}</p>
                           </div>
                           <div className="bg-green-100 text-green-800 px-4 py-2 rounded-lg font-semibold text-sm">
                             ✓ Active
@@ -857,18 +880,22 @@ export default function HospitalAdminProfilePage() {
                     ) : (
                       <div className="flex gap-3">
                         <div className="flex-1">
-                          <input
-                            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
-                            placeholder="hospital1.com (your custom domain)"
-                            value={subdomain}
-                            onChange={(e) => {
-                              const v = e.target.value.toLowerCase().trim();
-                              setSubdomain(v);
-                            }}
-                            onBlur={() => checkAvailability(subdomain)}
-                          />
+                          <div className="flex items-stretch">
+                            <input
+                              className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-l-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                              placeholder="hospitalname"
+                              value={subdomain}
+                              onChange={(e) => {
+                                const v = e.target.value.toLowerCase().trim();
+                                setSubdomain(v);
+                              }}
+                              onBlur={() => checkAvailability(subdomain)}
+                            />
+                            <span className="px-4 py-3 bg-gray-100 border-t-2 border-b-2 border-r-2 border-gray-200 rounded-r-xl text-gray-600 select-none">.healtara.com</span>
+                          </div>
                           {subdomainChecking && <p className="text-sm text-gray-500 mt-2">Checking availability…</p>}
                           {subdomainError && <p className="text-sm text-red-600 mt-2">{subdomainError}</p>}
+                          <p className="text-xs text-gray-500 mt-1">Example: hospitalname.healtara.com</p>
                           <p className="text-sm text-amber-600 mt-2 font-medium">
                             ⚠️ Warning: Once saved, this domain cannot be changed!
                           </p>

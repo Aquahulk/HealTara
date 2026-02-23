@@ -78,15 +78,16 @@ export function hospitalIdMicrositeUrl(id: string | number): string {
 export function customSubdomainUrl(sub: string): string {
   const s = (sub || '').toLowerCase().trim();
   if (!s) return '';
-  
-  // Check if it's a custom domain (contains dots)
+  // If a full domain is provided (contains dots), build absolute URL without appending root
   if (s.includes('.')) {
-    // Custom domain - use as-is
-    return buildUrl(s);
-  } else {
-    // Subdomain - use as-is
-    return buildUrl(s);
+    const protocol = typeof window !== "undefined" ? window.location.protocol : "http:";
+    const port = typeof window !== "undefined" && window.location.port ? `:${window.location.port}` : "";
+    const base = `${protocol}//${s}${port}/`;
+    const token = getAuthTokenForNav();
+    return token ? `${base}#authToken=${encodeURIComponent(token)}` : base;
   }
+  // Otherwise treat as subdomain label
+  return buildUrl(s);
 }
 
 // Determine whether to navigate via subdomain microsites.

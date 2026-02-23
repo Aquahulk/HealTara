@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName } from "@/lib/subdomain";
+import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from "@/lib/subdomain";
 
 interface DoctorGridCardProps {
   doctor: Doctor;
@@ -109,9 +109,14 @@ export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery 
                   .getHospitalByDoctorId(doctor.id)
                   .then((resp) => {
                     const hId = resp?.id;
+                    const sub = (resp as any)?.subdomain as string | undefined;
                     if (hId != null) {
                       if (shouldUseSubdomainNav()) {
-                        window.location.href = hospitalIdMicrositeUrl(hId);
+                        if (sub && sub.length > 1) {
+                          window.location.href = customSubdomainUrl(sub);
+                        } else {
+                          window.location.href = hospitalIdMicrositeUrl(hId);
+                        }
                       } else {
                         router.push(`/hospital-site/${String(hId)}`);
                       }
