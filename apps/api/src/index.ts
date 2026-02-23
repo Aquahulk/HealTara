@@ -3562,7 +3562,9 @@ app.get('/api/hospitals/:hospitalId/stats', authMiddleware, async (req: Request,
     }
 
     const links = await prisma.hospitalDoctor.findMany({ where: { hospitalId }, select: { doctorId: true } });
-    const doctorIds = links.map(l => l.doctorId).filter((id): id is number => Number.isFinite(id as any));
+    const doctorIds = links
+      .map((l: { doctorId: number | null }) => l.doctorId)
+      .filter((id: number | null): id is number => Number.isFinite(id as any));
     if (doctorIds.length === 0) {
       return res.status(200).json({
         totalAppointments: 0,
