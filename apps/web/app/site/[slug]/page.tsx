@@ -409,23 +409,23 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             ============================================================================ */}
         <section className="relative -mt-20 md:-mt-32 z-10">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-blue-500">
-              <div className="text-4xl mb-4">🏆</div>
+            <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl p-6 shadow-2xl hover:shadow-blue-500/30 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-blue-500 group">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">🏆</div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Award Winning</h3>
               <p className="text-gray-600 text-sm">Recognized for excellence in patient care and medical innovation</p>
             </div>
-            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-green-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-green-500">
-              <div className="text-4xl mb-4">🔬</div>
+            <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl p-6 shadow-2xl hover:shadow-green-500/30 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-green-500 group">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">🔬</div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Advanced Technology</h3>
               <p className="text-gray-600 text-sm">State-of-the-art medical equipment and diagnostic facilities</p>
             </div>
-            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-purple-500">
-              <div className="text-4xl mb-4">👨‍⚕️</div>
+            <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 shadow-2xl hover:shadow-purple-500/30 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-purple-500 group">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">👨‍⚕️</div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Expert Doctors</h3>
               <p className="text-gray-600 text-sm">Highly qualified specialists with years of experience</p>
             </div>
-            <div className="bg-white rounded-2xl p-6 shadow-2xl hover:shadow-red-500/20 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-red-500">
-              <div className="text-4xl mb-4">❤️</div>
+            <div className="bg-gradient-to-br from-white to-red-50 rounded-2xl p-6 shadow-2xl hover:shadow-red-500/30 transition-all duration-300 transform hover:-translate-y-2 border-t-4 border-red-500 group">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">❤️</div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Patient First</h3>
               <p className="text-gray-600 text-sm">Compassionate care focused on your comfort and recovery</p>
             </div>
@@ -436,32 +436,32 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             🚀 QUICK ACTIONS SECTION - Fast access to key services
             ============================================================================ */}
         <section className="relative">
-          <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl p-8 md:p-12">
+          <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-3xl p-8 md:p-12 shadow-xl">
             <div className="text-center mb-8">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">How Can We Help You Today?</h2>
+              <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3">How Can We Help You Today?</h2>
               <p className="text-gray-600">Quick access to our most popular services</p>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 group border border-gray-100">
                 <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">📅</div>
                 <h3 className="font-bold text-gray-900 text-sm md:text-base">Book Appointment</h3>
                 <p className="text-gray-500 text-xs mt-1">Schedule a visit</p>
               </button>
               
-              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 group border border-gray-100">
                 <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">🚑</div>
                 <h3 className="font-bold text-gray-900 text-sm md:text-base">Emergency</h3>
                 <p className="text-gray-500 text-xs mt-1">24/7 available</p>
               </button>
               
-              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 group border border-gray-100">
                 <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">📋</div>
                 <h3 className="font-bold text-gray-900 text-sm md:text-base">Health Records</h3>
                 <p className="text-gray-500 text-xs mt-1">Access reports</p>
               </button>
               
-              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
+              <button className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 group border border-gray-100">
                 <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">💬</div>
                 <h3 className="font-bold text-gray-900 text-sm md:text-base">Consult Online</h3>
                 <p className="text-gray-500 text-xs mt-1">Video call</p>
@@ -485,18 +485,18 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-12 mb-4 md:mb-16">
               {/* Mission */}
               {about.mission && (
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300">
-                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center">🎯</div>
-                  <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4 text-center">Our Mission</h3>
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 border border-blue-200 group">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center group-hover:scale-110 transition-transform">🎯</div>
+                  <h3 className="text-xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2 md:mb-4 text-center">Our Mission</h3>
                   <p className="text-sm md:text-lg text-gray-700 leading-relaxed text-center">{about.mission}</p>
                 </div>
               )}
               
               {/* Vision */}
               {about.vision && (
-                <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300">
-                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center">👁️</div>
-                  <h3 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-4 text-center">Our Vision</h3>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 border border-green-200 group">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center group-hover:scale-110 transition-transform">👁️</div>
+                  <h3 className="text-xl md:text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-2 md:mb-4 text-center">Our Vision</h3>
                   <p className="text-sm md:text-lg text-gray-700 leading-relaxed text-center">{about.vision}</p>
                 </div>
               )}
@@ -505,18 +505,18 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             {/* Values & History */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-12">
               {about.values && (
-                <div className="bg-gradient-to-br from-purple-50 to-violet-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg">
-                  <div className="text-6xl mb-6 text-center">💎</div>
-                  <h3 className="text-3xl font-bold text-gray-900 mb-6 text-center">Our Values</h3>
-                  <div className="text-gray-700 whitespace-pre-line leading-relaxed">{about.values}</div>
+                <div className="bg-gradient-to-br from-purple-50 to-violet-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-xl border border-purple-200 group">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center group-hover:scale-110 transition-transform">💎</div>
+                  <h3 className="text-xl md:text-3xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent mb-3 md:mb-6 text-center">Our Values</h3>
+                  <div className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">{about.values}</div>
                     </div>
               )}
               
               {about.history && (
-                <div className="bg-gradient-to-br from-orange-50 to-amber-100 p-8 rounded-3xl shadow-lg">
-                  <div className="text-6xl mb-6 text-center">📖</div>
-                  <h3 className="text-3xl font-bold text-gray-900 mb-6 text-center">Our Story</h3>
-                  <div className="text-gray-700 whitespace-pre-line leading-relaxed">{about.history}</div>
+                <div className="bg-gradient-to-br from-orange-50 to-amber-100 p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-xl border border-orange-200 group">
+                  <div className="text-3xl md:text-6xl mb-3 md:mb-6 text-center group-hover:scale-110 transition-transform">📖</div>
+                  <h3 className="text-xl md:text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent mb-3 md:mb-6 text-center">Our Story</h3>
+                  <div className="text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">{about.history}</div>
                     </div>
               )}
                     </div>
@@ -566,9 +566,9 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
             🏥 DEPARTMENTS & SERVICES SECTION - Specialized departments and services - Compact on mobile
             ============================================================================ */}
         {departments.length > 0 && (
-          <section className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-8 md:py-12 rounded-3xl">
+          <section className="relative bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-8 md:py-12 rounded-3xl shadow-xl border border-blue-100">
             <div className="text-center mb-6 md:mb-10">
-              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Our Departments</h2>
+              <h2 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2 md:mb-3">Our Departments</h2>
               <p className="text-sm md:text-lg text-gray-600 max-w-2xl mx-auto">
                 Specialized medical departments with state-of-the-art facilities
               </p>
@@ -579,19 +579,19 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         
         {/* Featured Services Grid - Compact on mobile */}
         {featuredServices.length > 0 && (
-          <section className="relative bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 py-6 md:py-10 rounded-3xl">
+          <section className="relative bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 py-6 md:py-10 rounded-3xl shadow-xl border border-purple-100">
             <div className="text-center mb-5 md:mb-8">
-              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Featured Services</h2>
+              <h2 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 md:mb-3">Featured Services</h2>
               <p className="text-sm md:text-lg text-gray-600">Comprehensive medical care across all specialties</p>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {featuredServices.map((service, index) => (
-                <div key={index} className="bg-white p-4 md:p-6 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 text-center group border border-gray-100">
-                  <div className="text-3xl md:text-4xl mb-2 md:mb-3 group-hover:scale-110 transition-transform duration-300">
+                <div key={index} className="bg-white p-4 md:p-6 rounded-xl shadow-md hover:shadow-2xl transition-all duration-300 text-center group border border-gray-100 hover:border-purple-200 transform hover:-translate-y-1">
+                  <div className="text-3xl md:text-4xl mb-2 md:mb-3 group-hover:scale-125 transition-transform duration-300">
                     {index % 8 === 0 ? '💊' : index % 8 === 1 ? '🔬' : index % 8 === 2 ? '📋' : index % 8 === 3 ? '🩺' : index % 8 === 4 ? '💉' : index % 8 === 5 ? '🏥' : index % 8 === 6 ? '🦠' : '❤️'}
                   </div>
-                  <h3 className="font-semibold text-gray-900 text-xs md:text-sm">{service}</h3>
+                  <h3 className="font-semibold text-gray-900 text-xs md:text-sm group-hover:text-purple-600 transition-colors">{service}</h3>
                 </div>
               ))}
           </div>
@@ -599,9 +599,9 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         )}
 
         {doctorsToShow.length > 0 && (
-          <section id="doctors" className="relative bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 py-8 md:py-12 rounded-3xl">
+          <section id="doctors" className="relative bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 py-8 md:py-12 rounded-3xl shadow-xl border border-green-100">
             <div className="text-center mb-6 md:mb-10">
-              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Our Medical Team</h2>
+              <h2 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent mb-2 md:mb-3">Our Medical Team</h2>
               <p className="text-sm md:text-lg text-gray-600 max-w-2xl mx-auto">
                 Experienced healthcare professionals dedicated to your care
               </p>
@@ -665,20 +665,17 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         </section>
         )}
 
-        {/* Comments Section - Compact and Modern */}
-        <section className="relative bg-gradient-to-br from-gray-50 to-blue-50 py-4 md:py-6 rounded-2xl">
-          <div className="max-w-3xl mx-auto px-3 md:px-4">
-            <div className="text-center mb-3 md:mb-4">
-              <h2 className="text-lg md:text-2xl font-bold text-gray-900 mb-1">Patient Reviews</h2>
-              <p className="text-xs md:text-sm text-gray-600">Share your experience</p>
+        {/* Comments Section - Compact like Amazon */}
+        <section className="relative">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6">
+            <div className="mb-4">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900">Patient Reviews</h2>
             </div>
-            <div className="bg-white rounded-xl shadow-md p-3 md:p-4">
-              <CommentsSection 
-                entityType="hospital" 
-                entityId={String(details.id)} 
-                entityName={name} 
-              />
-            </div>
+            <CommentsSection 
+              entityType="hospital" 
+              entityId={String(details.id)} 
+              entityName={name} 
+            />
           </div>
         </section>
 
@@ -749,29 +746,22 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
         </section>
 
         {/* ============================================================================
-            📞 CTA SECTION - Call to action for appointments and contact
+            📞 CTA SECTION - Compact call to action
             ============================================================================ */}
         <section className="relative">
-          <div className="bg-gradient-to-br from-blue-900 via-blue-700 to-indigo-800 text-white p-6 md:p-16 rounded-3xl shadow-2xl relative overflow-hidden">
-            {/* Background decoration */}
-            <div className="absolute top-0 left-0 w-full h-full">
-              <div className="absolute top-10 right-10 w-32 h-32 bg-white opacity-5 rounded-full"></div>
-              <div className="absolute bottom-10 left-10 w-24 h-24 bg-white opacity-10 rounded-full"></div>
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-white opacity-5 rounded-full"></div>
-            </div>
-            
-            <div className="relative text-center">
-              <div className="text-4xl md:text-8xl mb-4 md:mb-8">🏥</div>
-              <h2 className="text-2xl md:text-5xl font-bold mb-3 md:mb-6">Your Health is Our Priority</h2>
-              <p className="text-sm md:text-2xl mb-6 md:mb-12 text-blue-100 max-w-3xl mx-auto leading-relaxed">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-8 md:p-12 rounded-2xl shadow-xl">
+            <div className="text-center max-w-3xl mx-auto">
+              <div className="text-4xl md:text-5xl mb-4">🏥</div>
+              <h2 className="text-2xl md:text-3xl font-bold mb-3">Your Health is Our Priority</h2>
+              <p className="text-sm md:text-base mb-6 text-blue-100">
                 Experience world-class healthcare with our expert medical team. Book your appointment today and take the first step towards better health.
               </p>
               
-              <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-8">
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
                 {contacts.appointment && (
                   <a 
                     href={`tel:${contacts.appointment}`}
-                    className="bg-white text-brand-primary font-bold py-2 px-6 md:py-6 md:px-12 rounded-xl md:rounded-2xl text-sm md:text-xl hover:bg-gray-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className="bg-white text-blue-600 font-semibold py-3 px-6 rounded-lg text-sm hover:bg-gray-50 transition-all duration-200 shadow-md hover:shadow-lg"
                   >
                     📞 Book Appointment
                   </a>
@@ -782,7 +772,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                     href={general.googleMapsLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-transparent border-2 border-white text-white font-bold py-2 px-6 md:py-6 md:px-12 rounded-xl md:rounded-2xl text-sm md:text-xl hover:bg-white hover:text-brand-primary transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                    className="bg-transparent border-2 border-white text-white font-semibold py-3 px-6 rounded-lg text-sm hover:bg-white hover:text-blue-600 transition-all duration-200"
                   >
                     📍 Visit Us
                   </a>
@@ -790,9 +780,9 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ s
                 
                 <a 
                   href="/doctors"
-                  className="btn-brand text-white font-bold py-6 px-12 rounded-2xl text-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="bg-green-500 text-white font-semibold py-3 px-6 rounded-lg text-sm hover:bg-green-600 transition-all duration-200 shadow-md hover:shadow-lg"
                 >
-                  👩‍⚕️ Find Doctors
+                  �‍⚕️ Find Doctors
                 </a>
               </div>
             </div>
