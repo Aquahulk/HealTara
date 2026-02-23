@@ -429,6 +429,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
   const handleCommentPosted = (newComment: any) => {
     setComments([newComment, ...comments]);
+    // Refresh from server to ensure pagination and counts are in sync
+    loadComments(1);
     try {
       window.dispatchEvent(new CustomEvent('rating:updated', { detail: { entityType, entityId } }));
       try {

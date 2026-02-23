@@ -52,59 +52,66 @@ export async function GET(request: NextRequest) {
         AND rating IS NOT NULL
     `;
 
-    const result = await executeQuery(sql, [entityType, entityId]);
-    
-    if (result.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          averageRating: 0,
-          totalReviews: 0,
-          ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-        }
-      });
-    }
-
-    const row = result[0];
-    let ratingData = {
-      averageRating: parseFloat(row.average_rating) || 0,
-      totalReviews: parseInt(row.total_reviews) || 0,
-      ratingDistribution: {
-        1: parseInt(row.rating_1) || 0,
-        2: parseInt(row.rating_2) || 0,
-        3: parseInt(row.rating_3) || 0,
-        4: parseInt(row.rating_4) || 0,
-        5: parseInt(row.rating_5) || 0
-      }
-    } as {
+    let ratingData: {
       averageRating: number;
       totalReviews: number;
       ratingDistribution: { 1: number; 2: number; 3: number; 4: number; 5: number };
     };
 
     try {
-      if (!ratingData.totalReviews || Number.isNaN(ratingData.totalReviews)) {
-        const key = k(String(entityType), String(entityId));
-        const list = memoryStore.get(key) || [];
-        const ratings: number[] = list
-          .map((c: any) => Number(c?.rating))
-          .filter((n) => Number.isFinite(n) && n > 0);
-        if (ratings.length > 0) {
-          const total = ratings.length;
-          const sum = ratings.reduce((a, b) => a + b, 0);
-          const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<1|2|3|4|5, number>;
-          ratings.forEach((r) => {
-            const v = Math.max(1, Math.min(5, Math.round(r)));
-            dist[v as 1|2|3|4|5] += 1;
-          });
-          ratingData = {
-            averageRating: sum / total,
-            totalReviews: total,
-            ratingDistribution: dist as any,
-          };
-        }
+      const result = await executeQuery(sql, [entityType, entityId]);
+
+      if (result.length === 0) {
+        ratingData = {
+          averageRating: 0,
+          totalReviews: 0,
+          ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+        };
+      } else {
+        const row = result[0];
+        ratingData = {
+          averageRating: parseFloat(row.average_rating) || 0,
+          totalReviews: parseInt(row.total_reviews) || 0,
+          ratingDistribution: {
+            1: parseInt(row.rating_1) || 0,
+            2: parseInt(row.rating_2) || 0,
+            3: parseInt(row.rating_3) || 0,
+            4: parseInt(row.rating_4) || 0,
+            5: parseInt(row.rating_5) || 0
+          }
+        };
       }
-    } catch {}
+
+      if (!ratingData.totalReviews || Number.isNaN(ratingData.totalReviews)) {
+        throw new Error('INVALID_DB_RATING_DATA');
+      }
+    } catch (e) {
+      const key = k(String(entityType), String(entityId));
+      const list = memoryStore.get(key) || [];
+      const ratings: number[] = list
+        .map((c: any) => Number(c?.rating))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (ratings.length > 0) {
+        const total = ratings.length;
+        const sum = ratings.reduce((a, b) => a + b, 0);
+        const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<1|2|3|4|5, number>;
+        ratings.forEach((r) => {
+          const v = Math.max(1, Math.min(5, Math.round(r)));
+          dist[v as 1|2|3|4|5] += 1;
+        });
+        ratingData = {
+          averageRating: sum / total,
+          totalReviews: total,
+          ratingDistribution: dist as any,
+        };
+      } else {
+        ratingData = {
+          averageRating: 0,
+          totalReviews: 0,
+          ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        };
+      }
+    }
 
     return NextResponse.json({
       success: true,
