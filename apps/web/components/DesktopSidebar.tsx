@@ -98,24 +98,24 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
 
   return (
     <aside 
-      className={`hidden md:flex flex-col bg-white border-r border-gray-200 shadow-sm transition-all duration-300 fixed left-0 top-0 h-screen z-40 ${
+      className={`hidden md:flex flex-col bg-gradient-to-b from-blue-600 to-blue-800 border-r border-blue-900 shadow-lg transition-all duration-300 fixed left-0 top-0 h-screen z-40 ${
         isCollapsed ? "w-20" : "w-64"
       } ${className}`}
     >
       {/* Sidebar Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-blue-700">
         {!isCollapsed && (
-          <h2 className="text-lg font-bold text-gray-900">Navigation</h2>
+          <h2 className="text-lg font-bold text-white">Navigation</h2>
         )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors ml-auto"
+          className="p-2 rounded-lg hover:bg-blue-700 transition-colors ml-auto"
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? (
-            <ChevronRight className="w-5 h-5 text-gray-600" />
+            <ChevronRight className="w-5 h-5 text-white" />
           ) : (
-            <ChevronLeft className="w-5 h-5 text-gray-600" />
+            <ChevronLeft className="w-5 h-5 text-white" />
           )}
         </button>
       </div>
@@ -135,8 +135,8 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
                     w-full flex items-center gap-3 px-3 py-3 rounded-lg
                     transition-all duration-200
                     ${active 
-                      ? "bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-md" 
-                      : "text-gray-700 hover:bg-gray-100"
+                      ? "bg-white text-blue-600 shadow-md" 
+                      : "text-blue-100 hover:bg-blue-700"
                     }
                     ${isCollapsed ? "justify-center" : ""}
                   `}
@@ -144,18 +144,18 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
                 >
                   <Icon 
                     className={`w-5 h-5 flex-shrink-0 ${
-                      active ? "text-white" : "text-gray-600"
+                      active ? "text-blue-600" : "text-blue-200"
                     }`}
                   />
                   {!isCollapsed && (
                     <div className="flex-1 text-left">
                       <div className={`font-semibold text-sm ${
-                        active ? "text-white" : "text-gray-900"
+                        active ? "text-blue-600" : "text-white"
                       }`}>
                         {item.label}
                       </div>
                       <div className={`text-xs ${
-                        active ? "text-white/80" : "text-gray-500"
+                        active ? "text-blue-500" : "text-blue-200"
                       }`}>
                         {item.description}
                       </div>
@@ -170,15 +170,15 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
 
       {/* Sidebar Footer */}
       {!isCollapsed && (
-        <div className="p-4 border-t border-gray-200">
-          <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 rounded-lg p-3 border border-emerald-200">
+        <div className="p-4 border-t border-blue-700">
+          <div className="bg-blue-700 rounded-lg p-3 border border-blue-600">
             <div className="flex items-start gap-2">
-              <FileText className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <FileText className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                <h3 className="text-sm font-semibold text-white mb-1">
                   Quick Tip
                 </h3>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-blue-100">
                   Save your favorite doctors for faster booking next time!
                 </p>
               </div>

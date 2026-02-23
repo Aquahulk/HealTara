@@ -370,72 +370,61 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50 to-blue-50 overflow-x-hidden">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       <Header />
       
       {/* Desktop Sidebar - Fixed position */}
       <DesktopSidebar />
       
       {/* Main content area - Adjusts margin based on sidebar using CSS variable */}
-      <main className="pt-10 overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,16rem)]">
+      <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,16rem)]">
         {/* ============================================================================
-            🌟 HERO SECTION - Main landing area with search (BLUE GRADIENT)
+            🌟 HERO SECTION - Modern glassmorphism design
             ============================================================================ */}
-        <section className="relative py-6 md:py-16 px-4 overflow-visible bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 max-h-[50vh] md:max-h-none">
-          {/* Enhanced Background Pattern */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 via-blue-500/95 to-cyan-500/90" />
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.1%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30" />
-          
-          {/* Floating Medical Icons - Hidden on mobile */}
-          <motion.div
-            animate={{ y: [0, -20, 0], rotate: [0, 5, 0] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            className="hidden md:block absolute top-20 left-20 text-4xl opacity-30"
-          >
-            <Stethoscope className="text-white" />
-          </motion.div>
-          
-          <motion.div
-            animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="hidden md:block absolute top-32 right-32 text-3xl opacity-25"
-          >
-            <Pill className="text-white" />
-          </motion.div>
+        <section className="relative min-h-[600px] flex items-center justify-center overflow-hidden">
+          {/* Animated gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500">
+            <div className="absolute inset-0 opacity-30">
+              <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+              <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+              <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+            </div>
+          </div>
 
-          <div className="relative z-10 max-w-6xl mx-auto text-center">
+          <div className="relative z-10 max-w-6xl mx-auto px-4 py-16">
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
+              transition={{ duration: 0.6 }}
+              className="text-center mb-8"
             >
-              <h1 className="text-xl md:text-4xl lg:text-6xl font-black text-white mb-2 md:mb-6 leading-tight drop-shadow-lg">
-                Find Trusted Doctors
-                <span className="block bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
-                  Near You
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-white mb-4 leading-tight">
+                Your Health,
+                <span className="block bg-gradient-to-r from-yellow-300 to-pink-300 bg-clip-text text-transparent">
+                  Our Priority
                 </span>
               </h1>
               
-              <p className="text-sm md:text-lg lg:text-xl text-blue-100 mb-3 md:mb-8 max-w-3xl mx-auto leading-relaxed drop-shadow-md">
-                Book in seconds. Get the best healthcare with our verified network of doctors and hospitals.
+              <p className="text-lg md:text-xl text-white/90 mb-8 max-w-2xl mx-auto font-medium">
+                Connect with verified doctors instantly. Book appointments in 60 seconds.
               </p>
             </motion.div>
 
-            {/* Advanced Search Container */}
+            {/* Modern Search Card with Glassmorphism */}
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="max-w-4xl mx-auto mb-3 md:mb-8"
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="max-w-4xl mx-auto"
             >
-              <div className="bg-white/95 backdrop-blur-sm border border-white/20 rounded-2xl md:rounded-3xl p-3 md:p-8 shadow-2xl">
-                <div className="space-y-3 md:space-y-6">
+              <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-6 shadow-2xl">
+                <div className="space-y-4">
                   {/* Main Search */}
                   <div className="relative z-30">
-                    <Search className="absolute left-3 md:left-6 top-1/2 transform -translate-y-1/2 w-4 h-4 md:w-6 md:h-6 text-gray-400" />
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/70" />
                     <input
                       type="text"
-                      placeholder="Search by Doctor / Specialty / Location"
+                      placeholder="Search doctors, specialties, or conditions..."
                       value={searchQuery}
                       onChange={async (e) => {
                         const raw = e.target.value;
@@ -454,7 +443,6 @@ export default function HomePage() {
                           return;
                         }
 
-                        // Instant suggestions based on active token (cursor-focused)
                         let quick: string[] = [];
                         if (active) {
                           const cachedTok = apiClient.peekCachedSearch(active);
@@ -480,7 +468,6 @@ export default function HomePage() {
                             topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id),
                           });
                         } catch {
-                          // Keep quick suggestions; still record minimal analytics
                           apiClient.trackSearchDebounced(q);
                         }
                       }}
@@ -505,14 +492,14 @@ export default function HomePage() {
                           }
                         }
                       }}
-                      className="w-full pl-9 md:pl-16 pr-3 md:pr-6 py-2 md:py-3 bg-white border-2 border-gray-200 rounded-xl md:rounded-2xl text-sm md:text-base text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="w-full pl-12 pr-4 py-4 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-2xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all text-lg"
                     />
                     {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl shadow-lg z-50 max-h-60 overflow-auto">
+                      <div className="absolute left-0 right-0 top-full mt-2 backdrop-blur-xl bg-white/95 border border-white/20 rounded-2xl shadow-2xl z-50 max-h-60 overflow-auto">
                         {suggestions.map((s, i) => (
                           <button
                             key={i}
-                            className="w-full text-left px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 hover:bg-gray-50"
+                            className="w-full text-left px-4 py-3 text-gray-900 hover:bg-blue-50 transition-colors"
                             onMouseDown={(ev) => {
                               const raw = searchQuery;
                               const inputEl = ev.currentTarget.ownerDocument.querySelector('input[type="text"]') as HTMLInputElement | null;
@@ -539,112 +526,96 @@ export default function HomePage() {
                   </div>
 
                   {/* Filters Row */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <select
                       value={selectedSpecialization}
                       onChange={(e) => setSelectedSpecialization(e.target.value)}
-                      className="px-2 md:px-4 py-1.5 md:py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-xs md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all"
                     >
-                      <option value="">Specialization</option>
-                      <option value="cardiology">Cardiology</option>
-                      <option value="dermatology">Dermatology</option>
-                      <option value="neurology">Neurology</option>
-                      <option value="orthopedics">Orthopedics</option>
+                      <option value="" className="text-gray-900">Specialization</option>
+                      <option value="cardiology" className="text-gray-900">Cardiology</option>
+                      <option value="dermatology" className="text-gray-900">Dermatology</option>
+                      <option value="neurology" className="text-gray-900">Neurology</option>
+                      <option value="orthopedics" className="text-gray-900">Orthopedics</option>
                     </select>
 
                     <select
                       value={selectedCity}
                       onChange={(e) => setSelectedCity(e.target.value)}
-                      className="px-2 md:px-4 py-1.5 md:py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-xs md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all"
                     >
-                      <option value="">City/Town</option>
-                      <option value="mumbai">Mumbai</option>
-                      <option value="delhi">Delhi</option>
-                      <option value="bangalore">Bangalore</option>
-                      <option value="chennai">Chennai</option>
+                      <option value="" className="text-gray-900">City/Town</option>
+                      <option value="mumbai" className="text-gray-900">Mumbai</option>
+                      <option value="delhi" className="text-gray-900">Delhi</option>
+                      <option value="bangalore" className="text-gray-900">Bangalore</option>
+                      <option value="chennai" className="text-gray-900">Chennai</option>
                     </select>
 
                     <select
                       value={selectedAvailability}
                       onChange={(e) => setSelectedAvailability(e.target.value)}
-                      className="px-2 md:px-4 py-1.5 md:py-2 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl text-xs md:text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 transition-all duration-300"
+                      className="px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all"
                     >
-                      <option value="">Availability</option>
-                      <option value="today">Today</option>
-                      <option value="tomorrow">Tomorrow</option>
-                      <option value="week">This Week</option>
+                      <option value="" className="text-gray-900">Availability</option>
+                      <option value="today" className="text-gray-900">Today</option>
+                      <option value="tomorrow" className="text-gray-900">Tomorrow</option>
+                      <option value="week" className="text-gray-900">This Week</option>
                     </select>
 
-                    <label className="flex items-center justify-center px-2 md:px-4 py-1.5 md:py-3 bg-white border-2 border-gray-200 rounded-lg md:rounded-xl cursor-pointer hover:bg-emerald-50 transition-all duration-300">
+                    <label className="flex items-center justify-center px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl cursor-pointer hover:bg-white/30 transition-all">
                       <input
                         type="checkbox"
                         checked={isOnline}
                         onChange={(e) => setIsOnline(e.target.checked)}
-                        className="mr-1 md:mr-2 w-3 h-3 md:w-4 md:h-4 text-emerald-600 focus:ring-emerald-500"
+                        className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-xs md:text-base text-gray-700 font-medium">Online</span>
+                      <span className="text-white font-medium">Online</span>
                     </label>
                   </div>
 
-                  <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-2.5 md:py-4 px-4 md:px-8 rounded-xl md:rounded-2xl hover:from-blue-700 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-lg text-sm md:text-lg">
+                  <button className="w-full bg-gradient-to-r from-yellow-400 to-pink-500 text-white font-bold py-4 px-6 rounded-2xl hover:from-yellow-500 hover:to-pink-600 transition-all transform hover:scale-[1.02] shadow-2xl text-lg">
                     Find a Doctor Now
                   </button>
                 </div>
               </div>
             </motion.div>
-
-            {/* Scroll Indicator - Hidden on mobile */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="hidden md:block absolute bottom-8 left-1/2 transform -translate-x-1/2"
-            >
-              <motion.div
-                animate={{ y: [0, 10, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="text-white/80"
-              >
-                <ArrowDown className="w-8 h-8" />
-              </motion.div>
-            </motion.div>
           </div>
         </section>
 
         {/* ============================================================================
-            🎯 QUICK ACCESS SECTION - Easy navigation tiles (ENHANCED GREEN GRADIENT)
+            🎯 QUICK ACCESS SECTION - Modern card grid
             ============================================================================ */}
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%)'
-        }}>
+        <section className="py-16 px-4 bg-gradient-to-b from-gray-50 to-white">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
-                Quick Access
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3">
+                Explore Healthcare Services
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-pink-200 mx-auto mb-4"></div>
-              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
-                Choose from our comprehensive healthcare categories
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Everything you need for your health, all in one place
               </p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {categories.map((category, index) => (
                 <motion.div
                   key={index}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
+                  whileHover={{ y: -8, scale: 1.02 }}
                   className="group cursor-pointer"
                 >
                   <a href={category.link} className="block">
-                    <div className="bg-white/95 backdrop-blur-sm rounded-2xl md:rounded-3xl p-4 md:p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30 hover:border-white/50">
-                      <div className={`w-12 h-12 md:w-14 md:h-14 bg-gradient-to-r ${category.color} rounded-xl md:rounded-2xl flex items-center justify-center mx-auto mb-3 md:mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                        <category.icon className="w-6 h-6 md:w-8 md:h-8 text-white" />
+                    <div className="relative bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-2xl transition-all border border-gray-100 overflow-hidden">
+                      {/* Gradient overlay on hover */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${category.color} opacity-0 group-hover:opacity-10 transition-opacity`}></div>
+                      
+                      <div className={`relative w-16 h-16 bg-gradient-to-br ${category.color} rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
+                        <category.icon className="w-8 h-8 text-white" />
                       </div>
-                      <h3 className="text-base md:text-xl font-bold text-gray-900 mb-1 md:mb-2">{category.title}</h3>
-                      <p className="text-xs md:text-base text-gray-600">{category.description}</p>
+                      <h3 className="text-base font-bold text-gray-900 mb-1">{category.title}</h3>
+                      <p className="text-sm text-gray-600">{category.description}</p>
                     </div>
                   </a>
                 </motion.div>
@@ -654,39 +625,51 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            🔀 TOGGLE SECTION - Switch between Doctors and Hospitals grids (ENHANCED BLUE GRADIENT)
+            🔀 TOGGLE SECTION - Modern tab switcher
             ============================================================================ */}
-        <section className="py-8 px-4" style={{
-          background:  'linear-gradient(90deg, rgba(90, 89, 181, 1) 0%, rgb(99, 99, 224) 27%, rgba(0, 212, 255, 1) 100%)'
-        }}>
+        <section className="py-12 px-4 bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center gap-4">
               <button
                 onClick={() => setActiveGrid('doctors')}
-                className={`px-6 py-3 rounded-2xl font-bold shadow-sm transition-all duration-300 border ${
+                className={`relative px-8 py-4 rounded-2xl font-bold shadow-lg transition-all overflow-hidden ${
                   activeGrid === 'doctors'
-                    ? 'btn-brand text-white'
-                    : 'bg-white text-gray-800 hover:text-brand-primary hover:border-brand-300'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white scale-105'
+                    : 'bg-white text-gray-800 border-2 border-gray-200 hover:border-blue-400 hover:scale-105'
                 }`}
               >
-                Featured Doctors
+                <span className="relative z-10">Featured Doctors</span>
+                {activeGrid === 'doctors' && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
               </button>
               <button
                 onClick={() => setActiveGrid('hospitals')}
-                className={`px-6 py-3 rounded-2xl font-bold shadow-sm transition-all duration-300 border ${
+                className={`relative px-8 py-4 rounded-2xl font-bold shadow-lg transition-all overflow-hidden ${
                   activeGrid === 'hospitals'
-                    ? 'btn-brand text-white'
-                    : 'bg-white text-gray-800 hover:text-brand-primary hover:border-brand-300'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white scale-105'
+                    : 'bg-white text-gray-800 border-2 border-gray-200 hover:border-purple-400 hover:scale-105'
                 }`}
               >
-                Partner Hospitals
+                <span className="relative z-10">Partner Hospitals</span>
+                {activeGrid === 'hospitals' && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
               </button>
             </div>
           </div>
         </section>
 
         {/* ============================================================================
-            👨‍⚕️ FEATURED DOCTORS SECTION - Top-rated doctors (CUSTOM PURPLE-BLUE GRADIENT)
+            👨‍⚕️ FEATURED DOCTORS SECTION - Top-rated doctors
             ============================================================================ */}
         {activeGrid === 'doctors' && (
         <section className="py-16 px-4" style={{
@@ -1011,82 +994,103 @@ export default function HomePage() {
         )}
 
         {/* ============================================================================
-            🛡️ TRUSTED HEALTHCARE PROVIDERS SECTION - Social proof and verification (GREEN GRADIENT)
+            🛡️ TRUSTED HEALTHCARE PROVIDERS SECTION - Modern stats showcase
             ============================================================================ */}
-        <section className="py-16 px-4 bg-gradient-to-br from-green-300 via-emerald-300 to-teal-300">
+        <section className="py-16 px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
-                Trusted Healthcare Providers
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3">
+                Trusted by Thousands
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-green-100 mx-auto mb-4"></div>
-              <p className="text-xl text-green-100 max-w-2xl mx-auto drop-shadow-md">
-                Join thousands of verified healthcare providers and satisfied patients
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Join our growing community of healthcare providers and satisfied patients
               </p>
             </div>
 
-            {/* Trust Indicators */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-              <div className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30">
-                <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Shield className="w-10 h-10 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">Verified Doctors Only</h3>
-                <p className="text-green-100">All doctors are verified by license ID</p>
-              </div>
-              
-              <div className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30">
-                <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Star className="w-10 h-10 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">Real Reviews</h3>
-                <p className="text-green-100">10,000+ verified patient reviews</p>
-              </div>
-              
-              <div className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30">
-                <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Award className="w-10 h-10 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-2">Quality Assured</h3>
-                <p className="text-green-100">Premium healthcare standards maintained</p>
-              </div>
-            </div>
-
-            {/* Statistics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {/* Statistics Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
               {stats.map((stat, index) => (
                 <motion.div
                   key={index}
-                  initial={{ opacity: 0, scale: 0.8 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
-                  className="text-center bg-white/20 backdrop-blur-sm rounded-3xl p-6 border border-white/30"
+                  whileHover={{ scale: 1.05 }}
+                  className="relative group"
                 >
-                  <div className="w-14 h-14 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <stat.icon className="w-7 h-7 text-white" />
+                  <div className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all border border-gray-100 text-center overflow-hidden">
+                    {/* Gradient overlay on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    
+                    <div className="relative">
+                      <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <stat.icon className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="text-3xl md:text-4xl font-black text-gray-900 mb-2">
+                        {stat.value.toLocaleString()}+
+                      </div>
+                      <div className="text-sm font-medium text-gray-600">{stat.label}</div>
+                    </div>
                   </div>
-                  <div className="text-3xl font-black text-white mb-2">
-                    {stat.value.toLocaleString()}+
-                  </div>
-                  <div className="text-green-100 font-medium">{stat.label}</div>
                 </motion.div>
               ))}
+            </div>
+
+            {/* Trust Indicators */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 text-center"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Shield className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Verified Doctors Only</h3>
+                <p className="text-sm text-gray-600">All doctors verified by license ID</p>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 text-center"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Star className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Real Reviews</h3>
+                <p className="text-sm text-gray-600">10,000+ verified patient reviews</p>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 text-center"
+              >
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Award className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Quality Assured</h3>
+                <p className="text-sm text-gray-600">Premium healthcare standards</p>
+              </motion.div>
             </div>
           </div>
         </section>
 
         {/* ============================================================================
-            📋 HOW IT WORKS SECTION - 3-step process (BLUE GRADIENT)
+            📋 HOW IT WORKS SECTION - Modern step-by-step
             ============================================================================ */}
-        <section className="py-16 px-4 bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400">
+        <section className="py-16 px-4 bg-gradient-to-br from-blue-900 to-blue-800">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-3">
                 How It Works
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-blue-100 mx-auto mb-4"></div>
-              <p className="text-xl text-blue-100 max-w-2xl mx-auto drop-shadow-md">
-                Simple 3-step process to get the healthcare you need
+              <p className="text-lg text-blue-100 max-w-2xl mx-auto">
+                Get started in 3 simple steps
               </p>
             </div>
 
@@ -1094,24 +1098,32 @@ export default function HomePage() {
               {howItWorks.map((step, index) => (
                 <motion.div
                   key={index}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.2 }}
-                  className="text-center relative"
+                  className="relative"
                 >
-                  <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30">
-                    <div className="w-16 h-16 bg-white/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <step.icon className="w-10 h-10 text-white" />
+                  <div className="relative bg-gradient-to-br from-blue-50 to-purple-50 rounded-3xl p-8 shadow-lg hover:shadow-2xl transition-all border border-gray-100 text-center group">
+                    {/* Step number badge */}
+                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-white font-black text-xl">{step.step}</span>
+                      </div>
                     </div>
-                    <div className="text-5xl font-black text-white mb-4">{step.step}</div>
-                    <h3 className="text-2xl font-bold text-white mb-4">{step.title}</h3>
-                    <p className="text-blue-100 text-base">{step.description}</p>
+                    
+                    <div className="mt-6">
+                      <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg group-hover:scale-110 transition-transform">
+                        <step.icon className="w-10 h-10 text-white" />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-3">{step.title}</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
+                    </div>
                   </div>
                   
                   {/* Connector Arrow */}
                   {index < howItWorks.length - 1 && (
-                    <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2">
-                      <ChevronRight className="w-8 h-8 text-white" />
+                    <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
+                      <ChevronRight className="w-8 h-8 text-purple-400" />
                     </div>
                   )}
                 </motion.div>
@@ -1121,37 +1133,39 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            ✅ WHY CHOOSE US SECTION - USP highlights (ENHANCED TEAL GRADIENT)
+            ✅ WHY CHOOSE US SECTION - Modern feature grid
             ============================================================================ */}
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)'
-        }}>
+        <section className="py-16 px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3">
                 Why Choose Us
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-teal-200 mx-auto mb-4"></div>
-              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
-                Experience the future of healthcare with our revolutionary platform
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Experience healthcare reimagined for the digital age
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {whyChooseUs.map((feature, index) => (
                 <motion.div
                   key={index}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
+                  whileHover={{ y: -8, scale: 1.02 }}
                 >
-                  <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30 hover:border-white/50">
-                    <div className="w-14 h-14 gradient-brand-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <feature.icon className="w-8 h-8 text-white" />
+                  <div className="relative bg-white rounded-3xl p-6 text-center shadow-lg hover:shadow-2xl transition-all border border-gray-100 h-full overflow-hidden group">
+                    {/* Gradient overlay on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    
+                    <div className="relative">
+                      <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 transition-transform">
+                        <feature.icon className="w-8 h-8 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-3">{feature.title}</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">{feature.description}</p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">{feature.title}</h3>
-                    <p className="text-gray-600 leading-relaxed text-base">{feature.description}</p>
                   </div>
                 </motion.div>
               ))}
@@ -1160,43 +1174,46 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            💬 REVIEWS & TESTIMONIALS SECTION - Social proof (ENHANCED CORAL GRADIENT)
+            💬 REVIEWS & TESTIMONIALS SECTION - Modern carousel
             ============================================================================ */}
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)'
-        }}>
+        <section className="py-16 px-4 bg-gradient-to-br from-blue-900 to-indigo-900">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
+              <h2 className="text-3xl md:text-4xl font-black text-white mb-3">
                 What Our Users Say
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-orange-200 mx-auto mb-4"></div>
-              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
-                Real stories from real patients and healthcare providers
+              <p className="text-lg text-blue-100 max-w-2xl mx-auto">
+                Real stories from real people
               </p>
             </div>
 
             <div className="relative max-w-4xl mx-auto">
               <motion.div
                 key={currentTestimonial}
-                initial={{ opacity: 0, x: 50 }}
+                initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                transition={{ duration: 0.5 }}
-                className="bg-white/95 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-white/30 text-center"
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.4 }}
+                className="relative bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-3xl p-10 shadow-2xl border border-gray-100 text-center overflow-hidden"
               >
-                <div className="text-4xl mb-4">{testimonials[currentTestimonial].avatar}</div>
-                <div className="flex justify-center mb-4">
-                  {[...Array(testimonials[currentTestimonial].rating)].map((_, i) => (
-                    <Star key={i} className="w-6 h-6 text-yellow-500 fill-current" />
-                  ))}
-                </div>
-                <blockquote className="text-xl text-gray-700 mb-4 leading-relaxed">
-                  "{testimonials[currentTestimonial].content}"
-                </blockquote>
-                <div>
-                  <div className="text-lg font-bold text-gray-900">{testimonials[currentTestimonial].name}</div>
-                  <div className="text-brand-600 font-medium">{testimonials[currentTestimonial].role}</div>
+                {/* Decorative elements */}
+                <div className="absolute top-0 left-0 w-32 h-32 bg-blue-200 rounded-full filter blur-3xl opacity-20"></div>
+                <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-200 rounded-full filter blur-3xl opacity-20"></div>
+                
+                <div className="relative">
+                  <div className="text-6xl mb-4">{testimonials[currentTestimonial].avatar}</div>
+                  <div className="flex justify-center mb-4">
+                    {[...Array(testimonials[currentTestimonial].rating)].map((_, i) => (
+                      <Star key={i} className="w-6 h-6 text-yellow-500 fill-current" />
+                    ))}
+                  </div>
+                  <blockquote className="text-lg text-gray-700 mb-6 leading-relaxed font-medium">
+                    "{testimonials[currentTestimonial].content}"
+                  </blockquote>
+                  <div>
+                    <div className="text-lg font-bold text-gray-900">{testimonials[currentTestimonial].name}</div>
+                    <div className="text-sm text-purple-600 font-semibold">{testimonials[currentTestimonial].role}</div>
+                  </div>
                 </div>
               </motion.div>
 
@@ -1206,8 +1223,10 @@ export default function HomePage() {
                   <button
                     key={index}
                     onClick={() => setCurrentTestimonial(index)}
-                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                      index === currentTestimonial ? 'bg-brand-primary' : 'bg-gray-300'
+                    className={`h-2 rounded-full transition-all ${
+                      index === currentTestimonial 
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 w-8' 
+                        : 'bg-gray-300 w-2 hover:bg-gray-400'
                     }`}
                   />
                 ))}
@@ -1217,50 +1236,47 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            📍 FIND DOCTORS IN YOUR AREA SECTION - Map and location-based search (CUSTOM GREEN GRADIENT)
+            📍 FIND DOCTORS IN YOUR AREA SECTION
             ============================================================================ */}
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(to bottom, #99f2c8, #1f4037)'
-        }}>
+        <section className="py-12 px-4 bg-gradient-to-br from-green-50 to-emerald-50">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
                 Find Doctors in Your Area
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-green-100 mx-auto mb-4"></div>
-              <p className="text-xl text-green-100 max-w-2xl mx-auto drop-shadow-md">
+              <p className="text-base text-gray-600 max-w-2xl mx-auto">
                 Interactive map view showing available doctors in your city
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
               <div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-8 h-80 flex items-center justify-center border border-white/30">
+                <div className="bg-white rounded-xl p-8 h-64 flex items-center justify-center border border-gray-200 shadow-md">
                   <div className="text-center">
-                    <MapIcon className="w-20 h-20 text-white mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-white mb-3">Interactive Map</h3>
-                    <p className="text-green-100 text-lg">Coming Soon - View doctors on map</p>
+                    <MapIcon className="w-16 h-16 text-gray-400 mx-auto mb-3" />
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Interactive Map</h3>
+                    <p className="text-sm text-gray-600">Coming Soon - View doctors on map</p>
                   </div>
                 </div>
               </div>
               
-              <div className="space-y-6">
-                <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-6 shadow-lg border border-white/30">
-                  <h3 className="text-xl font-bold text-white mb-4">Auto-detect Location</h3>
-                  <button className="w-full bg-white/30 text-white font-bold py-4 px-6 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg border border-white/30">
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl p-5 shadow-md border border-gray-200">
+                  <h3 className="text-base font-bold text-gray-900 mb-3">Auto-detect Location</h3>
+                  <button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 px-4 rounded-lg transition-all hover:from-blue-700 hover:to-indigo-700 shadow-md">
                     Find Nearby Doctors
                   </button>
                 </div>
                 
-                <div className="bg-white/20 backdrop-blur-sm rounded-3xl p-6 shadow-lg border border-white/30">
-                  <h3 className="text-xl font-bold text-white mb-4">Search by City</h3>
-                  <div className="space-y-4">
+                <div className="bg-white rounded-xl p-5 shadow-md border border-gray-200">
+                  <h3 className="text-base font-bold text-gray-900 mb-3">Search by City</h3>
+                  <div className="space-y-3">
                     <input
                       type="text"
                       placeholder="Enter your city name"
-                      className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-green-100 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/50 transition-all duration-300"
+                      className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     />
-                    <button className="w-full bg-white/30 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg border border-white/30">
+                    <button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-all hover:from-blue-700 hover:to-indigo-700 shadow-md">
                       Search City
                     </button>
                   </div>
@@ -1271,23 +1287,20 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            📚 HEALTH AWARENESS BLOG SECTION - SEO and trust building (ENHANCED LAVENDER GRADIENT)
+            📚 HEALTH AWARENESS BLOG SECTION
             ============================================================================ */}
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)'
-        }}>
+        <section className="py-12 px-4 bg-gradient-to-br from-blue-900 to-indigo-900">
           <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
                 Health Tips from Our Doctors
               </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-pink-200 mx-auto mb-4"></div>
-              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
+              <p className="text-base text-blue-100 max-w-2xl mx-auto">
                 Expert advice and health awareness articles
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
                 {
                   title: "Dengue Prevention Tips",
@@ -1313,23 +1326,23 @@ export default function HomePage() {
               ].map((article, index) => (
                 <motion.div
                   key={index}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ scale: 1.02 }}
                 >
-                  <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/30">
-                    <div className="gradient-brand-accent text-white px-4 py-2 rounded-full text-sm font-medium inline-block mb-4">
+                  <div className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-all border border-gray-100">
+                    <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-semibold inline-block mb-3">
                       {article.category}
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{article.title}</h3>
-                    <p className="text-gray-600 mb-4 leading-relaxed text-base">{article.excerpt}</p>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{article.title}</h3>
+                    <p className="text-sm text-gray-600 mb-4 leading-relaxed">{article.excerpt}</p>
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-sm text-gray-500">By {article.author}</div>
-                        <div className="text-sm text-gray-400">{article.readTime}</div>
+                        <div className="text-xs text-gray-500">By {article.author}</div>
+                        <div className="text-xs text-gray-400">{article.readTime}</div>
                       </div>
-                      <button className="btn-brand text-white font-bold py-2 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg text-sm">
+                      <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-all hover:from-blue-700 hover:to-indigo-700 shadow-md text-xs">
                         Read More
                       </button>
                     </div>
@@ -1341,26 +1354,24 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            🎯 CALL TO ACTION BANNERS - Conversion focused (ENHANCED SUNSET GRADIENT)
+            🎯 CALL TO ACTION BANNERS - Conversion focused
             ============================================================================ */}
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%)'
-        }}>
+        <section className="py-12 px-4 bg-gradient-to-br from-blue-600 to-indigo-700">
           <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* For Doctors */}
               <motion.div
-                initial={{ opacity: 0, x: -30 }}
+                initial={{ opacity: 0, x: -20 }}
                 whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8 }}
-                className="gradient-brand-accent rounded-3xl p-8 text-white text-center"
+                transition={{ duration: 0.6 }}
+                className="bg-white rounded-xl p-6 text-center shadow-lg"
               >
-                <div className="text-4xl mb-4">👨‍⚕️</div>
-                <h3 className="text-2xl font-black mb-3">Join 200+ Verified Doctors Already Onboard!</h3>
-                <p className="text-lg mb-6 opacity-90">Expand your practice and reach more patients</p>
+                <div className="text-3xl mb-3">👨‍⚕️</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Join 200+ Verified Doctors</h3>
+                <p className="text-sm text-gray-600 mb-4">Expand your practice and reach more patients</p>
                 <a
                   href="/register/doctor-hospital?role=doctor"
-                  className="bg-white text-brand-600 font-bold py-3 px-6 rounded-2xl hover:bg-gray-100 transition-all duration-300 transform hover:scale-105 shadow-lg inline-block text-base"
+                  className="inline-block bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md text-sm"
                 >
                   Register as Doctor
                 </a>
@@ -1368,17 +1379,17 @@ export default function HomePage() {
 
               {/* For Users */}
               <motion.div
-                initial={{ opacity: 0, x: 30 }}
+                initial={{ opacity: 0, x: 20 }}
                 whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8 }}
-                className="gradient-brand rounded-3xl p-8 text-white text-center"
+                transition={{ duration: 0.6 }}
+                className="bg-white rounded-xl p-6 text-center shadow-lg"
               >
-                <div className="text-4xl mb-4">👩‍💼</div>
-                <h3 className="text-2xl font-black mb-3">Find Your Doctor Today. Book in 2 Minutes.</h3>
-                <p className="text-lg mb-6 opacity-90">Get the healthcare you deserve, when you need it</p>
+                <div className="text-3xl mb-3">👩‍💼</div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Find Your Doctor Today</h3>
+                <p className="text-sm text-gray-600 mb-4">Get the healthcare you deserve, when you need it</p>
                 <a
                   href="/doctors"
-                  className="bg-white text-brand-600 font-bold py-3 px-6 rounded-2xl hover:bg-gray-100 transition-all duration-300 transform hover:scale-105 shadow-lg inline-block text-base"
+                  className="inline-block bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md text-sm"
                 >
                   Find a Doctor
                 </a>
@@ -1390,7 +1401,7 @@ export default function HomePage() {
 
       <MobileBottomNavigation />
 
-      <footer className="bg-gray-900 text-white py-10 px-4">
+      <footer className="bg-gray-900 text-white py-10 px-4 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
             {/* Company Info */}
@@ -1406,13 +1417,13 @@ export default function HomePage() {
                 <a href="#" className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
                   <Facebook className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-brand-accent rounded-full flex items-center justify-center hover-bg-brand-hover transition-colors">
+                <a href="#" className="w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center hover:bg-sky-700 transition-colors">
                   <Twitter className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-brand-primary rounded-full flex items-center justify-center hover-bg-brand-hover transition-colors">
+                <a href="#" className="w-10 h-10 bg-pink-600 rounded-full flex items-center justify-center hover:bg-pink-700 transition-colors">
                   <Instagram className="w-5 h-5" />
                 </a>
-                <a href="#" className="w-10 h-10 bg-brand-secondary rounded-full flex items-center justify-center hover:opacity-90 transition-colors">
+                <a href="#" className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center hover:bg-blue-800 transition-colors">
                   <Linkedin className="w-5 h-5" />
                 </a>
               </div>
