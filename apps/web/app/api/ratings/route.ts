@@ -166,27 +166,69 @@ export async function POST(request: NextRequest) {
       ) RETURNING id, created_at
     `;
 
-    const result = await executeQuery(insertSql, [
-      entityType,
-      entityId,
-      userId || null,
-      body.name || 'Anonymous',
-      body.email || 'anonymous@example.com',
-      rating,
-      comment || ''
-    ]);
-
-    console.log(`✅ Rating stored permanently: ${entityType}:${entityId} = ${rating}`);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: result[0].id,
-        message: 'Rating stored permanently',
+    try {
+      const result = await executeQuery(insertSql, [
+        entityType,
+        entityId,
+        userId || null,
+        body.name || 'Anonymous',
+        body.email || 'anonymous@example.com',
         rating,
-        created_at: result[0].created_at
+        comment || ''
+      ]);
+
+      console.log(`✅ Rating stored permanently: ${entityType}:${entityId} = ${rating}`);
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: result[0].id,
+          message: 'Rating stored permanently',
+          rating,
+          created_at: result[0].created_at
+        }
+      });
+    } catch (dbErr: any) {
+      const msg = String(dbErr?.message || '');
+      const code = String((dbErr as any)?.code || '');
+      const noDb = code === 'NO_DB_CONFIG' || msg.includes('NO_DB_CONFIG');
+      if (noDb) {
+        try {
+          const apiHost = process.env.NEXT_PUBLIC_API_URL;
+          if (!apiHost) throw new Error('NO_API_HOST');
+          const resp = await fetch(`${apiHost}/api/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entityType,
+              entityId,
+              userId: userId || null,
+              name: body.name || 'Anonymous',
+              email: body.email || 'anonymous@example.com',
+              rating,
+              comment: comment || ''
+            }),
+          });
+          if (!resp.ok) {
+            const t = await resp.text().catch(() => '');
+            throw new Error(`Upstream error: ${t || resp.status}`);
+          }
+          const data = await resp.json().catch(() => ({} as any));
+          return NextResponse.json({
+            success: true,
+            data: data?.data || null,
+            message: data?.message || 'Rating stored via API',
+          });
+        } catch (proxyErr: any) {
+          console.error('❌ Ratings POST Fallback Error:', proxyErr);
+          return NextResponse.json(
+            { success: false, error: 'Failed to store rating (no DB and upstream failed)' },
+            { status: 500 }
+          );
+        }
       }
-    });
+      throw dbErr;
+    }
 
   } catch (error: any) {
     console.error('❌ Ratings POST Error:', error);

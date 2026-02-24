@@ -3646,11 +3646,6 @@ useEffect(() => {
                                   } else {
                                     window.open(`/hospital-site/${hospitalProfile.id}`, '_blank');
                                   }
-                                  } else if (hospitalProfile.name) {
-                                    window.open(hospitalMicrositeUrl(hospitalProfile.name), '_blank');
-                                  } else {
-                                    window.open(`/hospital-site/${hospitalProfile.id}`, '_blank');
-                                  }
                                 } else {
                                   window.open(`/hospital-site/${hospitalProfile.id}`, '_blank');
                                 }

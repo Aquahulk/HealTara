@@ -777,19 +777,19 @@ export default function SecureAdminPanel() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => setDoctorServiceStatus(doctor.id, 'START')}
+                            onClick={() => setDoctorServiceStatus(doctor.id, 'ACTIVE')}
                             className="text-sm text-green-600 hover:text-green-900"
                           >
                             Start
                           </button>
                           <button
-                            onClick={() => setDoctorServiceStatus(doctor.id, 'PAUSE')}
+                            onClick={() => setDoctorServiceStatus(doctor.id, 'SUSPENDED')}
                             className="text-sm text-yellow-600 hover:text-yellow-900"
                           >
                             Pause
                           </button>
                           <button
-                            onClick={() => setDoctorServiceStatus(doctor.id, 'REVOKE')}
+                            onClick={() => setDoctorServiceStatus(doctor.id, 'SUSPENDED')}
                             className="text-sm text-red-600 hover:text-red-900"
                           >
                             Delete
@@ -843,19 +843,19 @@ export default function SecureAdminPanel() {
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => setHospitalServiceStatus(hospital.id, 'START')}
+                            onClick={() => setHospitalServiceStatus(hospital.id, 'ACTIVE')}
                             className="text-sm text-green-600 hover:text-green-900"
                           >
                             Start
                           </button>
                           <button
-                            onClick={() => setHospitalServiceStatus(hospital.id, 'PAUSE')}
+                            onClick={() => setHospitalServiceStatus(hospital.id, 'SUSPENDED')}
                             className="text-sm text-yellow-600 hover:text-yellow-900"
                           >
                             Pause
                           </button>
                           <button
-                            onClick={() => setHospitalServiceStatus(hospital.id, 'REVOKE')}
+                            onClick={() => setHospitalServiceStatus(hospital.id, 'SUSPENDED')}
                             className="text-sm text-red-600 hover:text-red-900"
                           >
                             Delete
