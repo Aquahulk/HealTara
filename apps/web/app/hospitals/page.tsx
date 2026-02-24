@@ -214,6 +214,8 @@ export default function HospitalsPage() {
                                 const sub = (h as any).subdomain as string | undefined;
                                 if (sub && sub.length > 1) {
                                   window.location.href = customSubdomainUrl(sub);
+                                } else if (h.name) {
+                                  window.location.href = hospitalMicrositeUrl(h.name);
                                 } else {
                                   router.push(`/hospital-site/${h.id}`);
                                 }

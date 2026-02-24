@@ -31,7 +31,7 @@ import {
   BuildingOffice2Icon,
   ChartBarSquareIcon
 } from '@heroicons/react/24/outline';                      // Heroicons for beautiful icons
-import { doctorMicrositeUrl, customSubdomainUrl, shouldUseSubdomainNav } from '@/lib/subdomain';
+import { doctorMicrositeUrl, hospitalMicrositeUrl, customSubdomainUrl, shouldUseSubdomainNav } from '@/lib/subdomain';
 import { getDoctorLabel, getPatientLabel, getUserLabel } from '@/lib/utils';
 import { io } from 'socket.io-client';
 
@@ -2003,7 +2003,7 @@ useEffect(() => {
                             {formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium' })} at {formatISTTime(getAppointmentISTDate(appointment))}
                           </p>
                                                        <p className="text-gray-600">
-                            {user.role === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || appointment.patient?.email?.split('@')[0] || appointment.patientId)}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || appointment.doctor?.email?.split('@')[0] || 'Unknown Doctor')}`}
+                            {user.role === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || 'Patient')}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || 'Doctor')}`}
                           </p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -2135,16 +2135,32 @@ useEffect(() => {
             </div>
 
             {/* Appointment Slot Boxes (Per-hour capacity view) */}
-            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Slot Boxes (Capacity)</h3>
-                <div className="text-xs text-gray-600">Period: {Number(doctorProfile?.slotPeriodMinutes ?? 15)} min</div>
+            <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+              <div className="px-6 py-5 bg-gradient-to-r from-blue-600 to-purple-600 border-b border-blue-700 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <span className="text-2xl">📊</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Slot Boxes (Capacity)</h3>
+                    <p className="text-sm text-blue-100">Visual capacity management</p>
+                  </div>
+                </div>
+                <div className="text-sm font-semibold text-white bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/30">
+                  Period: {Number(doctorProfile?.slotPeriodMinutes ?? 15)} min
+                </div>
               </div>
-              <div className="p-6">
+              <div className="p-6 bg-gray-50">
                 {(() => {
                   const filtered = appointments.slice();
                   if (filtered.length === 0) {
-                    return <div className="text-gray-600">No bookings to display.</div>;
+                    return (
+                      <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl border-2 border-dashed border-gray-300">
+                        <div className="text-6xl mb-4">📅</div>
+                        <p className="text-gray-600 font-medium">No bookings to display</p>
+                        <p className="text-sm text-gray-500 mt-2">Appointments will appear here when scheduled</p>
+                      </div>
+                    );
                   }
                   const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
                   const fmtHour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false });
@@ -2160,7 +2176,7 @@ useEffect(() => {
                   const period = Number(doctorProfile?.slotPeriodMinutes ?? 15);
                   const segCount = Math.max(1, Math.floor(60 / Math.max(1, period)));
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
                       {entries.map(([key, list]) => {
                         const base = new Date(list[0].date);
                         const slotStart = new Date(base);
@@ -2177,22 +2193,72 @@ useEffect(() => {
                         });
                         const totalBooked = list.length;
                         return (
-                          <div key={key} className="border border-gray-200 rounded-lg" data-hour-start={slotStart.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] doctor-hour-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] doctor-hour-drop', { targetStart: slotStart, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, slotStart, user.id as number); } catch (err) { console.warn('[DND] doctor-hour-drop parse error', err); } }}>
-                            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                              <div className="text-sm text-gray-800">
-                                {formatIST(slotStart)} → {formatISTTime(slotEnd)}
-                              </div>
-                              <div className="text-xs text-gray-600">Capacity: {segCount} • Booked: {totalBooked}</div>
-                            </div>
-                            <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
-                              {segments.map((seg, i) => (
-                                <div key={i} className="border rounded p-2" data-seg-start={seg.segStart.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] doctor-seg-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] doctor-seg-drop', { targetStart: seg.segStart, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, seg.segStart, user.id as number); } catch (err) { console.warn('[DND] doctor-seg-drop parse error', err); } }}>
-                                  <div className="text-xs text-gray-600 mb-1">
-                                    {formatISTTime(seg.segStart)} – {formatISTTime(seg.segEnd)}
-                                  </div>
-                                  <div className="text-xs text-gray-700">Users: {seg.inSeg.length}</div>
+                          <div key={key} className="group rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-white to-gray-50 overflow-hidden hover:shadow-xl hover:scale-102 transition-all duration-300" data-hour-start={slotStart.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] doctor-hour-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] doctor-hour-drop', { targetStart: slotStart, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, slotStart, user.id as number); } catch (err) { console.warn('[DND] doctor-hour-drop parse error', err); } }}>
+                            {/* Decorative gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                            
+                            <div className="relative px-5 py-4 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+                                  <span className="text-white text-sm font-bold">🕐</span>
                                 </div>
-                              ))}
+                                <div>
+                                  <div className="text-sm font-bold text-gray-900">
+                                    {formatIST(slotStart)}
+                                  </div>
+                                  <div className="text-xs text-gray-600">
+                                    to {formatISTTime(slotEnd)}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-xs font-semibold text-gray-700 bg-white px-3 py-1.5 rounded-full shadow-sm">
+                                {totalBooked} / {segCount}
+                              </div>
+                            </div>
+                            <div className="relative p-4 grid grid-cols-2 md:grid-cols-3 gap-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
+                              {segments.map((seg, i) => {
+                                const capacity = 1;
+                                const ratio = capacity > 0 ? seg.inSeg.length / capacity : 0;
+                                let bgGradient = 'from-sky-50 to-sky-100';
+                                let borderColor = 'border-sky-300';
+                                let statusColor = 'text-sky-700';
+                                
+                                if (ratio === 0) {
+                                  bgGradient = 'from-sky-50 to-sky-100';
+                                  borderColor = 'border-sky-300';
+                                  statusColor = 'text-sky-700';
+                                } else if (ratio > 0 && ratio <= 0.25) {
+                                  bgGradient = 'from-green-50 to-green-100';
+                                  borderColor = 'border-green-400';
+                                  statusColor = 'text-green-700';
+                                } else if (ratio > 0.25 && ratio <= 0.5) {
+                                  bgGradient = 'from-yellow-50 to-yellow-100';
+                                  borderColor = 'border-yellow-400';
+                                  statusColor = 'text-yellow-700';
+                                } else if (ratio > 0.5 && ratio < 1) {
+                                  bgGradient = 'from-orange-50 to-orange-100';
+                                  borderColor = 'border-orange-500';
+                                  statusColor = 'text-orange-700';
+                                } else {
+                                  bgGradient = 'from-red-50 to-red-100';
+                                  borderColor = 'border-red-600';
+                                  statusColor = 'text-red-700';
+                                }
+                                
+                                return (
+                                  <div key={i} className={`rounded-xl border-2 ${borderColor} bg-gradient-to-br ${bgGradient} p-3 hover:scale-105 hover:shadow-lg transition-all duration-200`} data-seg-start={seg.segStart.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] doctor-seg-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] doctor-seg-drop', { targetStart: seg.segStart, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, seg.segStart, user.id as number); } catch (err) { console.warn('[DND] doctor-seg-drop parse error', err); } }}>
+                                    <div className="text-xs font-bold text-gray-900 mb-1">
+                                      {formatISTTime(seg.segStart)}
+                                    </div>
+                                    <div className="text-xs text-gray-600 mb-1">
+                                      {formatISTTime(seg.segEnd)}
+                                    </div>
+                                    <div className={`text-xs font-semibold ${statusColor}`}>
+                                      {seg.inSeg.length} {seg.inSeg.length === 1 ? 'user' : 'users'}
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -2742,7 +2808,7 @@ useEffect(() => {
                                               <li key={`appt-${a.id}`} className="border border-gray-100 rounded px-3 py-2 flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
                                                 <div>
                                                   <div className="text-sm text-gray-800">Appt #{a.id} — {formatIST(getAppointmentISTDate(a))}</div>
-                                                  <div className="text-xs text-gray-600">Patient: {((a.patient as any)?.name) || ((a.patient as any)?.slug) || a.patient?.email?.split('@')[0] || a.patientId} • Status: {a.status}</div>
+                                                  <div className="text-xs text-gray-600">Patient: {((a.patient as any)?.name) || 'Patient'} • Status: {a.status}</div>
                                                 </div>
                                                 <div>
                                                   <select
@@ -2960,7 +3026,7 @@ useEffect(() => {
                                 {pendingToday.map((appointment) => (
                                   <div key={appointment.id} className="border rounded px-3 py-2">
                                     <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
-                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || appointment.patientId} • Status: {appointment.status}</div>
+                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || 'Patient'} • Status: {appointment.status}</div>
                                   </div>
                                 ))}
                               </div>
@@ -2992,7 +3058,7 @@ useEffect(() => {
                                 {history.map((appointment) => (
                                   <div key={appointment.id} className="border rounded px-3 py-2">
                                     <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
-                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || appointment.patientId} • Status: {appointment.status}</div>
+                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || 'Patient'} • Status: {appointment.status}</div>
                                   </div>
                                 ))}
                               </div>
@@ -3022,8 +3088,11 @@ useEffect(() => {
                             }
                             return (
                               <div className="space-y-4 mt-2" onDragEnterCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOverCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
-                                <div className="flex items-center justify-between">
-                                  <h4 className="text-md font-semibold text-gray-900">Slot Boxes (Capacity)</h4>
+                                <div className="flex items-center justify-between mb-6">
+                                  <div>
+                                    <h4 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Slot Boxes (Capacity)</h4>
+                                    <p className="text-sm text-gray-600 mt-1">Visual capacity management for appointment slots</p>
+                                  </div>
                                   <div className="flex items-center space-x-3">
                                     <label className="text-sm text-gray-700">Filter:</label>
                                     <select
@@ -3099,7 +3168,7 @@ useEffect(() => {
                                                       <li key={appointment.id} className="flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, appointment)}>
                                                         <div className="min-w-0">
                                                           <p className="text-xs font-medium text-gray-900 truncate">
-                                                            {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || 'Unknown'}
+                                                            {((appointment.patient as any)?.name) || 'Patient'}
                                                           </p>
                                                           {appointment.reason && (
                                                             <p className="text-[11px] text-gray-600 truncate">
@@ -3146,8 +3215,11 @@ useEffect(() => {
                           }
                           return (
                             <div className="space-y-4 mt-2" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-md font-semibold text-gray-900">Slot Boxes (Capacity)</h4>
+                              <div className="flex items-center justify-between mb-6">
+                                <div>
+                                  <h4 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Slot Boxes (Capacity)</h4>
+                                  <p className="text-sm text-gray-600 mt-1">Visual capacity management for appointment slots</p>
+                                </div>
                                 <div className="flex items-center space-x-3">
                                   <label className="text-sm text-gray-700">Filter:</label>
                                   <select
@@ -3252,7 +3324,7 @@ useEffect(() => {
                                                       <li key={appointment.id} className="flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, appointment)}>
                                                         <div className="min-w-0">
                                                           <p className="text-xs font-medium text-gray-900 truncate">
-                                                            {((appointment.patient as any)?.name) || ((appointment.patient as any)?.slug) || appointment.patient?.email?.split('@')[0] || 'Unknown'}
+                                                            {((appointment.patient as any)?.name) || 'Patient'}
                                                           </p>
                                                           {appointment.reason && (
                                                             <p className="text-[11px] text-gray-600 truncate">
@@ -3325,7 +3397,7 @@ useEffect(() => {
                               <li key={appointment.id} className="bg-white border rounded-md p-3 flex items-center justify-between">
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium text-gray-900 truncate">{formatIST(getAppointmentISTDate(appointment))}</p>
-                                  <p className="text-xs text-gray-700 truncate">Patient: {((appointment.patient as any)?.name) || appointment.patient?.email?.split('@')[0] || appointment.patientId}</p>
+                                  <p className="text-xs text-gray-700 truncate">Patient: {((appointment.patient as any)?.name) || 'Patient'}</p>
                                   {appointment.reason && (
                                     <p className="text-xs text-gray-600 truncate">{appointment.reason}</p>
                                   )}
@@ -3378,7 +3450,7 @@ useEffect(() => {
                               <span className="text-gray-500">{formatISTTime(getAppointmentISTDate(appointment))}</span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {(((appointment.doctor as any)?.doctorProfile?.slug) || appointment.doctor?.email?.split('@')[0] || 'Unknown Doctor')}
+                              {(((appointment.doctor as any)?.doctorProfile?.slug) || 'Doctor')}
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-900">
                               {appointment.reason || 'No reason provided'}
@@ -3553,6 +3625,7 @@ useEffect(() => {
                               {(() => {
                                 const sub = (hospitalProfile as any)?.subdomain as string | undefined;
                                 if (sub && sub.length > 1) return customSubdomainUrl(sub);
+                                if (hospitalProfile.name) return hospitalMicrositeUrl(hospitalProfile.name);
                                 return `${typeof window !== 'undefined' ? window.location.origin : ''}/hospital-site/${hospitalProfile.id}`;
                               })()}
                             </p>
@@ -3564,8 +3637,14 @@ useEffect(() => {
                               onClick={(e) => {
                                 e.preventDefault();
                                 const sub = (hospitalProfile as any)?.subdomain as string | undefined;
-                                if (shouldUseSubdomainNav() && sub && sub.length > 1) {
-                                  window.open(customSubdomainUrl(sub), '_blank');
+                                if (shouldUseSubdomainNav()) {
+                                  if (sub && sub.length > 1) {
+                                    window.open(customSubdomainUrl(sub), '_blank');
+                                  } else if (hospitalProfile.name) {
+                                    window.open(hospitalMicrositeUrl(hospitalProfile.name), '_blank');
+                                  } else {
+                                    window.open(`/hospital-site/${hospitalProfile.id}`, '_blank');
+                                  }
                                 } else {
                                   window.open(`/hospital-site/${hospitalProfile.id}`, '_blank');
                                 }
@@ -4195,7 +4274,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <div className="text-sm text-gray-600">Doctor</div>
-                        <div className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || d.email?.split('@')[0] || d.id)}</div>
+                        <div className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || 'Doctor')}</div>
                       </div>
                       <div className="text-sm text-gray-600">Capacity per hour: <span className="font-medium text-gray-900">{capacity}</span> • Period {form.minutes} min</div>
                     </div>
@@ -4250,7 +4329,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
                     <div className="flex justify-between items-center mb-3">
                       <div>
                         <p className="text-sm text-gray-600">Doctor</p>
-                        <p className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || d.email?.split('@')[0] || d.id)}</p>
+                        <p className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || 'Doctor')}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-gray-600">Current Slot Admin</p>

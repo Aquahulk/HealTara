@@ -26,62 +26,23 @@ export async function middleware(req: NextRequest) {
     if (sub === 'hosptest' || sub === 'healtara' || sub === 'app') {
       return NextResponse.next();
     }
-    // Use relative fetch; Next.js dev rewrite proxies to backend
-    const slugify = (s: string) => s.toLowerCase()
-        .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
-        .replace(/\s+/g, '-') // Replace spaces with single hyphens
-        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
-
-    // Hospital subdomain patterns:
-    // - hospital-<id>.domain.tld => /hospital-site/<id>
-    // - hospital-<slug>.domain.tld => /hospital-site/<slug>
-    if (sub.startsWith('hospital-')) {
-      const suffix = sub.slice('hospital-'.length);
-      const target = `/hospital-site/${suffix}${url.pathname}`;
-      console.log(`Rewriting hospital subdomain: "${sub}" -> "${target}"`);
-      // Preserve all cookies for authentication
-      const response = NextResponse.rewrite(new URL(target, req.url));
-      response.headers.set('x-forwarded-host', hostname);
-      return response;
-    }
 
     try {
       const apiHost = process.env.NEXT_PUBLIC_API_URL || req.nextUrl.origin;
-      // First prefer explicit hospital subdomain mapping
+      
+      // PRIORITY 1: Explicit hospital subdomain mapping (entered by user)
       const sresp = await fetch(`${apiHost}/api/hospitals/subdomain/${sub}`, { cache: 'no-store' });
       if (sresp.ok) {
         const data = await sresp.json();
         const target = `/hospital-site/${data.id}${url.pathname}`;
-        console.log(`Rewriting hospital (custom domain/subdomain) "${sub}" -> "${target}"`);
+        console.log(`Rewriting hospital (custom subdomain) "${sub}" -> "${target}"`);
         // Preserve all cookies for authentication
         const response = NextResponse.rewrite(new URL(target, req.url));
         response.headers.set('x-forwarded-host', hostname);
         return response;
       }
-      // Check if it's a custom domain (contains dots) - try slug lookup
-      if (sub.includes('.')) {
-        const resp = await fetch(`${apiHost}/api/hospitals/slug/${sub}`, { cache: 'no-store' });
-        if (resp.ok) {
-          const target = `/site/${sub}${url.pathname}`;
-          console.log(`Rewriting hospital (custom domain) "${sub}" -> "${target}"`);
-          // Preserve all cookies for authentication
-          const response = NextResponse.rewrite(new URL(target, req.url));
-          response.headers.set('x-forwarded-host', hostname);
-          return response;
-        }
-      }
-      // Try hospital slug lookup first (before doctor)
-      const hresp = await fetch(`${apiHost}/api/hospitals/slug/${sub}`, { cache: 'no-store' });
-      if (hresp.ok) {
-        const target = `/site/${sub}${url.pathname}`;
-        console.log(`Rewriting hospital (name) subdomain: "${sub}" -> "${target}"`);
-        // Preserve all cookies for authentication
-        const response = NextResponse.rewrite(new URL(target, req.url));
-        response.headers.set('x-forwarded-host', hostname);
-        return response;
-      }
-      // Only then try doctor lookup
+      
+      // PRIORITY 2: Explicit doctor slug lookup
       const dresp = await fetch(`${apiHost}/api/doctors/slug/${sub}`, { cache: 'no-store' });
       if (dresp.ok) {
         const target2 = `/doctor-site/${sub}${url.pathname}`;
@@ -91,15 +52,13 @@ export async function middleware(req: NextRequest) {
         response.headers.set('x-forwarded-host', hostname);
         return response;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('Middleware API fetch failed:', e);
+    }
 
-    // Default: treat as hospital slug for better UX
-    const target = `/site/${sub}${url.pathname}`;
-    console.log(`Rewriting default hospital subdomain: "${sub}" -> "${target}"`);
-    // Preserve all cookies for authentication
-    const response = NextResponse.rewrite(new URL(target, req.url));
-    response.headers.set('x-forwarded-host', hostname);
-    return response;
+    // Default: let it fall through to standard routing if no subdomain match is found
+    // This avoids confusing rewrites to non-existent sites.
+    return NextResponse.next();
   }
 
   // For main domain or any other cases, let them pass through

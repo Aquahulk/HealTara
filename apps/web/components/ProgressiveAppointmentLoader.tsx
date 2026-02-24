@@ -14,26 +14,26 @@ import { logPerformance } from '@/lib/cache';
 // ============================================================================
 
 const AppointmentSkeleton = () => (
-  <div className="bg-white rounded-lg border border-gray-200 p-4 animate-pulse">
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
-        <div>
-          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-          <div className="h-3 bg-gray-200 rounded w-16"></div>
+  <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 p-5 animate-pulse shadow-sm">
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center space-x-4">
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-200 to-purple-200 rounded-lg"></div>
+        <div className="space-y-2">
+          <div className="h-5 bg-gray-200 rounded-lg w-32"></div>
+          <div className="h-4 bg-gray-200 rounded w-24"></div>
         </div>
       </div>
-      <div className="h-8 bg-gray-200 rounded w-20"></div>
+      <div className="h-10 bg-gray-200 rounded-lg w-28"></div>
     </div>
-    <div className="space-y-2">
-      <div className="h-3 bg-gray-200 rounded w-full"></div>
-      <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+    <div className="flex items-center space-x-4 pt-3 border-t border-gray-100">
+      <div className="h-4 bg-gray-200 rounded w-20"></div>
+      <div className="h-4 bg-gray-200 rounded w-24"></div>
     </div>
   </div>
 );
 
 // ============================================================================
-// 📅 APPOINTMENT CARD COMPONENT
+// 📅 APPOINTMENT CARD COMPONENT - Modern Design
 // ============================================================================
 
 interface AppointmentCardProps {
@@ -47,49 +47,69 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
   onBook, 
   isLoading = false 
 }) => (
-  <div className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-all duration-200 p-4">
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-          <Clock className="w-5 h-5 text-blue-600" />
-        </div>
-        <div>
-          <div className="font-semibold text-gray-900">
-            {appointment.start_time} - {appointment.end_time}
-          </div>
-          <div className="text-sm text-gray-500">
-            {appointment.appointment_date}
-          </div>
-        </div>
-      </div>
-      <button
-        onClick={() => onBook(appointment)}
-        disabled={isLoading}
-        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-          isLoading
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
-        }`}
-      >
-        {isLoading ? (
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            <span>Booking...</span>
-          </div>
-        ) : (
-          'Book Now'
-        )}
-      </button>
-    </div>
+  <div className="group bg-gradient-to-br from-white to-blue-50/30 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 p-5 relative overflow-hidden">
+    {/* Decorative gradient overlay */}
+    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
     
-    <div className="flex items-center space-x-4 text-sm text-gray-600">
-      <div className="flex items-center space-x-1">
-        <Calendar className="w-4 h-4" />
-        <span>Available</span>
+    <div className="relative">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-4">
+          {/* Time Icon with gradient */}
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+            <Clock className="w-6 h-6 text-white" />
+          </div>
+          
+          {/* Time Details */}
+          <div>
+            <div className="font-bold text-gray-900 text-lg">
+              {appointment.start_time}
+            </div>
+            <div className="text-sm text-gray-500 flex items-center space-x-1">
+              <span>{appointment.appointment_date}</span>
+              <span className="text-gray-300">•</span>
+              <span className="text-green-600 font-medium">Available</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Book Button */}
+        <button
+          onClick={() => onBook(appointment)}
+          disabled={isLoading}
+          className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-300 shadow-md ${
+            isLoading
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 hover:shadow-xl hover:scale-105 active:scale-95'
+          }`}
+        >
+          {isLoading ? (
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span>Booking...</span>
+            </div>
+          ) : (
+            <span className="flex items-center space-x-1">
+              <span>Book</span>
+              <span className="text-lg">→</span>
+            </span>
+          )}
+        </button>
       </div>
-      <div className="flex items-center space-x-1">
-        <User className="w-4 h-4" />
-        <span>Dr. {appointment.doctor_name || 'Available'}</span>
+      
+      {/* Additional Info */}
+      <div className="flex items-center space-x-6 text-sm text-gray-600 pt-3 border-t border-gray-100">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+            <User className="w-4 h-4 text-blue-600" />
+          </div>
+          <span className="font-medium">Dr. {appointment.doctor_name || 'Available'}</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+            <Calendar className="w-4 h-4 text-green-600" />
+          </div>
+          <span>30 min session</span>
+        </div>
       </div>
     </div>
   </div>
@@ -218,44 +238,59 @@ export const ProgressiveAppointmentLoader: React.FC<ProgressiveAppointmentLoader
   // ============================================================================
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Available Appointments
-        </h3>
-        <div className="flex items-center space-x-2 text-sm text-gray-600">
-          {loading && (
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span>Loading...</span>
-            </div>
-          )}
-          {!loading && (
-            <span>{appointments.length} available</span>
-          )}
+    <div className="space-y-6">
+      {/* Header with gradient */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 shadow-lg">
+        <div className="flex items-center justify-between text-white">
+          <div>
+            <h3 className="text-2xl font-bold mb-1">
+              Available Appointments
+            </h3>
+            <p className="text-blue-100 text-sm">
+              Select your preferred time slot
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            {loading && (
+              <div className="flex items-center space-x-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm font-medium">Loading...</span>
+              </div>
+            )}
+            {!loading && (
+              <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg">
+                <span className="text-sm font-bold">{appointments.length}</span>
+                <span className="text-sm text-blue-100 ml-1">available</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Error State */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center space-x-2 text-red-800">
-            <AlertCircle className="w-5 h-5" />
-            <span>{error}</span>
+        <div className="bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500 rounded-lg p-5 shadow-md">
+          <div className="flex items-start space-x-3">
+            <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-red-900 mb-1">Booking Error</h4>
+              <p className="text-red-700 text-sm">{error}</p>
+              <button
+                onClick={loadAppointments}
+                className="mt-3 text-sm text-red-600 hover:text-red-800 font-semibold underline"
+              >
+                Try again →
+              </button>
+            </div>
           </div>
-          <button
-            onClick={loadAppointments}
-            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-          >
-            Try again
-          </button>
         </div>
       )}
 
       {/* Loading Skeletons */}
       {loading && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
             <AppointmentSkeleton key={i} />
           ))}
@@ -264,7 +299,7 @@ export const ProgressiveAppointmentLoader: React.FC<ProgressiveAppointmentLoader
 
       {/* Appointment List */}
       {!loading && appointments.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {appointments.map((appointment) => (
             <AppointmentCard
               key={appointment.id}
@@ -278,33 +313,38 @@ export const ProgressiveAppointmentLoader: React.FC<ProgressiveAppointmentLoader
 
       {/* Empty State */}
       {!loading && appointments.length === 0 && !error && (
-        <div className="text-center py-8">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Calendar className="w-8 h-8 text-gray-400" />
+        <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl border-2 border-dashed border-gray-300">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md">
+            <Calendar className="w-10 h-10 text-blue-600" />
           </div>
-          <h4 className="text-lg font-medium text-gray-900 mb-2">
+          <h4 className="text-xl font-bold text-gray-900 mb-2">
             No appointments available
           </h4>
-          <p className="text-gray-600 mb-4">
-            Try selecting a different date or check back later.
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            All slots are currently booked. Try selecting a different date or check back later for new openings.
           </p>
           <button
             onClick={loadAppointments}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-md hover:shadow-lg"
           >
-            Refresh
+            Refresh Availability
           </button>
         </div>
       )}
 
       {/* Success Message */}
       {optimisticBookings.size > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center space-x-2 text-green-800">
-            <CheckCircle className="w-5 h-5" />
-            <span>
-              {optimisticBookings.size} appointment{optimisticBookings.size > 1 ? 's' : ''} being booked...
-            </span>
+        <div className="bg-gradient-to-r from-green-50 to-emerald-100 border-l-4 border-green-500 rounded-lg p-5 shadow-md">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h4 className="font-semibold text-green-900">Booking in Progress</h4>
+              <p className="text-green-700 text-sm">
+                {optimisticBookings.size} appointment{optimisticBookings.size > 1 ? 's' : ''} being confirmed...
+              </p>
+            </div>
           </div>
         </div>
       )}

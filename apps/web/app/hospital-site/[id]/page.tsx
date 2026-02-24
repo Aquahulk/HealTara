@@ -181,15 +181,14 @@ async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsRe
 // ============================================================================
 export default async function HospitalSitePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [profileResponse, details] = await Promise.all([
-    getHospitalProfileBySlug(id),
-    getHospitalDetailsBySlug(id),
-  ]);
+  
+  // Combine fetching into a single optimized request
+  const details = await getHospitalDetailsBySlug(id);
 
   // ============================================================================
   // 🚫 NOT FOUND STATE - Show error if hospital doesn't exist
   // ============================================================================
-  if (!profileResponse || !details) {
+  if (!details) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
@@ -207,9 +206,9 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
     );
   }
 
-  const profile = profileResponse.profile || {};
+  const profile = (details as any).profile || {};
   const general = profile.general || {};
-  const name = general.brandName || general.legalName || details.name || profileResponse.name || 'Hospital';
+  const name = general.brandName || general.legalName || details.name || 'Hospital';
   const tagline = general.tagline || 'Quality Care, Compassionate Service';
   const address = general.address || '';
   const logoUrl = general.logoUrl;
@@ -231,7 +230,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
     }
     if (extra.length > 0) departments = [...(departments || []), ...extra] as any;
   } catch {}
-  const featuredServices = Array.from(new Set((departments || []).flatMap((d: any) => d.services || []))).slice(0, 12);
+  const featuredServices = Array.from(new Set((departments || []).flatMap((d: any) => d.services || []))) as string[];
 
   // ============================================================================
   // 🎯 MAIN RENDER - Display the modern hospital website
@@ -530,7 +529,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                     <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
                       <h4 className="text-2xl font-bold text-gray-900 mb-6 text-center">🏆 Accreditations</h4>
                       <div className="space-y-4">
-                        {about.accreditations.map((acc, index) => (
+                        {about.accreditations.map((acc: any, index: number) => (
                           <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg">
                             {acc.logoUrl && (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -547,7 +546,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                     <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
                       <h4 className="text-2xl font-bold text-gray-900 mb-6 text-center">🏅 Awards</h4>
                       <div className="space-y-4">
-                        {about.awards.map((award, index) => (
+                        {about.awards.map((award: any, index: number) => (
                           <div key={index} className="p-4 bg-gray-50 rounded-lg">
                             <div className="font-semibold text-gray-900">{award.title}</div>
                             {award.year && <div className="text-gray-600 text-sm">{award.year}</div>}
@@ -586,7 +585,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              {featuredServices.map((service, index) => (
+              {featuredServices.map((service: string, index: number) => (
                 <div key={index} className="bg-white p-4 md:p-6 rounded-xl shadow-md hover:shadow-2xl transition-all duration-300 text-center group border border-gray-100 hover:border-purple-200 transform hover:-translate-y-1">
                   <div className="text-3xl md:text-4xl mb-2 md:mb-3 group-hover:scale-125 transition-transform duration-300">
                     {index % 8 === 0 ? '💊' : index % 8 === 1 ? '🔬' : index % 8 === 2 ? '📋' : index % 8 === 3 ? '🩺' : index % 8 === 4 ? '💉' : index % 8 === 5 ? '🏥' : index % 8 === 6 ? '🦠' : '❤️'}
@@ -619,7 +618,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {profileDoctors.map((d, idx) => (
+              {profileDoctors.map((d: any, idx: number) => (
                 <div key={idx} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all duration-300">
                   <div className="text-center mb-4">
                     <div className="text-5xl mb-4">👨‍⚕️</div>
@@ -636,7 +635,7 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
                     <div className="mb-4">
                       <span className="text-sm font-semibold text-gray-700">Departments:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {d.departments.slice(0, 2).map((dept, deptIndex) => (
+                        {d.departments.slice(0, 2).map((dept: string, deptIndex: number) => (
                           <span key={deptIndex} className="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
                             {dept}
                           </span>

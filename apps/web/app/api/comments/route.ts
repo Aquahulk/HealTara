@@ -39,11 +39,8 @@ export async function GET(request: NextRequest) {
         c.is_verified,
         c.created_at,
         c.parent_id,
-        u.name as user_name,
-        u.avatar_url as user_avatar,
         (SELECT COUNT(*) FROM comments WHERE parent_id = c.id AND is_active = true) as reply_count
       FROM comments c
-      LEFT JOIN users u ON c.user_id = u.id
       WHERE c.entity_type = $1 
         AND c.entity_id = $2
         AND c.is_active = true
@@ -152,15 +149,104 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         id: result[0].id,
-        message: 'Comment stored permanently',
-        created_at: result[0].created_at
+        name: name,
+        email: email,
+        rating: rating,
+        comment: comment,
+        created_at: result[0].created_at,
+        is_verified: true,
+        reply_count: 0
       }
     });
 
   } catch (error: any) {
     console.error('❌ Comments POST Error:', error);
+    // Log the full error for debugging
+    if (error.code) console.error('Error Code:', error.code);
+    if (error.message) console.error('Error Message:', error.message);
+    if (error.stack) console.error('Error Stack:', error.stack);
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to store comment' },
+      { success: false, error: 'Failed to store comment', detail: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// ============================================================================
+// 📝 PATCH COMMENTS - Add replies
+// ============================================================================
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      commentId, // Parent comment ID
+      name,
+      email,
+      comment,
+      userId
+    } = body;
+
+    if (!commentId || !name || !email || !comment) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Get parent comment details to inherit entity_type and entity_id
+    const parentSql = `SELECT entity_type, entity_id FROM comments WHERE id = $1`;
+    const parentResult = await executeQuery(parentSql, [commentId]);
+
+    if (parentResult.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Parent comment not found' },
+        { status: 404 }
+      );
+    }
+
+    const { entity_type, entity_id } = parentResult[0];
+
+    // Insert reply into database
+    const insertSql = `
+      INSERT INTO comments (
+        entity_type, entity_id, user_id, name, email, 
+        comment, parent_id, is_verified, is_active, created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, true, true, NOW()
+      ) RETURNING id, created_at
+    `;
+
+    const result = await executeQuery(insertSql, [
+      entity_type,
+      entity_id,
+      userId || null,
+      name,
+      email,
+      comment,
+      commentId
+    ]);
+
+    console.log(`✅ Reply stored permanently for comment ${commentId} by ${name}`);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: result[0].id,
+        name: name,
+        email: email,
+        comment: comment,
+        created_at: result[0].created_at,
+        parent_id: commentId,
+        is_verified: true
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Comments PATCH Error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to store reply', detail: error.message },
       { status: 500 }
     );
   }

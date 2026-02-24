@@ -76,7 +76,8 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      if (!ratingData.totalReviews || Number.isNaN(ratingData.totalReviews)) {
+      // No error if 0 reviews, just return 0 rating
+      if (Number.isNaN(ratingData.totalReviews)) {
         throw new Error('INVALID_DB_RATING_DATA');
       }
 

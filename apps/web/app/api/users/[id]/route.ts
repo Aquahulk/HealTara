@@ -13,7 +13,7 @@ export async function GET(
     }
 
     const rows = await executeQuery<{ name: string | null; email: string | null }>(
-      'SELECT name, email FROM users WHERE id = $1 LIMIT 1',
+      'SELECT name, email FROM "User" WHERE id = $1 LIMIT 1',
       [id]
     );
     const u = rows[0] || null;

@@ -375,7 +375,15 @@ class ApiClient {
       page: String(params.page || 1),
       pageSize: String(params.pageSize || 30),
     }).toString();
-    return this.request(`/api/doctors?${query}`);
+    const response = await this.request(`/api/doctors?${query}`);
+    
+    // Handle the new API response format
+    if (response && typeof response === 'object' && 'success' in response && response.success && 'data' in response) {
+      return (response as any).data;
+    }
+    
+    // Fallback for backward compatibility
+    return Array.isArray(response) ? response : [];
   }
 
   async searchDoctors(q: string): Promise<SearchDoctorsResponse> {

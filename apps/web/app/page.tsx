@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import Image from "next/image";
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
 import { loadWithCache, PerformanceMonitor, CacheManager } from '@/lib/performance';
@@ -89,68 +90,68 @@ export default function HomePage() {
       try {
         setLoading(true);
 
-        // Check cache first for instant loading
-        const cachedHospitals = localStorage.getItem('hospitals_cache');
-        const cachedDoctors = localStorage.getItem('doctors_cache');
-        const cacheTimestamp = localStorage.getItem('cache_timestamp');
+        // 🚀 INSTANT CACHE LOADING - Combined cache for better performance
+        const cachedData = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache') : null;
+        const cacheTimestamp = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache_timestamp') : null;
         const now = Date.now();
         const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-        // Use cached data if available and fresh
-        if (cachedHospitals && cachedDoctors && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
+        // ⚡ Use cached data if available and fresh
+        if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
           console.log('⚡ Loading from cache for instant display');
-          setHospitals(JSON.parse(cachedHospitals));
-          setDoctors(JSON.parse(cachedDoctors));
-          setLoading(false);
+          const parsed = JSON.parse(cachedData);
           
-          // Still fetch fresh data in background
-          setTimeout(() => fetchFreshData(), 100);
-        } else {
-          await fetchFreshData();
+          // 🛡️ SECURITY CHECK: If cache contains demo data, clear it and fetch fresh
+          const hasDemoData = 
+            (parsed.hospitals || []).some((h: any) => h.name?.includes('(Demo)')) ||
+            (parsed.doctors || []).some((d: any) => d.name?.includes('Demo'));
+            
+          if (hasDemoData) {
+            console.log('🗑️ Detected demo data in cache, clearing for fresh load');
+            localStorage.removeItem('homepage_cache');
+          } else if (parsed.hospitals && parsed.doctors) {
+            setHospitals(parsed.hospitals);
+            setDoctors(parsed.doctors);
+            setLoading(false);
+            // 🔄 Still fetch fresh data in background
+            setTimeout(() => fetchFreshData(), 500);
+            return;
+          }
         }
+        
+        await fetchFreshData();
 
         async function fetchFreshData() {
           PerformanceMonitor.startTiming('homepage-data-load');
           try {
-            // Fetch hospitals and homepage content in parallel to reduce TTFB
+            // 🚀 OPTIMIZED: Smaller data fetches for faster loading
             const [hospitalsRes, doctorsRes] = await Promise.allSettled([
-              apiClient.getHospitals(),
-              loadWithCache('homepage_doctors_v2', () => apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 12 })),
+              apiClient.getHospitals({ limit: 100 }), // Increased from 12 to show all
+              apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 100 }), // Increased from 12
             ]);
 
-            if (hospitalsRes.status === 'fulfilled') {
-              setHospitals(hospitalsRes.value || []);
-              localStorage.setItem('hospitals_cache', JSON.stringify(hospitalsRes.value || []));
-            } else {
-              console.warn('Failed to load hospitals:', (hospitalsRes as any)?.reason);
-              setHospitals([]);
-            }
+            const hospitals = hospitalsRes.status === 'fulfilled' ? 
+              (Array.isArray(hospitalsRes.value) ? hospitalsRes.value : []) : [];
+            const doctors = doctorsRes.status === 'fulfilled' ? 
+              (Array.isArray(doctorsRes.value) ? doctorsRes.value : []) : [];
 
-            if (doctorsRes.status === 'fulfilled') {
-              const list = Array.isArray(doctorsRes.value) ? doctorsRes.value : [];
-              setDoctors(list);
-              localStorage.setItem('doctors_cache', JSON.stringify(list));
-            } else {
-              console.warn('Failed to load doctors:', (doctorsRes as any)?.reason);
-              setDoctors([]);
+            console.log(`🏥 Fetched ${hospitals.length} hospitals`);
+            console.log(`👨‍⚕️ Fetched ${doctors.length} doctors`);
+            
+            setHospitals(hospitals);
+            setDoctors(doctors);
+            
+            // 🗄️ Cache the combined data for instant loading
+            if (typeof window !== 'undefined' && (hospitals.length > 0 || doctors.length > 0)) {
+              localStorage.setItem('homepage_cache', JSON.stringify({ hospitals, doctors }));
+              localStorage.setItem('homepage_cache_timestamp', Date.now().toString());
             }
-
-            // Update cache timestamp
-            localStorage.setItem('cache_timestamp', Date.now().toString());
             setLoading(false);
             
             const loadTime = performance.now() - startTime;
             console.log(`📊 Homepage loaded in ${loadTime.toFixed(2)}ms`);
           } catch (error) {
             console.error('Error loading data:', error);
-            // Final fallback: try last session doctors to avoid empty UI
-            try {
-              const raw = sessionStorage.getItem('last_doctors');
-              if (raw) {
-                const list = JSON.parse(raw);
-                if (Array.isArray(list) && list.length) setDoctors(list);
-              }
-            } catch {}
           } finally {
             const duration = PerformanceMonitor.endTiming('homepage-data-load');
             PerformanceMonitor.logTiming('homepage-data-load', duration);
@@ -159,17 +160,15 @@ export default function HomePage() {
 
       } catch (error) {
         console.error('Error loading data:', error);
-        // Final fallback: try last session doctors to avoid empty UI
-        try {
-          const raw = sessionStorage.getItem('last_doctors');
-          if (raw) {
-            const list = JSON.parse(raw);
-            if (Array.isArray(list) && list.length) setDoctors(list);
-          }
-        } catch {}
       } finally {
         setLoading(false);
       }
+
+      // SAFETY NET: Ensure loading is always set to false after 10 seconds max
+      setTimeout(() => {
+        setLoading(false);
+        console.log(' Loading timeout: forcing loading state to false');
+      }, 10000);
     };
     loadData();
   }, []);
@@ -835,10 +834,13 @@ export default function HomePage() {
                             href={`/doctor-site/${doctor.doctorProfile.slug}`}
                             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-center text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center"
                             onClick={(e) => {
+                              // Only use subdomain if enabled and a slug exists
                               if (shouldUseSubdomainNav()) {
                                 e.preventDefault();
                                 window.location.href = doctorMicrositeUrl(String(doctor.doctorProfile?.slug || ''));
+                                return;
                               }
+                              // Fallback is the standard Link href
                               import('@/lib/api').then(({ apiClient }) => {
                                 apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
                               });
@@ -847,10 +849,11 @@ export default function HomePage() {
                             <Globe className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                             <span className="hidden sm:inline">Visit</span>
                           </Link>
-                        ) : doctor.managedHospitalId != null ? (
+                        ) : (
                           <button
                             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center"
                             onClick={() => {
+                              // If no slug, try to find their hospital site
                               import('@/lib/api').then(({ apiClient }) => {
                                 apiClient
                                   .getHospitalByDoctorId(doctor.id)
@@ -867,7 +870,7 @@ export default function HomePage() {
                             <Building2 className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                             <span className="hidden sm:inline">Hospital</span>
                           </button>
-                        ) : null}
+                        )}
                         <button 
                           onClick={() => handleBookAppointment(doctor)}
                           className="flex-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500 hover:from-emerald-600 hover:via-cyan-600 hover:to-blue-600 text-white font-bold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center shadow-md hover:shadow-lg"
@@ -931,10 +934,22 @@ export default function HomePage() {
                             <div className="w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-2xl overflow-hidden shadow-md ring-2 ring-white group-hover:ring-blue-400 transition-all duration-300 bg-gradient-to-br from-blue-400 to-purple-500">
                               {(() => {
                                 const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
-                                if (logoUrl) {
+                                if (logoUrl && logoUrl.startsWith('http')) {
                                   return (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={logoUrl} alt={name} className="w-full h-full object-contain p-2 bg-white" />
+                                    <Image
+                                      src={logoUrl}
+                                      alt={name}
+                                      width={80}
+                                      height={80}
+                                      className="w-full h-full object-contain p-2 bg-white"
+                                      loading="lazy"
+                                      placeholder="blur"
+                                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwA/8A8A"
+                                      onError={(e) => {
+                                        console.error('Image load error:', logoUrl, e);
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
                                   );
                                 }
                                 return (
@@ -1011,16 +1026,26 @@ export default function HomePage() {
                             try {
                               if (shouldUseSubdomainNav()) {
                                 e.preventDefault();
-                                const sub = (hospital as any).subdomain as string | undefined;
-                                if (sub && sub.length > 1) {
-                                  window.location.href = customSubdomainUrl(sub);
-                                } else {
-                                  router.push(`/hospital-site/${hospital.id}`);
+                                
+                                // ✅ PRIORITY 1: Use custom subdomain entered by user
+                                const hospitalSubdomain = (hospital as any).subdomain;
+                                if (hospitalSubdomain && hospitalSubdomain.trim()) {
+                                  console.log('🔗 Redirecting to hospital custom subdomain:', hospitalSubdomain);
+                                  window.location.href = customSubdomainUrl(hospitalSubdomain);
+                                  return;
                                 }
+                                
+                                // ✅ PRIORITY 2: Fallback to regular route if no custom domain entered
+                                // (Removed hospital name-based subdomain per user request)
+                                console.log('🔗 No custom domain, using regular route');
+                                router.push(`/hospital-site/${hospital.id}`);
                               } else {
                                 router.push(`/hospital-site/${hospital.id}`);
                               }
-                            } catch {}
+                            } catch (error) {
+                              console.error('Hospital redirect error:', error);
+                              router.push(`/hospital-site/${hospital.id}`);
+                            }
                           }}
                         >
                           <ArrowRight className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />

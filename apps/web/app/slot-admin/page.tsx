@@ -1079,7 +1079,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
             </div>
             {/* Slot Boxes (Grouped by appointment hour) */}
             <div className="mt-6">
-              <div className="text-base font-semibold text-gray-800 mb-4">Slot Boxes (Capacity)</div>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Slot Boxes (Capacity)</h3>
+                  <p className="text-sm text-gray-600 mt-1">Visual capacity management for appointment slots</p>
+                </div>
+              </div>
               {(() => { if (viewMode !== 'grouped') return null;
                 const filtered = appointments
                   .filter((a) => {
@@ -1096,7 +1101,13 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                   });
 
                 if (filtered.length === 0) {
-                  return <div className="text-gray-600">No appointments to group.</div>;
+                  return (
+                    <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl border-2 border-dashed border-gray-300">
+                      <div className="text-6xl mb-4">📅</div>
+                      <p className="text-gray-600 font-medium">No appointments to display</p>
+                      <p className="text-sm text-gray-500 mt-2">Appointments will appear here when scheduled</p>
+                    </div>
+                  );
                 }
 
                 // Group by IST date + hour
@@ -1137,89 +1148,168 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                       });
 
                       return (
-                        <div key={key} className="rounded-xl shadow-md border border-gray-200 bg-white overflow-hidden">
-                          <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 flex items-center justify-between">
-                            <div className="text-base font-semibold text-gray-900">
-                              {formatIST(slotStart, { dateStyle: 'medium', timeStyle: 'short', hour12: false })} to {formatIST(slotEnd, { timeStyle: 'short', hour12: false })}
+                        <div key={key} className="rounded-2xl shadow-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 overflow-hidden hover:shadow-2xl transition-all duration-300">
+                          <div className="px-6 py-5 bg-gradient-to-r from-blue-600 to-purple-600 border-b border-blue-700 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                <span className="text-2xl">🕐</span>
+                              </div>
+                              <div>
+                                <div className="text-lg font-bold text-white">
+                                  {formatIST(slotStart, { dateStyle: 'medium', timeStyle: 'short', hour12: false })}
+                                </div>
+                                <div className="text-sm text-blue-100">
+                                  to {formatIST(slotEnd, { timeStyle: 'short', hour12: false })}
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-sm font-semibold text-blue-700 bg-blue-100 px-4 py-1.5 rounded-full">
-                              {list.length} {list.length === 1 ? 'Booking' : 'Bookings'}
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-semibold text-white bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/30">
+                                {list.length} {list.length === 1 ? 'Booking' : 'Bookings'}
+                              </div>
                             </div>
                           </div>
                           <div className="p-6">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-                              {segments.map((seg, i) => (
-                                <div 
-                                  key={i} 
-                                  className={`rounded-lg border-2 ${getSlotBoxColors(seg.inSeg.length, seg.segStart, 1)} overflow-hidden`}
-                                  data-seg-start={seg.segStart.toISOString()}
-                                  onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
-                                  onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
-                                  onDrop={(ev) => {
-                                    ev.preventDefault();
-                                    try {
-                                      const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
-                                      if (!raw) return;
-                                      const appt = JSON.parse(raw);
-                                      rescheduleAppointment(appt as Appointment, seg.segStart);
-                                    } catch {}
-                                  }}
-                                >
-                                  <div className="px-4 py-3 bg-white bg-opacity-60 border-b border-gray-300">
-                                    <div className="text-sm font-bold text-gray-900 mb-1">
-                                      {formatIST(seg.segStart, { timeStyle: 'short', hour12: false })} – {formatIST(seg.segEnd, { timeStyle: 'short', hour12: false })}
-                                    </div>
-                                    <div className="text-xs font-medium text-gray-600">
-                                      {seg.inSeg.length === 0 ? '✓ Available' : `${seg.inSeg.length} ${seg.inSeg.length === 1 ? 'patient' : 'patients'}`}
-                                    </div>
-                                  </div>
-                                  <div className="p-3 max-h-[400px] overflow-y-auto">
-                                    {seg.inSeg.length === 0 ? (
-                                      <div className="text-center py-8 text-gray-400">
-                                        <div className="text-3xl mb-2">📅</div>
-                                        <div className="text-xs">No bookings</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                              {segments.map((seg, i) => {
+                                const capacity = 1;
+                                const ratio = capacity > 0 ? seg.inSeg.length / capacity : 0;
+                                let bgGradient = 'from-sky-50 to-sky-100';
+                                let borderColor = 'border-sky-300';
+                                let iconBg = 'bg-sky-500';
+                                let statusText = 'Available';
+                                let statusColor = 'text-sky-700';
+                                
+                                if (ratio === 0) {
+                                  bgGradient = 'from-sky-50 to-sky-100';
+                                  borderColor = 'border-sky-300';
+                                  iconBg = 'bg-sky-500';
+                                  statusText = 'Available';
+                                  statusColor = 'text-sky-700';
+                                } else if (ratio > 0 && ratio <= 0.25) {
+                                  bgGradient = 'from-green-50 to-green-100';
+                                  borderColor = 'border-green-400';
+                                  iconBg = 'bg-green-500';
+                                  statusText = 'Low';
+                                  statusColor = 'text-green-700';
+                                } else if (ratio > 0.25 && ratio <= 0.5) {
+                                  bgGradient = 'from-yellow-50 to-yellow-100';
+                                  borderColor = 'border-yellow-400';
+                                  iconBg = 'bg-yellow-500';
+                                  statusText = 'Medium';
+                                  statusColor = 'text-yellow-700';
+                                } else if (ratio > 0.5 && ratio < 1) {
+                                  bgGradient = 'from-orange-50 to-orange-100';
+                                  borderColor = 'border-orange-500';
+                                  iconBg = 'bg-orange-500';
+                                  statusText = 'High';
+                                  statusColor = 'text-orange-700';
+                                } else {
+                                  bgGradient = 'from-red-50 to-red-100';
+                                  borderColor = 'border-red-600';
+                                  iconBg = 'bg-red-500';
+                                  statusText = 'Full';
+                                  statusColor = 'text-red-700';
+                                }
+                                
+                                return (
+                                  <div 
+                                    key={i} 
+                                    className={`group relative rounded-xl border-2 ${borderColor} bg-gradient-to-br ${bgGradient} overflow-hidden hover:scale-105 hover:shadow-xl transition-all duration-300`}
+                                    data-seg-start={seg.segStart.toISOString()}
+                                    onDragEnter={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                    onDragOver={(ev) => { ev.preventDefault(); try { (ev as any).dataTransfer.dropEffect = 'move'; } catch {} }}
+                                    onDrop={(ev) => {
+                                      ev.preventDefault();
+                                      try {
+                                        const raw = (ev as any).dataTransfer.getData('appointment-json') || (ev as any).dataTransfer.getData('text/plain');
+                                        if (!raw) return;
+                                        const appt = JSON.parse(raw);
+                                        rescheduleAppointment(appt as Appointment, seg.segStart);
+                                      } catch {}
+                                    }}
+                                  >
+                                    {/* Decorative gradient overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                                    
+                                    <div className="relative px-4 py-3 bg-white/60 backdrop-blur-sm border-b border-gray-200">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center shadow-lg`}>
+                                          <span className="text-white text-sm font-bold">🕐</span>
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="text-sm font-bold text-gray-900">
+                                            {formatIST(seg.segStart, { timeStyle: 'short', hour12: false })}
+                                          </div>
+                                          <div className="text-xs text-gray-600">
+                                            {formatIST(seg.segEnd, { timeStyle: 'short', hour12: false })}
+                                          </div>
+                                        </div>
                                       </div>
-                                    ) : (
-                                      <ul className="space-y-3">
-                                        {seg.inSeg.map((a) => (
-                                          <li key={a.id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
-                                            <div className="flex items-start justify-between mb-2">
-                                              <div className="text-xs font-bold text-gray-900 truncate flex-1 mr-2">
-                                                {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}
+                                      <div className="flex items-center justify-between">
+                                        <span className={`text-xs font-bold ${statusColor} uppercase tracking-wide`}>
+                                          {statusText}
+                                        </span>
+                                        <span className="text-xs font-semibold text-gray-700">
+                                          {seg.inSeg.length === 0 ? '0 patients' : `${seg.inSeg.length} ${seg.inSeg.length === 1 ? 'patient' : 'patients'}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="p-3 max-h-[400px] overflow-y-auto">
+                                      {seg.inSeg.length === 0 ? (
+                                        <div className="text-center py-8">
+                                          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                            <span className="text-3xl">📅</span>
+                                          </div>
+                                          <p className="text-xs text-gray-500 font-medium">No bookings</p>
+                                        </div>
+                                      ) : (
+                                        <ul className="space-y-2">
+                                          {seg.inSeg.map((a) => (
+                                            <li key={a.id} className="bg-white rounded-lg p-3 shadow-md border border-gray-200 hover:shadow-lg hover:scale-102 transition-all duration-200 cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                              <div className="flex items-start justify-between mb-2">
+                                                <div className="flex items-center gap-2 flex-1 mr-2">
+                                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                                                    <span className="text-white text-xs font-bold">👤</span>
+                                                  </div>
+                                                  <div className="text-xs font-bold text-gray-900 truncate">
+                                                    {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}
+                                                  </div>
+                                                </div>
+                                                <span className="text-[10px] uppercase bg-gradient-to-r from-blue-600 to-purple-600 text-white px-2 py-1 rounded-full font-bold whitespace-nowrap shadow-sm">{a.status}</span>
                                               </div>
-                                              <span className="text-[10px] uppercase bg-blue-600 text-white px-2 py-1 rounded-full font-bold whitespace-nowrap">{a.status}</span>
-                                            </div>
-                                            <div className="text-[10px] text-gray-500 mb-2">ID: #{a.id}</div>
-                                            <div className="grid grid-cols-3 gap-1">
-                                              <button 
-                                                onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} 
-                                                className="text-[10px] bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
-                                                title="Confirm"
-                                              >
-                                                ✓
-                                              </button>
-                                              <button 
-                                                onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} 
-                                                className="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
-                                                title="Complete"
-                                              >
-                                                ✓✓
-                                              </button>
-                                              <button 
-                                                onClick={() => cancelAppointment(a.id)} 
-                                                className="text-[10px] bg-red-600 hover:bg-red-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
-                                                title="Cancel"
-                                              >
-                                                ✕
-                                              </button>
-                                            </div>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    )}
+                                              <div className="text-[10px] text-gray-500 mb-2 font-medium">ID: #{a.id}</div>
+                                              <div className="grid grid-cols-3 gap-1">
+                                                <button 
+                                                  onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} 
+                                                  className="text-[10px] bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-2 py-1.5 rounded-lg font-bold transition-all duration-200 shadow-sm hover:shadow-md"
+                                                  title="Confirm"
+                                                >
+                                                  ✓
+                                                </button>
+                                                <button 
+                                                  onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} 
+                                                  className="text-[10px] bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-2 py-1.5 rounded-lg font-bold transition-all duration-200 shadow-sm hover:shadow-md"
+                                                  title="Complete"
+                                                >
+                                                  ✓✓
+                                                </button>
+                                                <button 
+                                                  onClick={() => cancelAppointment(a.id)} 
+                                                  className="text-[10px] bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-2 py-1.5 rounded-lg font-bold transition-all duration-200 shadow-sm hover:shadow-md"
+                                                  title="Cancel"
+                                                >
+                                                  ✕
+                                                </button>
+                                              </div>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         </div>

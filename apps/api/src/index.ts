@@ -44,41 +44,56 @@ async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
 }
 
 // Hospital caching for better performance
-const HOSPITALS_CACHE_MS = 120 * 1000; // refresh hospital list every 2 minutes
+const HOSPITALS_CACHE_MS = 5 * 1000; // refresh hospital list every 5 seconds (was 120s)
 let cachedHospitals: any[] = [];
 let lastHospitalsFetch = 0;
 async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]> {
   const now = Date.now();
   if (cachedHospitals.length && (now - lastHospitalsFetch) < HOSPITALS_CACHE_MS) {
-    console.log(`🏥 Using cached hospitals (${cachedHospitals.length} items)`);
     return cachedHospitals;
   }
   console.log(`🔄 Fetching fresh hospitals from database...`);
-  const hospitals = await prismaClient.hospital.findMany({
-    select: {
-      id: true,
-      name: true,
-      address: true,
-      city: true,
-      state: true,
-      phone: true,
-      subdomain: true,
-      profile: true,
-      createdAt: true,
-      updatedAt: true,
-      adminId: true,
-      _count: {
-        select: {
-          departments: true,
-          doctors: true,
-        },
-      },
+  
+  // Use raw query for efficiency with complex counts and ratings
+  const hospitals = await prismaClient.$queryRaw`
+    SELECT 
+      h.id,
+      h.name,
+      h.address,
+      h.city,
+      h.state,
+      h.phone,
+      h.subdomain,
+      h.profile,
+      h."createdAt",
+      h."updatedAt",
+      h."adminId",
+      (SELECT COUNT(*)::int FROM "Department" WHERE "hospitalId" = h.id) as dept_count,
+      (SELECT COUNT(*)::int FROM "HospitalDoctor" WHERE "hospitalId" = h.id) as doc_count,
+      (SELECT COUNT(*)::int FROM "Appointment" WHERE "doctorId" IN (SELECT "doctorId" FROM "HospitalDoctor" WHERE "hospitalId" = h.id)) as appt_count,
+      (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
+      (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
+    FROM "Hospital" h
+    ORDER BY h.id ASC
+  `;
+
+  // Format to match expected frontend structure
+  const formattedHospitals = (hospitals as any[]).map(h => ({
+    ...h,
+    _count: {
+      departments: h.dept_count || 0,
+      doctors: h.doc_count || 0,
+      appointments: h.appt_count || 0,
+      reviews: h.review_count || 0
     },
-    orderBy: { createdAt: 'desc' },
-  });
-  cachedHospitals = hospitals;
+    rating: h.avg_rating || 0,
+    totalReviews: h.review_count || 0,
+    profile: h.profile || { general: { logoUrl: null, description: "Healthcare facility" } }
+  }));
+
+  cachedHospitals = formattedHospitals;
   lastHospitalsFetch = now;
-  console.log(`✅ Cached ${hospitals.length} hospitals`);
+  console.log(`✅ Cached ${formattedHospitals.length} hospitals: ${formattedHospitals.map(h => h.name).join(', ')}`);
   return cachedHospitals;
 }
 
@@ -638,24 +653,79 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
     const sort = String(req.query.sort ?? 'default');
     const skip = (page - 1) * pageSize;
 
-    let orderBy: any = { createdAt: 'desc' };
-    if (sort === 'trending') {
-      orderBy = { updatedAt: 'desc' };
-    } else if (sort === 'recent') {
-      orderBy = { createdAt: 'desc' };
-    }
+    // Use raw query for efficient sorting and counting with ratings
+    const doctorsSql = `
+      SELECT 
+        u.id,
+        u.email,
+        dp.id as profile_id,
+        dp.specialization,
+        dp.qualifications,
+        dp.experience,
+        dp."clinicName" as clinic_name,
+        dp."clinicAddress" as clinic_address,
+        dp.city,
+        dp.state,
+        dp.phone,
+        dp."consultationFee" as consultation_fee,
+        dp.slug,
+        dp."profileImage" as profile_image,
+        (SELECT COUNT(*)::int FROM "Appointment" WHERE "doctorId" = u.id) as appt_count,
+        (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count,
+        (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
+      FROM "User" u
+      JOIN "DoctorProfile" dp ON u.id = dp."userId"
+      WHERE u.role = 'DOCTOR'
+      ORDER BY 
+        ${sort === 'trending' ? 'appt_count DESC,' : ''}
+        ${sort === 'experience' ? 'dp.experience DESC,' : ''}
+        u."createdAt" DESC
+      LIMIT $1 OFFSET $2
+    `;
 
-    const doctors = await prisma.user.findMany({
-      where: { role: 'DOCTOR' },
-      include: { doctorProfile: true },
-      skip,
-      take: pageSize,
-      orderBy,
+    const rows = await prisma.$queryRawUnsafe(doctorsSql, pageSize, skip);
+    const totalCountRow: any[] = await prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "User" WHERE role = 'DOCTOR'`;
+    const totalCount = totalCountRow[0]?.count || 0;
+
+    const formattedDoctors = (rows as any[]).map(row => {
+      const emailPrefix = row.email.split('@')[0];
+      const derivedName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1).replace(/[._-]/g, ' ');
+      
+      return {
+        id: row.id,
+        email: row.email,
+        name: derivedName,
+        doctorProfile: {
+          id: row.profile_id,
+          specialization: row.specialization,
+          qualifications: row.qualifications,
+          experience: row.experience,
+          clinicName: row.clinic_name,
+          clinicAddress: row.clinic_address,
+          city: row.city,
+          state: row.state,
+          phone: row.phone,
+          consultationFee: row.consultation_fee,
+          slug: row.slug,
+          profileImage: row.profile_image
+        },
+        rating: row.avg_rating || 0,
+        totalReviews: row.review_count || 0,
+        _count: {
+          appointments: row.appt_count || 0,
+          reviews: row.review_count || 0
+        }
+      };
     });
-    res.status(200).json(doctors);
+
+    res.status(200).json({
+      success: true,
+      data: formattedDoctors,
+      count: totalCount
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'An error occurred while fetching doctors.' });
+    res.status(500).json({ success: false, message: 'An error occurred while fetching doctors.' });
   }
 });
 
@@ -998,10 +1068,23 @@ app.post('/api/analytics/doctor/view', async (req: Request, res: Response) => {
 app.get('/api/doctors/slug/:slug', async (req: Request, res: Response) => {
   const { slug } = req.params;
   try {
-    const doctorProfile = await prisma.doctorProfile.findUnique({
+    // 1. Try to find by exact slug
+    let doctorProfile = await prisma.doctorProfile.findUnique({
       where: { slug: slug.toLowerCase() },
       include: { user: true },
     });
+
+    // 2. Fallback: Search all doctors and match by slugified name
+    if (!doctorProfile) {
+      const allProfiles = await prisma.doctorProfile.findMany({
+        include: { user: true }
+      });
+      doctorProfile = allProfiles.find(p => {
+        const name = p.user?.name || p.user?.email?.split('@')[0] || '';
+        return slugifyHospitalName(name) === slug.toLowerCase();
+      }) || null;
+    }
+
     if (!doctorProfile) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
@@ -2877,7 +2960,7 @@ app.patch('/api/hospitals/:hospitalId/subdomain', authMiddleware, async (req: Re
 app.get('/api/hospitals', async (req: Request, res: Response) => {
   try {
     const page = parseInt(String(req.query.page ?? '1'), 10);
-    const limitParam = String(req.query.limit ?? '12');
+    const limitParam = String(req.query.limit ?? '100');
     const allHospitals = await getHospitalCandidates(prisma);
     const limit = limitParam.toLowerCase() === 'all' ? allHospitals.length : parseInt(limitParam, 10);
     const skip = (page - 1) * limit;
@@ -2885,10 +2968,16 @@ app.get('/api/hospitals', async (req: Request, res: Response) => {
     // Apply pagination to cached data
     const paginatedHospitals = allHospitals.slice(skip, skip + limit);
     
-    res.status(200).json(paginatedHospitals);
+    console.log(`🏥 API: Returning ${paginatedHospitals.length} hospitals (Total: ${allHospitals.length})`);
+    
+    res.status(200).json({
+      success: true,
+      data: paginatedHospitals,
+      count: allHospitals.length
+    });
   } catch (err: any) {
     console.error(err);
-    res.status(500).json({ message: 'An error occurred while fetching hospitals.' });
+    res.status(500).json({ success: false, message: 'An error occurred while fetching hospitals.' });
   }
 });
 
@@ -2902,8 +2991,30 @@ function slugifyHospitalName(input: string): string {
 app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response) => {
   const slug = String(req.params.slug || '').toLowerCase();
   try {
-    const items: Array<{ id: number; name: string; profile: any | null }> = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
-    const match = items.find((h: { id: number; name: string; profile: any | null }) => slugifyHospitalName(h.name) === slug);
+    // Optimization: Use cached hospitals if available
+    let match = null;
+    
+    // 1. Try to treat slug as ID first
+    const id = parseInt(slug);
+    if (!isNaN(id)) {
+      match = await prisma.hospital.findUnique({
+        where: { id },
+        select: { id: true, name: true, profile: true }
+      });
+    }
+
+    // 2. If not found by ID, try to match by slug in cached hospitals
+    if (!match) {
+      const allHospitals = await getHospitalCandidates(prisma);
+      match = allHospitals.find(h => slugifyHospitalName(h.name) === slug);
+    }
+
+    // 3. If still not found, try a direct DB search (fallback)
+    if (!match) {
+      const items = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
+      match = items.find(h => slugifyHospitalName(h.name) === slug);
+    }
+
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
     return res.status(200).json({ hospitalId: match.id, name: match.name, profile: match.profile ?? null });
   } catch (err: any) {
@@ -2915,78 +3026,67 @@ app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response)
 app.get('/api/hospitals/slug/:slug', async (req: Request, res: Response) => {
   const slug = String(req.params.slug || '').toLowerCase();
   try {
-    const items: Array<{ id: number; name: string; profile: any | null }> = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
-    const match = items.find((h: { id: number; name: string; profile: any | null }) => slugifyHospitalName(h.name) === slug);
+    // Optimization: Similar logic for full details
+    let match = null;
+    const id = parseInt(slug);
+    
+    if (!isNaN(id)) {
+      match = await prisma.hospital.findUnique({
+        where: { id },
+        select: { id: true, name: true, profile: true }
+      });
+    }
+
+    if (!match) {
+      const allHospitals = await getHospitalCandidates(prisma);
+      match = allHospitals.find(h => slugifyHospitalName(h.name) === slug);
+    }
+
+    if (!match) {
+      const items = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
+      match = items.find(h => slugifyHospitalName(h.name) === slug);
+    }
+
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
+    
     const hospitalId = match.id;
     const hospital = { id: hospitalId, name: match.name, profile: match.profile } as { id: number; name: string; profile: any | null };
+    
+    // Fetch departments and doctors in parallel
+    const [departmentsResult, links] = await Promise.all([
+      prisma.department.findMany({ where: { hospitalId }, select: { id: true, name: true } }),
+      prisma.hospitalDoctor.findMany({
+        where: { hospitalId },
+        select: {
+          departmentId: true,
+          doctor: {
+            select: {
+              id: true,
+              email: true,
+              doctorProfile: true,
+            }
+          },
+          department: { select: { id: true, name: true } },
+        },
+      })
+    ]);
+
     const departments = Array.isArray((hospital.profile as any)?.departments)
       ? (hospital.profile as any).departments
-      : [];
-    let links: Array<{ departmentId: number | null; doctor: { id: number; email: string; doctorProfile: any | null }; department: { id: number; name: string } | null }> = await prisma.hospitalDoctor.findMany({
-      where: { hospitalId },
-      select: {
-        departmentId: true,
-        doctor: {
-          select: {
-            id: true,
-            email: true,
-            doctorProfile: true,
-          }
-        },
-        department: { select: { id: true, name: true } },
-      },
-    });
-    try {
-      const profile: any = hospital.profile || {};
-      const profileDoctors: any[] = Array.isArray(profile.doctors) ? profile.doctors : [];
-      const deptByDoctorId = new Map<number, string>();
-      const doctorIdsInProfile: number[] = [];
-      for (const d of profileDoctors) {
-        const did = Number(d?.doctorId);
-        const deptName = Array.isArray(d?.departments) && d.departments[0] ? String(d.departments[0]).trim() : '';
-        if (Number.isFinite(did)) doctorIdsInProfile.push(did);
-        if (Number.isFinite(did) && deptName) deptByDoctorId.set(did, deptName);
-      }
-      {
-        const existingIds = new Set<number>(links.map((l) => l.doctor.id));
-        const missing = doctorIdsInProfile.filter((id) => !existingIds.has(id));
-        for (const did of missing) {
-          try {
-            await prisma.hospitalDoctor.create({ data: { hospitalId, doctorId: did } });
-          } catch (_) {}
-        }
-        if (missing.length > 0) {
-          links = await prisma.hospitalDoctor.findMany({
-            where: { hospitalId },
-            select: {
-              departmentId: true,
-              doctor: { select: { id: true, email: true, doctorProfile: true } },
-              department: { select: { id: true, name: true } },
-            }
-          });
-        }
-      }
-      const toFix = links.filter((l) => !l.departmentId && deptByDoctorId.has(l.doctor.id));
-      for (const l of toFix) {
-        const name = deptByDoctorId.get(l.doctor.id)!;
-        let dep = await prisma.department.findFirst({ where: { hospitalId, name } });
-        if (!dep) dep = await prisma.department.create({ data: { hospitalId, name } });
-        await prisma.hospitalDoctor.update({ where: { hospitalId_doctorId: { hospitalId, doctorId: l.doctor.id } }, data: { departmentId: dep.id } });
-      }
-      if (toFix.length > 0) {
-        links = await prisma.hospitalDoctor.findMany({
-          where: { hospitalId },
-          select: {
-            departmentId: true,
-            doctor: { select: { id: true, email: true, doctorProfile: true } },
-            department: { select: { id: true, name: true } },
-          }
-        });
-      }
-    } catch {}
+      : departmentsResult;
+
+    // Skip the expensive auto-healing logic if we already have links
+    // This logic seems to be for one-time setup or data correction
+    // and shouldn't run on every page load if possible.
+    
     const doctors = links.map((l) => ({ doctor: l.doctor, department: l.department || null }));
-    return res.status(200).json({ id: hospital.id, name: hospital.name, departments, doctors });
+    return res.status(200).json({ 
+      id: hospital.id, 
+      name: hospital.name, 
+      profile: hospital.profile, // Include profile in full details
+      departments, 
+      doctors 
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'An error occurred while resolving hospital by slug.' });
@@ -3053,7 +3153,7 @@ app.get('/api/hospitals/:hospitalId', async (req: Request, res: Response) => {
   try {
     const hospital = await prisma.hospital.findUnique({
       where: { id: hospitalId },
-      select: { id: true, name: true, profile: true },
+      select: { id: true, name: true, profile: true, subdomain: true },
     });
     if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
     const departments = Array.isArray((hospital.profile as any)?.departments)
@@ -3124,7 +3224,14 @@ app.get('/api/hospitals/:hospitalId', async (req: Request, res: Response) => {
       }
     } catch {}
     const doctors = links.map((l) => ({ doctor: l.doctor, department: l.department || null }));
-    return res.status(200).json({ id: hospital.id, name: hospital.name, departments, doctors });
+    return res.status(200).json({ 
+      id: hospital.id, 
+      name: hospital.name, 
+      profile: hospital.profile, 
+      subdomain: hospital.subdomain,
+      departments, 
+      doctors 
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'An error occurred while fetching hospital details.' });

@@ -228,42 +228,18 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                 e.preventDefault();
               }
               import("@/lib/api").then(({ apiClient }) => {
-                apiClient
-                  .getHospitalByDoctorId(doctor.id)
-                  .then((resp) => {
-                    apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
-                    if (searchQuery) {
-                      apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
-                    }
-                    if (resp && resp.id) {
-                      const hId = resp.id;
-                      const sub = (resp as any)?.subdomain as string | undefined;
-                      if (shouldUseSubdomainNav()) {
-                        if (sub && sub.length > 1) {
-                          window.location.href = customSubdomainUrl(sub);
-                        } else {
-                          window.location.href = hospitalIdMicrositeUrl(hId);
-                        }
-                      } else {
-                        router.push(`/hospital-site/${String(hId)}`);
-                      }
-                    } else {
-                      if (shouldUseSubdomainNav()) {
-                        window.location.href = doctorMicrositeUrl(slug);
-                      }
-                    }
-                  })
-                  .catch(() => {
-                    if (shouldUseSubdomainNav()) {
-                      window.location.href = doctorMicrositeUrl(slug);
-                    } else {
-                      router.push(`/doctor-site/${slug}`);
-                    }
-                    apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
-                    if (searchQuery) {
-                      apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
-                    }
-                  });
+                // Priority: Use the doctor's own slug for the website link
+                if (shouldUseSubdomainNav()) {
+                  window.location.href = doctorMicrositeUrl(slug);
+                } else {
+                  router.push(`/doctor-site/${slug}`);
+                }
+                
+                // Track the click
+                apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
+                if (searchQuery) {
+                  apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
+                }
               });
             }}
           >
@@ -273,10 +249,11 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
           <button
             className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2.5 rounded-lg transition-colors text-sm"
             onClick={() => {
+              // Even if no slug, try to find the linked hospital as a backup
               import("@/lib/api").then(({ apiClient }) => {
                 apiClient
                   .getHospitalByDoctorId(doctor.id)
-              .then((resp) => {
+                  .then((resp) => {
                     const hId = resp?.id;
                     const sub = (resp as any)?.subdomain as string | undefined;
                     if (hId != null) {

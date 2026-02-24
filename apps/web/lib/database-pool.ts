@@ -20,13 +20,14 @@ const safeEnv = (v: any, fallback: string = ''): string => {
 const poolConfig: any = connectionString
   ? {
       connectionString: safeEnv(connectionString),
-      max: 20,
-      min: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-      statement_timeout: 10000,
-      query_timeout: 10000,
+      max: 10, // Reduced max connections for Neon (serverless)
+      min: 0,  // Allow pool to scale down to zero
+      idleTimeoutMillis: 10000, // Close idle connections faster
+      connectionTimeoutMillis: 10000, // Give more time for cold starts
+      statement_timeout: 30000,
+      query_timeout: 30000,
       application_name: 'healtara_web',
+      ssl: connectionString.includes('neon.tech') ? { rejectUnauthorized: false } : false
     }
   : {
       host: safeEnv(process.env.DB_HOST, 'localhost'),
@@ -34,12 +35,10 @@ const poolConfig: any = connectionString
       database: safeEnv(process.env.DB_NAME, 'healtara'),
       user: safeEnv(process.env.DB_USER, 'postgres'),
       password: safeEnv(process.env.DB_PASSWORD, ''),
-      max: 20,
-      min: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-      statement_timeout: 10000,
-      query_timeout: 10000,
+      max: 10,
+      min: 0,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
       application_name: 'healtara_web',
     };
 
@@ -82,9 +81,11 @@ pool.on('error', (err, client) => {
 
 export async function executeQuery<T = any>(
   sql: string, 
-  params: any[] = []
+  params: any[] = [],
+  retryCount = 0
 ): Promise<T[]> {
   const startTime = Date.now();
+  const MAX_RETRIES = 5; // Increased retries for serverless cold starts
   
   try {
     if (!hasDbCredentials()) {
@@ -94,33 +95,45 @@ export async function executeQuery<T = any>(
       err.code = 'NO_DB_CONFIG';
       throw err;
     }
-    // Get client from pool (1-5ms)
-    const client = await pool.connect();
+
+    // Attempt to get client with timeout protection
+    const clientPromise = pool.connect();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('POOL_CONNECT_TIMEOUT')), 8000)
+    );
+
+    const client: any = await Promise.race([clientPromise, timeoutPromise]);
     
     try {
-      // Execute query (5-50ms with indexes)
       const result = await client.query(sql, params);
-      
-      // Log performance
       const duration = Date.now() - startTime;
       console.log(`⚡ Query executed in ${duration}ms: ${sql.substring(0, 50)}...`);
-      
-      // Warn about slow queries
-      if (duration > 100) {
-        console.warn(`🐌 Slow query detected: ${duration}ms`);
-      }
-      
       return result.rows;
     } finally {
-      // Return client to pool (1-2ms)
       client.release();
     }
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    if (error?.code === 'NO_DB_CONFIG' || String(error?.message).includes('NO_DB_CONFIG')) {
+    
+    // Retry logic for transient/timeout errors
+    const isTransient = 
+      error?.code === 'ECONNRESET' || 
+      error?.syscall === 'read' || 
+      error?.message?.includes('timeout') ||
+      error?.message?.includes('unexpectedly') ||
+      error?.message?.includes('POOL_CONNECT_TIMEOUT');
+
+    if (isTransient && retryCount < MAX_RETRIES) {
+      const delay = Math.pow(2, retryCount) * 200; // slightly longer backoff
+      console.warn(`🔄 Transient DB error (${error.message}). Retrying in ${delay}ms... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return executeQuery(sql, params, retryCount + 1);
+    }
+
+    if (error?.code === 'NO_DB_CONFIG') {
       console.warn(`⏭️ Query bypassed (no DB config) after ${duration}ms`);
     } else {
-      console.error(`❌ Query failed after ${duration}ms:`, error);
+      console.error(`❌ Query failed after ${duration}ms:`, error.message);
     }
     throw error;
   }

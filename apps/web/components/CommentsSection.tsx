@@ -140,12 +140,12 @@ export const CommentCard: React.FC<CommentCardProps> = ({
         <div className="flex items-center gap-3">
           {/* User Avatar */}
           <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-            {comment.name.charAt(0).toUpperCase()}
+            {(comment.name || 'A').charAt(0).toUpperCase()}
           </div>
           
           {/* User Info */}
           <div>
-            <div className="font-medium text-gray-900">{comment.name}</div>
+            <div className="font-medium text-gray-900">{comment.name || 'Anonymous'}</div>
             <div className="text-sm text-gray-500">{formatDate(comment.created_at)}</div>
           </div>
         </div>
@@ -308,11 +308,12 @@ export const CommentForm: React.FC<CommentFormProps> = ({
         setFormData({ rating: 5, comment: '' });
         if (onCommentPosted) onCommentPosted(result.data);
       } else {
-        alert('Failed to post comment');
+        const result = await response.json();
+        alert(`Failed to post comment: ${result.detail || 'Server error'}`);
       }
     } catch (error) {
       console.error('Failed to post comment:', error);
-      alert('Failed to post comment');
+      alert(`Failed to post comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -566,8 +567,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
             <CommentCard
               key={comment.id}
               comment={comment}
-              onReply={(replyId) => {
-                console.log('Reply to:', replyId);
+              onReply={() => {
+                loadComments(1); // Refresh to show the new reply
               }}
               onReact={(commentId, reaction) => {
                 console.log('React:', commentId, reaction);

@@ -282,11 +282,12 @@ export const CommentForm: React.FC<CommentFormProps> = ({
         setFormData({ name: '', email: '', rating: 5, comment: '' });
         if (onCommentPosted) onCommentPosted(result.data);
       } else {
-        alert('Failed to post comment');
+        const result = await response.json();
+        alert(`Failed to post comment: ${result.detail || 'Server error'}`);
       }
     } catch (error) {
       console.error('Failed to post comment:', error);
-      alert('Failed to post comment');
+      alert(`Failed to post comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
