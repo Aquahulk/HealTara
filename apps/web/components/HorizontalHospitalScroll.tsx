@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, MapPin, Building2, Users, Phone } from "lucide-react";
+import { EnhancedRatingDisplay } from './SimpleRatingDisplay';
 
 interface Hospital {
   id: number;
@@ -116,6 +117,10 @@ export default function HorizontalHospitalScroll({ hospitals }: HorizontalHospit
                   <div className="flex items-center text-gray-600 text-xs md:text-sm">
                     <Users className="w-3 h-3 md:w-4 md:h-4 text-green-500 mr-1.5 md:mr-2 flex-shrink-0" />
                     <span>{hospital._count?.doctors || 0} Doctors</span>
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t border-gray-50">
+                    <EnhancedRatingDisplay entityType="hospital" entityId={String(hospital.id)} size="sm" />
                   </div>
                   
                   {hospital.phone && (

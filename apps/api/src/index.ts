@@ -67,7 +67,12 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
       createdAt: true,
       updatedAt: true,
       adminId: true,
-      doctors: true,
+      _count: {
+        select: {
+          departments: true,
+          doctors: true,
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });

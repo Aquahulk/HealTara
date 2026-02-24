@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import { useRouter } from 'next/navigation';
-import { hospitalMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
+import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
+import { Building2, Users } from 'lucide-react';
+import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import { apiClient } from '@/lib/api';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
@@ -185,8 +187,21 @@ export default function HospitalsPage() {
                         </div>
                         <div className="flex-1 min-w-0">{/* min-w-0 for text truncation */}
                           <h3 className="text-base md:text-lg font-semibold text-gray-900 truncate">{name}</h3>
-                          <p className="text-sm text-gray-600 truncate">{location}</p>
+                          <p className="text-sm text-gray-600 truncate mb-2">{location}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center text-xs text-gray-500">
+                              <Building2 className="w-3 h-3 mr-1 text-blue-500" />
+                              <span>{h._count?.departments || 0} Depts</span>
+                            </div>
+                            <div className="flex items-center text-xs text-gray-500">
+                              <Users className="w-3 h-3 mr-1 text-green-500" />
+                              <span>{h._count?.doctors || 0} Doctors</span>
+                            </div>
+                          </div>
                         </div>
+                      </div>
+                      <div className="px-4 md:px-5 pb-2">
+                        <EnhancedRatingDisplay entityType="hospital" entityId={String(h.id)} size="sm" />
                       </div>
                       <div className="p-4 md:p-5 border-t border-gray-200 flex gap-3">
                         <a

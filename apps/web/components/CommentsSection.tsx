@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Star, MessageSquare, ThumbsUp, ThumbsDown, Flag, Reply, MoreHorizontal } from 'lucide-react';
+import { EnhancedRatingDisplay } from './SimpleRatingDisplay';
 
 // ============================================================================
 // 🌟 RATING DISPLAY COMPONENT
@@ -497,14 +498,19 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-bold text-gray-900">
-          Patient Reviews
-        </h3>
-        {entityName && (
-          <div className="text-sm text-gray-600">
-            Reviews for {entityName}
-          </div>
-        )}
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">
+            Patient Reviews
+          </h3>
+          {entityName && (
+            <div className="text-sm text-gray-600 mt-1">
+              Reviews for {entityName}
+            </div>
+          )}
+        </div>
+        <div className="bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 shadow-sm">
+          <EnhancedRatingDisplay entityType={entityType} entityId={entityId} size="md" showDistribution={false} />
+        </div>
       </div>
 
       <CommentForm 
