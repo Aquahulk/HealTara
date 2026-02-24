@@ -82,37 +82,80 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Ultra-optimized data loading with performance monitoring
   useEffect(() => {
     const loadData = async () => {
-      PerformanceMonitor.startTiming('homepage-data-load');
+      const startTime = performance.now();
+      
       try {
         setLoading(true);
-        
-        // Load data with intelligent caching
-        const [hospitalsData, doctorsData] = await Promise.allSettled([
-          loadWithCache('homepage_hospitals', () => apiClient.getHospitals()),
-          loadWithCache('homepage_doctors_v2', () => apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 12 }))
-        ]);
 
-        // Update state with results
-        if (hospitalsData.status === 'fulfilled') {
-          setHospitals(hospitalsData.value || []);
+        // Check cache first for instant loading
+        const cachedHospitals = localStorage.getItem('hospitals_cache');
+        const cachedDoctors = localStorage.getItem('doctors_cache');
+        const cacheTimestamp = localStorage.getItem('cache_timestamp');
+        const now = Date.now();
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+        // Use cached data if available and fresh
+        if (cachedHospitals && cachedDoctors && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
+          console.log('⚡ Loading from cache for instant display');
+          setHospitals(JSON.parse(cachedHospitals));
+          setDoctors(JSON.parse(cachedDoctors));
+          setLoading(false);
+          
+          // Still fetch fresh data in background
+          setTimeout(() => fetchFreshData(), 100);
         } else {
-          // Fallback: ensure hospitals array is never empty
-          setHospitals([]);
-        }
-        if (doctorsData.status === 'fulfilled') {
-          const list = Array.isArray(doctorsData.value) ? doctorsData.value : [];
-          setDoctors(list);
-          try { sessionStorage.setItem('last_doctors', JSON.stringify(list)); } catch {}
-        } else {
-          // Fallback: ensure doctors array is never empty
-          setDoctors([]);
+          await fetchFreshData();
         }
 
-        const duration = PerformanceMonitor.endTiming('homepage-data-load');
-        PerformanceMonitor.logTiming('homepage-data-load', duration);
+        async function fetchFreshData() {
+          PerformanceMonitor.startTiming('homepage-data-load');
+          try {
+            // Fetch hospitals and homepage content in parallel to reduce TTFB
+            const [hospitalsRes, doctorsRes] = await Promise.allSettled([
+              apiClient.getHospitals(),
+              loadWithCache('homepage_doctors_v2', () => apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 12 })),
+            ]);
+
+            if (hospitalsRes.status === 'fulfilled') {
+              setHospitals(hospitalsRes.value || []);
+              localStorage.setItem('hospitals_cache', JSON.stringify(hospitalsRes.value || []));
+            } else {
+              console.warn('Failed to load hospitals:', (hospitalsRes as any)?.reason);
+              setHospitals([]);
+            }
+
+            if (doctorsRes.status === 'fulfilled') {
+              const list = Array.isArray(doctorsRes.value) ? doctorsRes.value : [];
+              setDoctors(list);
+              localStorage.setItem('doctors_cache', JSON.stringify(list));
+            } else {
+              console.warn('Failed to load doctors:', (doctorsRes as any)?.reason);
+              setDoctors([]);
+            }
+
+            // Update cache timestamp
+            localStorage.setItem('cache_timestamp', Date.now().toString());
+            setLoading(false);
+            
+            const loadTime = performance.now() - startTime;
+            console.log(`📊 Homepage loaded in ${loadTime.toFixed(2)}ms`);
+          } catch (error) {
+            console.error('Error loading data:', error);
+            // Final fallback: try last session doctors to avoid empty UI
+            try {
+              const raw = sessionStorage.getItem('last_doctors');
+              if (raw) {
+                const list = JSON.parse(raw);
+                if (Array.isArray(list) && list.length) setDoctors(list);
+              }
+            } catch {}
+          } finally {
+            const duration = PerformanceMonitor.endTiming('homepage-data-load');
+            PerformanceMonitor.logTiming('homepage-data-load', duration);
+          }
+        }
 
       } catch (error) {
         console.error('Error loading data:', error);
