@@ -17,6 +17,7 @@ model User {
   managedDoctorProfileId Int?
   managedHospitalId      Int?
   canLogin               Boolean            @default(true)
+  status                 String             @default("ACTIVE") // ACTIVE, SUSPENDED
   adminAuditLogs         AdminAuditLog[]
   doctorAppointments     Appointment[]      @relation("DoctorAppointments")
   patientAppointments    Appointment[]      @relation("PatientAppointments")
@@ -104,6 +105,7 @@ model Hospital {
   state       String?
   phone       String?
   profile     Json?
+  status      String           @default("ACTIVE") // ACTIVE, SUSPENDED
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   adminId     Int?

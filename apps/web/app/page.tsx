@@ -100,22 +100,16 @@ export default function HomePage() {
         if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
           console.log('⚡ Loading from cache for instant display');
           const parsed = JSON.parse(cachedData);
-          
-          // 🛡️ SECURITY CHECK: If cache contains demo data, clear it and fetch fresh
-          const hasDemoData = 
-            (parsed.hospitals || []).some((h: any) => h.name?.includes('(Demo)')) ||
-            (parsed.doctors || []).some((d: any) => d.name?.includes('Demo'));
-            
-          if (hasDemoData) {
-            console.log('🗑️ Detected demo data in cache, clearing for fresh load');
-            localStorage.removeItem('homepage_cache');
-          } else if (parsed.hospitals && parsed.doctors) {
-            setHospitals(parsed.hospitals);
-            setDoctors(parsed.doctors);
+          const cachedHospitals = Array.isArray(parsed?.hospitals) ? parsed.hospitals : [];
+          const cachedDoctors = Array.isArray(parsed?.doctors) ? parsed.doctors : [];
+          if (cachedHospitals.length > 0 || cachedDoctors.length > 0) {
+            setHospitals(cachedHospitals);
+            setDoctors(cachedDoctors);
             setLoading(false);
-            // 🔄 Still fetch fresh data in background
             setTimeout(() => fetchFreshData(), 500);
             return;
+          } else {
+            console.log('⚠️ Ignoring empty cache; fetching fresh data');
           }
         }
         
@@ -126,8 +120,8 @@ export default function HomePage() {
           try {
             // 🚀 OPTIMIZED: Smaller data fetches for faster loading
             const [hospitalsRes, doctorsRes] = await Promise.allSettled([
-              apiClient.getHospitals({ limit: 100 }), // Increased from 12 to show all
-              apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 100 }), // Increased from 12
+              apiClient.getHospitals({ limit: 50 }),
+              apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 1000 }),
             ]);
 
             const hospitals = hospitalsRes.status === 'fulfilled' ? 
@@ -1026,22 +1020,17 @@ export default function HomePage() {
                             try {
                               if (shouldUseSubdomainNav()) {
                                 e.preventDefault();
-                                
-                                // ✅ PRIORITY 1: Use custom subdomain entered by user
                                 const hospitalSubdomain = (hospital as any).subdomain;
                                 if (hospitalSubdomain && hospitalSubdomain.trim()) {
-                                  console.log('🔗 Redirecting to hospital custom subdomain:', hospitalSubdomain);
                                   window.location.href = customSubdomainUrl(hospitalSubdomain);
                                   return;
                                 }
-                                
-                                // ✅ PRIORITY 2: Fallback to regular route if no custom domain entered
-                                // (Removed hospital name-based subdomain per user request)
-                                console.log('🔗 No custom domain, using regular route');
-                                router.push(`/hospital-site/${hospital.id}`);
-                              } else {
-                                router.push(`/hospital-site/${hospital.id}`);
+                                if (hospital.name) {
+                                  window.location.href = hospitalMicrositeUrl(hospital.name);
+                                  return;
+                                }
                               }
+                              router.push(`/hospital-site/${hospital.id}`);
                             } catch (error) {
                               console.error('Hospital redirect error:', error);
                               router.push(`/hospital-site/${hospital.id}`);

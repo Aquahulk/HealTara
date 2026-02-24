@@ -703,6 +703,24 @@ class ApiClient {
     return this.request(`/api/admin/hospitals?${query}`);
   }
 
+  async adminGetHospitalFullDetails(hospitalId: number): Promise<any> {
+    return this.request(`/api/admin/hospitals/${hospitalId}/full-details`);
+  }
+
+  async adminUpdateDoctorStatus(doctorId: number, status: 'ACTIVE' | 'SUSPENDED'): Promise<any> {
+    return this.request(`/api/admin/doctors/${doctorId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async adminUpdateHospitalStatus(hospitalId: number, status: 'ACTIVE' | 'SUSPENDED'): Promise<any> {
+    return this.request(`/api/admin/hospitals/${hospitalId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
   async getAdminAppointments(): Promise<Appointment[]> {
     return this.request('/api/admin/appointments');
   }
@@ -729,20 +747,6 @@ class ApiClient {
     return this.request(`/api/admin/appointments/${appointmentId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
-    });
-  }
-
-  async adminSetDoctorStatus(doctorId: number, action: 'START' | 'PAUSE' | 'REVOKE'): Promise<any> {
-    return this.request(`/api/admin/doctors/${doctorId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ action }),
-    });
-  }
-
-  async adminSetHospitalStatus(hospitalId: number, action: 'START' | 'PAUSE' | 'REVOKE'): Promise<any> {
-    return this.request(`/api/admin/hospitals/${hospitalId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ action }),
     });
   }
 

@@ -3626,6 +3626,7 @@ useEffect(() => {
                                 const sub = (hospitalProfile as any)?.subdomain as string | undefined;
                                 if (sub && sub.length > 1) return customSubdomainUrl(sub);
                                 if (hospitalProfile.name) return hospitalMicrositeUrl(hospitalProfile.name);
+                                if (hospitalProfile.name) return hospitalMicrositeUrl(hospitalProfile.name);
                                 return `${typeof window !== 'undefined' ? window.location.origin : ''}/hospital-site/${hospitalProfile.id}`;
                               })()}
                             </p>
@@ -3640,6 +3641,11 @@ useEffect(() => {
                                 if (shouldUseSubdomainNav()) {
                                   if (sub && sub.length > 1) {
                                     window.open(customSubdomainUrl(sub), '_blank');
+                                  } else if (hospitalProfile.name) {
+                                    window.open(hospitalMicrositeUrl(hospitalProfile.name), '_blank');
+                                  } else {
+                                    window.open(`/hospital-site/${hospitalProfile.id}`, '_blank');
+                                  }
                                   } else if (hospitalProfile.name) {
                                     window.open(hospitalMicrositeUrl(hospitalProfile.name), '_blank');
                                   } else {

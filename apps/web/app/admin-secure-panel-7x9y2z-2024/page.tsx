@@ -192,6 +192,24 @@ export default function SecureAdminPanel() {
   const [adminDoctors, setAdminDoctors] = useState<any[]>([]); // Admin view of doctors with status
   const [adminHospitals, setAdminHospitals] = useState<any[]>([]); // Admin view of hospitals with status
 
+  // New state for hospital details
+  const [selectedHospitalDetails, setSelectedHospitalDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  // Function to load hospital details
+  const loadHospitalDetails = async (hospitalId: number) => {
+    setLoadingDetails(true);
+    try {
+      const details = await apiClient.adminGetHospitalFullDetails(hospitalId);
+      setSelectedHospitalDetails(details);
+    } catch (error) {
+      console.error('Error loading hospital details:', error);
+      alert('Failed to load hospital details');
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
   // ============================================================================
   // 🔄 SIDE EFFECTS - Code that runs when component mounts or updates
   // ============================================================================
@@ -376,45 +394,26 @@ export default function SecureAdminPanel() {
   // ============================================================================
   // ✅ ADMIN APPROVAL FUNCTIONS - Manage doctor/hospital service status
   // ============================================================================
-  const setDoctorServiceStatus = async (doctorId: number, action: 'START' | 'PAUSE' | 'REVOKE') => {
+  const setDoctorServiceStatus = async (doctorId: number, status: 'ACTIVE' | 'SUSPENDED') => {
     try {
-      await apiClient.adminSetDoctorStatus(doctorId, action);
-      // Optimistically update UI for snappy feedback
-      setAdminDoctors((prev) =>
-        (prev || []).map((d: any) =>
-          d.id === doctorId
-            ? { ...d, status: action === 'START' ? 'STARTED' : action === 'PAUSE' ? 'PAUSED' : 'REVOKED' }
-            : d
-        )
-      );
-      // Refetch only the doctors list quickly (paginated)
-      const refreshed = await apiClient.adminListDoctors({ page: 1, limit: 25 }).catch(() => ({ items: [] as any[], total: 0, page: 1, limit: 25 }));
-      setAdminDoctors((refreshed as any).items || []);
-      alert('Doctor status updated successfully');
+      await apiClient.adminUpdateDoctorStatus(doctorId, status);
+      // Refresh data
+      const refreshed = await apiClient.adminListDoctors({ page: 1, limit: 50 });
+      setAdminDoctors(refreshed.items || []);
+      alert(`Doctor ${status === 'SUSPENDED' ? 'suspended' : 'activated'} successfully`);
     } catch (error) {
       console.error('Error updating doctor status:', error);
       alert('Failed to update doctor status');
     }
   };
 
-  const setHospitalServiceStatus = async (
-    hospitalId: number,
-    action: 'START' | 'PAUSE' | 'REVOKE'
-  ) => {
+  const setHospitalServiceStatus = async (hospitalId: number, status: 'ACTIVE' | 'SUSPENDED') => {
     try {
-      await apiClient.adminSetHospitalStatus(hospitalId, action);
-      // Optimistically update UI for snappy feedback
-      setAdminHospitals((prev) =>
-        (prev || []).map((h: any) =>
-          h.id === hospitalId
-            ? { ...h, serviceStatus: action === 'START' ? 'STARTED' : action === 'PAUSE' ? 'PAUSED' : 'REVOKED' }
-            : h
-        )
-      );
-      // Refetch only the hospitals list quickly (paginated)
-      const refreshed = await apiClient.adminListHospitals({ page: 1, limit: 25 }).catch(() => ({ items: [] as any[], total: 0, page: 1, limit: 25 }));
-      setAdminHospitals((refreshed as any).items || []);
-      alert('Hospital status updated successfully');
+      await apiClient.adminUpdateHospitalStatus(hospitalId, status);
+      // Refresh data
+      const refreshed = await apiClient.adminListHospitals({ page: 1, limit: 50 });
+      setAdminHospitals(refreshed.items || []);
+      alert(`Hospital ${status === 'SUSPENDED' ? 'suspended' : 'activated'} successfully`);
     } catch (error) {
       console.error('Error updating hospital status:', error);
       alert('Failed to update hospital status');

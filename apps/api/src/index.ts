@@ -65,6 +65,7 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
       h.phone,
       h.subdomain,
       h.profile,
+      h.status,
       h."createdAt",
       h."updatedAt",
       h."adminId",
@@ -452,10 +453,11 @@ app.post('/api/login', async (req: Request, res: Response) => {
     // ============================================================================
     // JWT contains: user ID, email, role, and expiration time
     // This token will be used for all future authenticated requests
+    const jwtSecret = process.env.JWT_SECRET || 'dev-insecure-secret';
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,                              // Secret key from environment variables
-      { expiresIn: '24h' }                                 // Token expires in 24 hours
+      jwtSecret,
+      { expiresIn: '24h' }
     );
     
     res.status(200).json({ message: 'Login successful', token: token });
@@ -658,6 +660,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
       SELECT 
         u.id,
         u.email,
+        u.status,
         dp.id as profile_id,
         dp.specialization,
         dp.qualifications,
@@ -694,6 +697,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
       return {
         id: row.id,
         email: row.email,
+        status: row.status,
         name: derivedName,
         doctorProfile: {
           id: row.profile_id,
@@ -1079,7 +1083,7 @@ app.get('/api/doctors/slug/:slug', async (req: Request, res: Response) => {
       const allProfiles = await prisma.doctorProfile.findMany({
         include: { user: true }
       });
-      doctorProfile = allProfiles.find(p => {
+      doctorProfile = allProfiles.find((p: any) => {
         const name = p.user?.name || p.user?.email?.split('@')[0] || '';
         return slugifyHospitalName(name) === slug.toLowerCase();
       }) || null;
@@ -1125,6 +1129,25 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
     return res.status(400).json({ message: 'Doctor ID, date and time are required.' });
   }
   try {
+    // Check if doctor or their hospital is suspended
+    const doctor = await prisma.user.findUnique({
+      where: { id: Number(doctorId) },
+      select: { status: true }
+    });
+
+    if (doctor?.status === 'SUSPENDED') {
+      return res.status(403).json({ message: 'Booking failed: Doctor is currently suspended.' });
+    }
+
+    const hospitalMembership = await prisma.hospitalDoctor.findFirst({
+      where: { doctorId: Number(doctorId) },
+      include: { hospital: { select: { status: true } } }
+    });
+
+    if (hospitalMembership?.hospital?.status === 'SUSPENDED') {
+      return res.status(403).json({ message: 'Booking failed: Hospital is currently suspended.' });
+    }
+
     // Capacity enforcement per hour based on doctor's slot period
     const hour = Number(String(time).slice(0, 2));
     const doctorProfile = await prisma.doctorProfile.findUnique({
@@ -1493,6 +1516,200 @@ app.get('/api/admin/appointments', authMiddleware, adminMiddleware, async (req: 
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while fetching appointments.' });
+  }
+});
+
+// --- Admin: List all doctors with status and basic info ---
+app.get('/api/admin/doctors', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(String(req.query.page ?? '1'), 10);
+    const limit = parseInt(String(req.query.limit ?? '10'), 10);
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search ?? '').trim();
+
+    const where: any = { role: 'DOCTOR' };
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { doctorProfile: { specialization: { contains: search, mode: 'insensitive' } } },
+        { doctorProfile: { clinicName: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+
+    const [doctors, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        include: { 
+          doctorProfile: true,
+          hospitalMemberships: {
+            include: { hospital: { select: { name: true } } }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    res.status(200).json({
+      items: doctors,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch doctors list' });
+  }
+});
+
+// --- Admin: List all hospitals with status and stats ---
+app.get('/api/admin/hospitals', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(String(req.query.page ?? '1'), 10);
+    const limit = parseInt(String(req.query.limit ?? '10'), 10);
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search ?? '').trim();
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { city: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const [hospitals, total] = await Promise.all([
+      prisma.hospital.findMany({
+        where,
+        include: {
+          _count: {
+            select: {
+              departments: true,
+              doctors: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.hospital.count({ where })
+    ]);
+
+    res.status(200).json({
+      items: hospitals,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch hospitals list' });
+  }
+});
+
+// --- Admin: Get hospital details (departments and doctors) ---
+app.get('/api/admin/hospitals/:hospitalId/full-details', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+
+  try {
+    const hospital = await prisma.hospital.findUnique({
+      where: { id: hospitalId },
+      include: {
+        departments: {
+          include: {
+            doctors: {
+              include: {
+                doctor: {
+                  select: { id: true, email: true, status: true, doctorProfile: { select: { specialization: true } } }
+                }
+              }
+            }
+          }
+        },
+        doctors: {
+          where: { departmentId: null }, // Doctors not assigned to any department
+          include: {
+            doctor: {
+              select: { id: true, email: true, status: true, doctorProfile: { select: { specialization: true } } }
+            }
+          }
+        }
+      }
+    });
+
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
+    res.status(200).json(hospital);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch hospital details' });
+  }
+});
+
+// --- Admin: Update doctor status (suspend/unsuspend) ---
+app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  const { status } = req.body; // ACTIVE, SUSPENDED
+
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  if (!['ACTIVE', 'SUSPENDED'].includes(status)) return res.status(400).json({ message: 'Invalid status' });
+
+  try {
+    const updated = await prisma.user.update({
+      where: { id: doctorId },
+      data: { status }
+    });
+
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: req.user!.userId,
+        action: status === 'SUSPENDED' ? 'DOCTOR_SUSPEND' : 'DOCTOR_UNSUSPEND',
+        entityType: 'USER',
+        entityId: doctorId,
+        details: `Doctor status updated to ${status}`
+      }
+    }).catch(() => {});
+
+    res.status(200).json({ message: `Doctor ${status.toLowerCase()}ed successfully`, user: updated });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update doctor status' });
+  }
+});
+
+// --- Admin: Update hospital status (suspend/unsuspend) ---
+app.patch('/api/admin/hospitals/:hospitalId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  const { status } = req.body; // ACTIVE, SUSPENDED
+
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  if (!['ACTIVE', 'SUSPENDED'].includes(status)) return res.status(400).json({ message: 'Invalid status' });
+
+  try {
+    const updated = await prisma.hospital.update({
+      where: { id: hospitalId },
+      data: { status }
+    });
+
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: req.user!.userId,
+        action: status === 'SUSPENDED' ? 'HOSPITAL_SUSPEND' : 'HOSPITAL_UNSUSPEND',
+        entityType: 'HOSPITAL',
+        entityId: hospitalId,
+        details: `Hospital status updated to ${status}`
+      }
+    }).catch(() => {});
+
+    res.status(200).json({ message: `Hospital ${status.toLowerCase()}ed successfully`, hospital: updated });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update hospital status' });
   }
 });
 
@@ -3006,13 +3223,13 @@ app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response)
     // 2. If not found by ID, try to match by slug in cached hospitals
     if (!match) {
       const allHospitals = await getHospitalCandidates(prisma);
-      match = allHospitals.find(h => slugifyHospitalName(h.name) === slug);
+      match = allHospitals.find((h: any) => slugifyHospitalName(h.name) === slug);
     }
 
     // 3. If still not found, try a direct DB search (fallback)
     if (!match) {
       const items = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
-      match = items.find(h => slugifyHospitalName(h.name) === slug);
+      match = items.find((h: any) => slugifyHospitalName(h.name) === slug);
     }
 
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
@@ -3039,12 +3256,12 @@ app.get('/api/hospitals/slug/:slug', async (req: Request, res: Response) => {
 
     if (!match) {
       const allHospitals = await getHospitalCandidates(prisma);
-      match = allHospitals.find(h => slugifyHospitalName(h.name) === slug);
+      match = allHospitals.find((h: any) => slugifyHospitalName(h.name) === slug);
     }
 
     if (!match) {
       const items = await prisma.hospital.findMany({ select: { id: true, name: true, profile: true } });
-      match = items.find(h => slugifyHospitalName(h.name) === slug);
+      match = items.find((h: any) => slugifyHospitalName(h.name) === slug);
     }
 
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
@@ -3079,7 +3296,7 @@ app.get('/api/hospitals/slug/:slug', async (req: Request, res: Response) => {
     // This logic seems to be for one-time setup or data correction
     // and shouldn't run on every page load if possible.
     
-    const doctors = links.map((l) => ({ doctor: l.doctor, department: l.department || null }));
+    const doctors = links.map((l: any) => ({ doctor: l.doctor, department: l.department || null }));
     return res.status(200).json({ 
       id: hospital.id, 
       name: hospital.name, 

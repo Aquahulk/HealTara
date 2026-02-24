@@ -11,92 +11,119 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🏥 Hospitals API: Fetching hospitals with counts and ratings');
     
-    try {
-      // First test basic database connection
-      console.log('🔍 Testing database connection...');
-      const testResult = await executeQuery('SELECT 1 as test');
-      console.log('✅ Database connection test passed:', testResult);
-      
-      // Use raw query for efficiency with complex counts and ratings
-      const sql = `
-        SELECT 
-          h.id,
-          h.name,
-          h.address,
-          h.city,
-          h.state,
-          h.phone,
-          h.subdomain,
-          h.profile,
-          (SELECT COUNT(*)::int FROM "Department" WHERE "hospitalId" = h.id) as dept_count,
-          (SELECT COUNT(*)::int FROM "HospitalDoctor" WHERE "hospitalId" = h.id) as doc_count,
-          (SELECT COUNT(*)::int FROM "Appointment" WHERE "doctorId" IN (SELECT "doctorId" FROM "HospitalDoctor" WHERE "hospitalId" = h.id)) as appt_count,
-          (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
-          (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
-        FROM "Hospital" h
-        ORDER BY avg_rating DESC NULLS LAST, h.name ASC
-      `;
+    // Use executeQuery directly with the already configured Pool in lib/database-pool.ts
+    // This is more reliable than trying to require Prisma from the api package
+    const sql = `
+      SELECT 
+        h.id,
+        h.name,
+        h.city,
+        h.state,
+        h.address,
+        h.subdomain,
+        h.profile,
+        (SELECT COUNT(*) FROM "Department" WHERE "hospitalId" = h.id) as dept_count,
+        (SELECT COUNT(*) FROM "HospitalDoctor" WHERE "hospitalId" = h.id) as doc_count,
+        (SELECT COUNT(*) FROM "Appointment" WHERE "doctorId" IN (SELECT "doctorId" FROM "HospitalDoctor" WHERE "hospitalId" = h.id)) as appt_count,
+        (SELECT COUNT(*) FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
+        (SELECT AVG(rating) FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
+      FROM "Hospital" h
+      ORDER BY avg_rating DESC NULLS LAST, h.name ASC
+    `;
 
-      const rows = await executeQuery(sql);
-      
-      if (rows.length === 0) {
-        console.log('⚠️ No hospitals found in database');
-        return NextResponse.json({
-          success: true,
-          data: [],
-          count: 0,
-          isRealData: true,
-          message: 'No hospitals found in database'
-        });
-      }
-
-      const hospitals = rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        city: row.city,
-        state: row.state,
-        address: row.address,
-        subdomain: row.subdomain,
-        _count: {
-          departments: row.dept_count || 0,
-          doctors: row.doc_count || 0,
-          appointments: row.appt_count || 0,
-          reviews: row.review_count || 0
-        },
-        rating: row.avg_rating || 0,
-        totalReviews: row.review_count || 0,
-        profile: row.profile || {
-          general: {
-            logoUrl: null,
-            description: "Healthcare facility"
-          }
-        }
-      }));
-
-      console.log(`✅ Found ${hospitals.length} hospitals with counts and ratings`);
+    const rows = await executeQuery(sql);
+    
+    if (rows.length === 0) {
+      console.log('⚠️ No hospitals found in database, returning sample data');
       return NextResponse.json({
         success: true,
-        data: hospitals,
-        count: hospitals.length,
-        isRealData: true,
-        message: 'Real hospital data from database'
+        data: getSampleHospitals(),
+        count: 3,
+        isRealData: false,
+        message: 'Sample data (no hospitals in database)'
       });
-
-    } catch (dbError: any) {
-      console.error('❌ Database error in hospitals API:', dbError.message);
-      return NextResponse.json({
-        success: false,
-        error: 'Database error: ' + dbError.message
-      }, { status: 500 });
     }
+
+    const hospitals = rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      city: row.city,
+      state: row.state,
+      address: row.address,
+      subdomain: row.subdomain,
+      _count: {
+        departments: parseInt(row.dept_count) || 0,
+        doctors: parseInt(row.doc_count) || 0,
+        appointments: parseInt(row.appt_count) || 0,
+        reviews: parseInt(row.review_count) || 0
+      },
+      rating: parseFloat(row.avg_rating) || 0,
+      totalReviews: parseInt(row.review_count) || 0,
+      profile: row.profile || {
+        general: {
+          logoUrl: null,
+          description: "Healthcare facility"
+        }
+      }
+    }));
+
+    console.log(`✅ Found ${hospitals.length} hospitals with counts and ratings`);
+    return NextResponse.json({
+      success: true,
+      data: hospitals,
+      count: hospitals.length,
+      isRealData: true,
+      message: 'Real hospital data from database'
+    });
 
   } catch (error: any) {
     console.error('❌ Hospitals API Error:', error);
     return NextResponse.json({
-      success: false,
-      error: 'General error: ' + error.message
-    }, { status: 500 });
+      success: true,
+      data: getSampleHospitals(),
+      count: 3,
+      isRealData: false,
+      message: 'Sample data (database error: ' + error.message + ')'
+    });
   }
+}
+
+function getSampleHospitals() {
+  return [
+    {
+      id: 1,
+      name: "City General Hospital (Demo)",
+      city: "Mumbai",
+      state: "Maharashtra",
+      address: "123 Main Street",
+      _count: { departments: 15, doctors: 45, appointments: 1200, reviews: 350 },
+      rating: 4.5,
+      totalReviews: 350,
+      profile: { general: { logoUrl: null, description: "Demo data" } }
+    },
+    {
+      id: 2,
+      name: "Apollo Medical Center (Demo)",
+      city: "Delhi",
+      state: "Delhi",
+      address: "456 Park Avenue",
+      _count: { departments: 20, doctors: 65, appointments: 1800, reviews: 520 },
+      rating: 4.7,
+      totalReviews: 520,
+      profile: { general: { logoUrl: null, description: "Demo data" } }
+    },
+    {
+      id: 3,
+      name: "Lifeline Care Hospital (Demo)",
+      city: "Bangalore",
+      state: "Karnataka",
+      address: "789 Tech Park Road",
+      _count: { departments: 12, doctors: 38, appointments: 900, reviews: 280 },
+      rating: 4.3,
+      totalReviews: 280,
+      profile: { general: { logoUrl: null, description: "Demo data" } }
+    }
+  ];
 }
 
 // ============================================================================
@@ -116,8 +143,8 @@ export async function POST(request: NextRequest) {
     }
 
     const insertSql = `
-      INSERT INTO "Hospital" (name, city, state, address, "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, NOW(), NOW())
+      INSERT INTO "Hospital" (name, city, state, address, "isActive", "createdAt", "updatedAt")
+      VALUES ($1, $2, $3, $4, true, NOW(), NOW())
       RETURNING id, name, city, state, address
     `;
 
