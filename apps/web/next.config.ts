@@ -11,6 +11,21 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Proxy API routes using env var in production, localhost in dev
     const apiBase = process.env.NEXT_PUBLIC_API_URL;
+    
+    // If API URL is explicitly set, use it (even in dev)
+    if (apiBase) {
+      return [
+        {
+          source: "/api/:path*",
+          destination: `${apiBase}/api/:path*`,
+        },
+        {
+          source: "/uploads/:path*",
+          destination: `${apiBase}/uploads/:path*`,
+        },
+      ];
+    }
+
     if (isDev) {
       return [
         {
@@ -21,18 +36,6 @@ const nextConfig: NextConfig = {
           // Allow frontend to access uploaded media served by API
           source: "/uploads/:path*",
           destination: "http://localhost:3001/uploads/:path*",
-        },
-      ];
-    }
-    if (apiBase) {
-      return [
-        {
-          source: "/api/:path*",
-          destination: `${apiBase}/api/:path*`,
-        },
-        {
-          source: "/uploads/:path*",
-          destination: `${apiBase}/uploads/:path*`,
         },
       ];
     }
