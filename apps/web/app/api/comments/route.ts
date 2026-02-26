@@ -132,32 +132,72 @@ export async function POST(request: NextRequest) {
       ) RETURNING id, created_at
     `;
 
-    const result = await executeQuery(insertSql, [
-      entityType,
-      entityId,
-      userId || null,
-      name,
-      email,
-      rating || null,
-      comment,
-      parentId || null
-    ]);
+    try {
+      const result = await executeQuery(insertSql, [
+        entityType,
+        entityId,
+        userId || null,
+        name,
+        email,
+        rating || null,
+        comment,
+        parentId || null
+      ]);
 
-    console.log(`✅ Comment stored permanently: ${entityType}:${entityId} by ${name}`);
+      console.log(`✅ Comment stored permanently: ${entityType}:${entityId} by ${name}`);
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: result[0].id,
-        name: name,
-        email: email,
-        rating: rating,
-        comment: comment,
-        created_at: result[0].created_at,
-        is_verified: true,
-        reply_count: 0
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: result[0].id,
+          name: name,
+          email: email,
+          rating: rating,
+          comment: comment,
+          created_at: result[0].created_at,
+          is_verified: true,
+          reply_count: 0
+        }
+      });
+    } catch (dbErr: any) {
+      const msg = String(dbErr?.message || '');
+      const code = String((dbErr as any)?.code || '');
+      const noDb = code === 'NO_DB_CONFIG' || msg.includes('NO_DB_CONFIG');
+      
+      if (noDb) {
+        try {
+          const apiHost = process.env.NEXT_PUBLIC_API_URL;
+          if (!apiHost) throw new Error('NO_API_HOST');
+          
+          console.warn('⚠️ No DB config, falling back to API proxy for comment');
+          
+          const resp = await fetch(`${apiHost}/api/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+
+          if (!resp.ok) {
+            const t = await resp.text().catch(() => '');
+            throw new Error(`Upstream error: ${t || resp.status}`);
+          }
+
+          const data = await resp.json().catch(() => ({} as any));
+          return NextResponse.json({
+            success: true,
+            data: data?.data || null,
+            message: data?.message || 'Comment stored via API fallback',
+          });
+        } catch (proxyErr: any) {
+          console.error('❌ Comments POST Fallback Error:', proxyErr);
+          return NextResponse.json(
+            { success: false, error: 'Failed to store comment (no DB and upstream failed)' },
+            { status: 500 }
+          );
+        }
       }
-    });
+      throw dbErr;
+    }
 
   } catch (error: any) {
     console.error('❌ Comments POST Error:', error);

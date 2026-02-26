@@ -67,17 +67,72 @@ export default function BookAppointmentModal({
 
     if (!isOpen) return null;
 
+    // Set default date to today for instant grid rendering
+    useEffect(() => {
+        try {
+            if (!date) {
+                const d = new Date();
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                setDate(`${yyyy}-${mm}-${dd}`);
+            }
+        } catch {}
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
+
     // Lightweight realtime: listen for bookings and refresh availability
     useEffect(() => {
         if (!effectiveDoctorId || !date) return;
+        
+        // INSTANT FEEDBACK: Show loading immediately
+        setLoadingAvail(true);
+        setAvailableTimes([]); // Clear previous times instantly
+        setHourAvailability(null); // Clear previous availability
+        
         const refresh = async () => {
             try {
                 const [dateOnly] = date.includes('T') ? date.split('T') : [date];
                 const key = `${effectiveDoctorId}:${dateOnly}`;
+                
+                // OPTIMISTIC: Check cache first for instant display
+                const cachedSlots = cacheRef.current.slots.get(key);
+                const cachedAvail = cacheRef.current.availability.get(key);
+                
+                if (cachedSlots && cachedAvail) {
+                    // Show cached data instantly while fetching fresh
+                    const times = cachedSlots
+                        .filter((s: any) => s.status === 'AVAILABLE')
+                        .map((s: any) => String(s.time).slice(0,5));
+                    setAvailableTimes(Array.from(new Set(times as string[])).sort((a: string, b: string) => a.localeCompare(b)));
+                    setHourAvailability(cachedAvail);
+                    setLoadingAvail(false); // Hide loading instantly
+                } else {
+                    // 🚀 NEW USER FALLBACK: Show instant placeholder while loading
+                    const defaultHours = Array.from({ length: 8 }, (_, i) => {
+                        const hour = 10 + i; // 10 AM to 6 PM
+                        return {
+                            hour: String(hour).padStart(2, '0'),
+                            capacity: 4, // Default capacity
+                            bookedCount: 0,
+                            isFull: false,
+                            labelFrom: `${String(hour).padStart(2, '0')}:00`,
+                            labelTo: `${String(hour + 1).padStart(2, '0')}:00`,
+                        };
+                    });
+                    setHourAvailability({
+                        periodMinutes: 15,
+                        hours: defaultHours
+                    });
+                    // Don't set loadingAvail to false yet - still fetching real data
+                }
+                
+                // PARALLEL FETCH: Get fresh data in background
                 const [combined, insights] = await Promise.all([
                     apiClient.getSlotsAndAvailability({ doctorId: effectiveDoctorId, date: dateOnly }).catch(() => null),
                     apiClient.getSlotInsights({ doctorId: effectiveDoctorId, date: dateOnly }).catch(() => null),
                 ]);
+                
                 const slots = Array.isArray((combined as any).slots) ? (combined as any).slots : [];
                 const times = slots
                     .filter((s: any) => s.status === 'AVAILABLE')
@@ -85,9 +140,18 @@ export default function BookAppointmentModal({
                 cacheRef.current.slots.set(key, slots);
                 const avail = (insights as any)?.availability || (combined as any)?.availability;
                 if (avail) cacheRef.current.availability.set(key, avail);
+                
+                // Update with fresh data
                 setAvailableTimes(Array.from(new Set(times as string[])).sort((a: string, b: string) => a.localeCompare(b)));
                 setHourAvailability(avail as any);
-            } catch {}
+                setLoadingAvail(false);
+                
+            } catch (error) {
+                console.error('Error fetching availability:', error);
+                // FALLBACK: Show error but don't break UX
+                setError('Unable to load available times. Please try again.');
+                setLoadingAvail(false);
+            }
         };
 
         const bc = bcRef.current;
@@ -98,39 +162,34 @@ export default function BookAppointmentModal({
                 const did = Number(msg?.payload?.doctorId);
                 const dt = String(msg?.payload?.date || '');
                 if (!did || did !== effectiveDoctorId) return;
-                const [dateOnly] = date.includes('T') ? date.split('T') : [date];
-                if (dt && dt !== dateOnly) return;
-                refresh();
+                if (t === 'slots:updated' || t === 'appointment-booked') {
+                    refresh();
+                }
             } catch {}
         };
-        bc?.addEventListener('message', onMsg as any);
 
-        // Socket.io for cross-client realtime
-        try {
-            const { io } = require('socket.io-client');
-            const socket = io(process.env.NEXT_PUBLIC_API_URL || undefined, { transports: ['websocket'] });
-            socketRef.current = socket;
-            socket.on('connect', () => {
-                try { socket.emit('join-doctor', effectiveDoctorId); } catch {}
-            });
-            const onAny = (payload: any) => {
-                try {
-                    const did = Number(payload?.doctorId ?? payload?.appointment?.doctorId ?? payload?.appointment?.doctor?.id);
-                    // Some events send nested appointment
-                    const appt = (payload?.appointment || payload) as any;
-                    const dt = appt?.date;
-                    const [dateOnly] = date.includes('T') ? date.split('T') : [date];
-                    if (did === effectiveDoctorId && (!dt || dt === dateOnly)) refresh();
-                } catch {}
-            };
-            socket.on('appointment-booked', onAny);
-            socket.on('appointment-updated', onAny);
-            socket.on('appointment-cancelled', onAny);
-        } catch {}
+        const onStorage = (ev: StorageEvent) => {
+            try {
+                if (ev.key === 'slots-updated') {
+                    const data = JSON.parse(ev.newValue || '{}');
+                    if (Number(data.doctorId) === effectiveDoctorId) {
+                        refresh();
+                    }
+                }
+            } catch {}
+        };
+
+        if (bc) {
+            bc.addEventListener('message', onMsg);
+        }
+        window.addEventListener('storage', onStorage);
+        refresh();
 
         return () => {
-            try { bc?.removeEventListener('message', onMsg as any); } catch {}
-            try { socketRef.current?.disconnect?.(); socketRef.current = null; } catch {}
+            if (bc) {
+                bc.removeEventListener('message', onMsg);
+            }
+            window.removeEventListener('storage', onStorage);
         };
     }, [effectiveDoctorId, date]);
 
@@ -304,8 +363,18 @@ export default function BookAppointmentModal({
     // Optimized time slot loading with aggressive caching and parallel requests
     useEffect(() => {
         const run = async () => {
+            // Show an instant placeholder grid while fetching
+            const mkLabel = (h: number) => ({
+                hour: String(h).padStart(2, '0'),
+                capacity: -1,
+                bookedCount: 0,
+                isFull: false,
+                labelFrom: `${String(h).padStart(2, '0')}:00`,
+                labelTo: `${String(h + 1).padStart(2, '0')}:00`,
+            });
+            const placeholder = Array.from({ length: 8 }, (_, i) => mkLabel(10 + i));
+            setHourAvailability({ periodMinutes: 60, hours: placeholder });
             setAvailableTimes([]);
-            setHourAvailability(null);
             setTime("");
             if (!effectiveDoctorId || !date) return;
             const [dateOnly] = date.includes('T') ? date.split('T') : [date];
@@ -365,8 +434,8 @@ export default function BookAppointmentModal({
                 setHourAvailability({ periodMinutes: 60, hours: fallbackHours });
             }
             
-            // Retry mechanism for failed requests
-            const fetchWithRetry = async (retries = 2) => {
+            // Retry mechanism for failed requests - OPTIMIZED for speed
+            const fetchWithRetry = async (retries = 1) => { // Reduced from 2 to 1 retry
                 for (let attempt = 0; attempt <= retries; attempt++) {
                     try {
                         const combinedData = await Promise.race([
@@ -375,14 +444,14 @@ export default function BookAppointmentModal({
                                 apiClient.getSlotInsights({ doctorId: effectiveDoctorId, date: dateOnly }).catch(() => null),
                             ]).then(([avail, insights]) => ({ avail, insights })),
                             new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('Request timeout')), 3000) // 3 seconds timeout
+                                setTimeout(() => reject(new Error('Request timeout')), 2000) // Reduced from 3s to 2s
                             )
                         ]);
                         return combinedData;
                     } catch (error) {
                         if (attempt === retries) throw error;
                         console.warn(`Attempt ${attempt + 1} failed, retrying...`, error);
-                        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
+                        await new Promise(resolve => setTimeout(resolve, 500)); // Reduced from 1s to 500ms
                     }
                 }
             };

@@ -34,6 +34,7 @@ import {
 import { doctorMicrositeUrl, hospitalMicrositeUrl, customSubdomainUrl, shouldUseSubdomainNav } from '@/lib/subdomain';
 import { getDoctorLabel, getPatientLabel, getUserLabel } from '@/lib/utils';
 import { io } from 'socket.io-client';
+import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 
 // ============================================================================
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
@@ -1506,9 +1507,9 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* ============================================================================
-          📂 COLLAPSEABLE SIDEBAR - Navigation sidebar
+          📂 COLLAPSEABLE SIDEBAR - Navigation sidebar (Hidden on mobile)
           ============================================================================ */}
-      <aside className={`fixed left-0 top-0 h-full bg-blue-900 border-r border-blue-800 transition-all duration-300 z-50 shadow-lg ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
+      <aside className={`fixed left-0 top-0 h-full bg-blue-900 border-r border-blue-800 transition-all duration-300 z-50 shadow-lg hidden md:block ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
         {/* Toggle Button */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -1632,23 +1633,34 @@ useEffect(() => {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+      {/* Main Content Area - Full width on mobile, margin on desktop */}
+      <div className={`flex-1 transition-all duration-300 overflow-x-hidden ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
       {/* ============================================================================
           🎨 TOP BAR - Dark blue header with dashboard title and conditional logout
           ============================================================================ */}
       <header className="bg-blue-900 border-b border-blue-800 shadow-lg sticky top-0 z-40">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-white">
+        <div className="px-2 sm:px-4 lg:px-8">
+          <div className="flex justify-between items-center py-3 sm:py-4">
+            <h1 className="text-base sm:text-xl md:text-2xl font-bold text-white truncate">
               {user.role === 'HOSPITAL_ADMIN' ? 'Hospital Dashboard' : isDoctorLike ? 'Doctor Dashboard' : 'Patient Dashboard'}
             </h1>
             
-            {/* Logout button - only shows when sidebar is collapsed */}
+            {/* Logout button - shows on mobile, only when sidebar collapsed on desktop */}
+            <button
+              onClick={logout}
+              className="flex items-center space-x-1 sm:space-x-2 bg-red-600 hover:bg-red-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg text-xs sm:text-sm md:hidden"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="font-medium">Logout</span>
+            </button>
+            
+            {/* Desktop logout - only shows when sidebar is collapsed */}
             {sidebarCollapsed && (
               <button
                 onClick={logout}
-                className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+                className="hidden md:flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -1661,36 +1673,37 @@ useEffect(() => {
       </header>
 
       {/* ============================================================================
-          📊 MAIN CONTENT - Dashboard content with tabs
+          📊 MAIN CONTENT - Dashboard content with tabs (with mobile bottom padding)
           ============================================================================ */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8">
         {/* ============================================================================
-            🧭 NAVIGATION TABS - Tab navigation with smooth transitions
+            🧭 NAVIGATION TABS - Tab navigation with smooth transitions (scrollable on mobile)
             ============================================================================ */}
-        <div className="bg-white rounded-2xl shadow-xl mb-8 overflow-hidden">
-          <nav className="flex space-x-2 p-2">
+        <div className="bg-white rounded-2xl shadow-xl mb-8 overflow-hidden -mx-4 sm:mx-0">
+          <nav className="flex space-x-1 sm:space-x-2 p-1 sm:p-2 overflow-x-auto scrollbar-hide">
           {[
-            { id: 'overview', name: '📊 Overview', icon: ChartBarIcon },
-            { id: 'appointments', name: '📅 Appointments', icon: CalendarIcon },
+            { id: 'overview', name: '📊 Overview', icon: ChartBarIcon, shortName: 'Overview' },
+            { id: 'appointments', name: '📅 Appointments', icon: CalendarIcon, shortName: 'Appts' },
             // Show doctor-like tabs for doctors and hospital admins
             ...(isDoctorLike ? [
-                { id: 'slots', name: '🕒 Slots', icon: ClockIcon },
-                { id: 'patients', name: '👥 Patients', icon: UserGroupIcon },
-                { id: 'website', name: '🌐 Website', icon: GlobeAltIcon },
-                { id: 'settings', name: '⚙️ Settings', icon: CogIcon }
+                { id: 'slots', name: '🕒 Slots', icon: ClockIcon, shortName: 'Slots' },
+                { id: 'patients', name: '👥 Patients', icon: UserGroupIcon, shortName: 'Patients' },
+                { id: 'website', name: '🌐 Website', icon: GlobeAltIcon, shortName: 'Website' },
+                { id: 'settings', name: '⚙️ Settings', icon: CogIcon, shortName: 'Settings' }
               ] : [])
           ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-3 px-4 font-bold text-sm flex items-center justify-center space-x-2 rounded-xl transition-all duration-300 transform ${
+                className={`flex-shrink-0 py-2 px-2 sm:py-3 sm:px-4 font-bold text-xs flex items-center justify-center space-x-1 sm:space-x-2 rounded-lg sm:rounded-xl transition-all duration-300 whitespace-nowrap min-w-[70px] sm:min-w-0 ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
-                <tab.icon className="h-5 w-5" />
-                <span>{tab.name}</span>
+                <tab.icon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <span className="hidden sm:inline">{tab.name}</span>
+                <span className="sm:hidden text-[10px]">{tab.shortName}</span>
               </button>
             ))}
           </nav>
@@ -1720,26 +1733,26 @@ useEffect(() => {
                 📈 STATISTICS CARDS - Key metrics display (role-based)
                 ============================================================================ */}
             {stats && (
-              <div className={`grid grid-cols-1 md:grid-cols-2 ${user.role === 'DOCTOR' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6`}>
+              <div className={`grid grid-cols-1 md:grid-cols-2 ${user.role === 'DOCTOR' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 sm:gap-6`}>
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-6">
+                  <div className="p-3 sm:p-6">
                     <div className="flex items-center justify-between">
-                      <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
-                        <CalendarIcon className="h-8 w-8 text-white" />
+                      <div className="flex-shrink-0 bg-white/20 p-2 sm:p-3 rounded-xl">
+                        <CalendarIcon className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                       </div>
                       <div className="text-right">
-                        <dt className="text-sm font-medium text-blue-100 truncate">Total Appointments</dt>
-                        <dd className="text-3xl font-black text-white mt-1">{stats.totalAppointments}</dd>
+                        <dt className="text-xs sm:text-sm font-medium text-blue-100 truncate">Total Appointments</dt>
+                        <dd className="text-2xl sm:text-3xl font-black text-white mt-1">{stats.totalAppointments}</dd>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white/10 px-6 py-2">
+                  <div className="bg-white/10 px-3 sm:px-6 py-1 sm:py-2">
                     <div className="text-xs text-blue-100">All time bookings</div>
                   </div>
                 </div>
 
                 <div className="bg-gradient-to-br from-yellow-500 to-orange-500 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
-                  <div className="p-6">
+                  <div className="p-3 sm:p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex-shrink-0 bg-white/20 p-3 rounded-xl">
                         <ClockIcon className="h-8 w-8 text-white" />
@@ -3704,6 +3717,11 @@ useEffect(() => {
           )
         )}
       </div>
+      </div>
+      
+      {/* Mobile Bottom Navigation - Only visible on mobile */}
+      <div className="md:hidden">
+        <MobileBottomNavigation />
       </div>
     </div>
   );

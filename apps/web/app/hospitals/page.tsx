@@ -207,6 +207,15 @@ export default function HospitalsPage() {
                         <a
                           href={`/hospital-site/${h.id}`}
                           className="flex-1 text-center bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-3 rounded-lg transition-colors min-h-[44px] flex items-center justify-center touch-manipulation"
+                          onMouseEnter={() => {
+                            try {
+                              if (shouldUseSubdomainNav()) {
+                                const sub = (h as any).subdomain as string | undefined;
+                                const url = sub && sub.length > 1 ? customSubdomainUrl(sub) : (h.name ? hospitalMicrositeUrl(h.name) : '');
+                                if (url) import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
+                              }
+                            } catch {}
+                          }}
                           onClick={(e) => {
                             try {
                               if (shouldUseSubdomainNav()) {

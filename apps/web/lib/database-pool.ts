@@ -6,7 +6,7 @@
 
 import { Pool } from 'pg';
 
-const rawDatabaseUrl: any = (process.env as any).DATABASE_URL;
+const rawDatabaseUrl: any = (process.env as any).DATABASE_URL || (process.env as any).NEXT_PUBLIC_DATABASE_URL;
 const connectionString: string | undefined = typeof rawDatabaseUrl === 'string' && rawDatabaseUrl.trim().length > 0
   ? rawDatabaseUrl
   : undefined;

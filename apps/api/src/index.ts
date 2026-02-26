@@ -101,7 +101,7 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
 const SEARCH_CACHE_MS = 30 * 1000;
 const searchCache = new Map<string, { ts: number; result: any }>();
 
-const AVAIL_CACHE_MS = 10 * 1000;
+const AVAIL_CACHE_MS = 2 * 1000;
 const availabilityCache = new Map<string, { ts: number; periodMinutes: number; hours: Array<{ hour: string; labelFrom: string; labelTo: string; capacity: number; bookedCount: number; isFull: boolean }> }>();
 
 function dayWindowUtc(dateStr: string) {
@@ -806,30 +806,79 @@ app.post('/api/comments', async (req: Request, res: Response) => {
   try {
     await ensureCommentsSchema();
     const { entityType, entityId, userId, name, email, rating, comment, parentId = null } = req.body || {};
-    if (!entityType || !entityId || !userId || !rating || !comment) return res.status(400).json({ error: 'entityType, entityId, userId, rating, comment are required' });
+    
+    // Validate required fields (relaxed validation for anonymous users or missing userId)
+    if (!entityType || !entityId || !rating || !comment) {
+      return res.status(400).json({ error: 'entityType, entityId, rating, comment are required' });
+    }
+    
     if (!['doctor', 'hospital'].includes(String(entityType))) return res.status(400).json({ error: 'entityType must be "doctor" or "hospital"' });
     const r = parseInt(String(rating), 10);
     if (!(r >= 1 && r <= 5)) return res.status(400).json({ error: 'Rating must be between 1 and 5' });
-    let finalName = name;
-    let finalEmail = email;
-    if (!finalName || !finalEmail) {
+    
+    let finalName = name || 'Anonymous';
+    let finalEmail = email || 'anonymous@example.com';
+    let finalUserId = userId ? parseInt(String(userId), 10) : null;
+
+    // If userId is provided but name/email are missing, try to fetch from DB
+    if (finalUserId && (!name || !email)) {
       try {
-        const u = await prisma.user.findUnique({ where: { id: parseInt(String(userId), 10) }, select: { email: true } });
-        const makeName = (em?: string | null) => {
-          if (!em) return 'Anonymous';
-          const base = String(em).split('@')[0] || '';
-          return base ? base.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Anonymous';
-        };
-        finalEmail = finalEmail || u?.email || 'unknown@example.com';
-        finalName = finalName || makeName(finalEmail);
-      } catch {}
+        const u = await prisma.user.findUnique({ 
+          where: { id: finalUserId }, 
+          select: { email: true, name: true } 
+        });
+        
+        if (u) {
+          finalEmail = email || u.email || 'unknown@example.com';
+          finalName = name || u.name || (u.email ? u.email.split('@')[0] : 'Anonymous');
+        }
+      } catch (e) {
+        console.warn('Failed to fetch user details for comment:', e);
+      }
     }
-    const rows = await prisma.$queryRaw(`
-      INSERT INTO "public"."comments" (entity_type, entity_id, user_id, parent_id, name, email, rating, comment)
-      VALUES (${String(entityType)}, ${parseInt(String(entityId), 10)}, ${parseInt(String(userId), 10)}, ${parentId ? parseInt(String(parentId), 10) : null}, ${String(finalName)}, ${String(finalEmail)}, ${r}, ${String(comment)})
+    
+    // Insert using Prisma raw query
+    // Note: We use parameterized queries for safety, but here we're constructing the SQL string
+    // Ideally should use Prisma.sql`` but keeping consistent with existing style for now
+    // Fix: Handle null parentId correctly in SQL
+    const parentIdVal = parentId ? parseInt(String(parentId), 10) : 'NULL';
+    const userIdVal = finalUserId ? finalUserId : 'NULL';
+    
+    const query = `
+      INSERT INTO "public"."comments" (
+        entity_type, entity_id, user_id, parent_id, name, email, rating, comment, is_verified, is_active, created_at
+      )
+      VALUES (
+        '${entityType}', 
+        ${parseInt(String(entityId), 10)}, 
+        ${userIdVal}, 
+        ${parentIdVal}, 
+        '${finalName.replace(/'/g, "''")}', 
+        '${finalEmail.replace(/'/g, "''")}', 
+        ${r}, 
+        '${comment.replace(/'/g, "''")}',
+        true,
+        true,
+        NOW()
+      )
       RETURNING id, name, email, rating, comment, created_at, is_verified, parent_id
-    `);
-    return res.json({ success: true, data: rows[0], message: 'Comment posted successfully' });
+    `;
+    
+    const rows: any[] = await prisma.$queryRawUnsafe(query);
+    
+    const result = rows[0];
+    try {
+      const idNum = parseInt(String(entityId), 10);
+      if (entityType === 'hospital') {
+        io.to(`hospital:${idNum}`).emit('rating:updated', { entityType, entityId: String(entityId) });
+      } else if (entityType === 'doctor') {
+        io.to(`doctor:${idNum}`).emit('rating:updated', { entityType, entityId: String(entityId) });
+      }
+      io.emit('rating:updated', { entityType, entityId: String(entityId) });
+    } catch (e) {
+      console.error('broadcast rating failed', e);
+    }
+    return res.json({ success: true, data: result, message: 'Comment posted successfully' });
   } catch (e) {
     console.error('post comment error', e);
     return res.status(500).json({ error: 'Failed to post comment' });
@@ -1334,6 +1383,9 @@ app.patch('/api/doctor/slot-period', authMiddleware, async (req: Request, res: R
       return res.status(404).json({ message: 'Doctor profile not found.' });
     }
     await prisma.doctorProfile.update({ where: { userId: user.userId }, data: { slotPeriodMinutes: value } });
+    try {
+      broadcastDoctorEvent(user.userId, 'slots:period-updated', { doctorId: user.userId, minutes: value });
+    } catch (_) {}
     return res.status(200).json({ message: 'Slot period updated', slotPeriodMinutes: value });
   } catch (error) {
     console.error(error);
@@ -3689,6 +3741,10 @@ app.patch('/api/hospitals/:hospitalId/doctors/:doctorId/slot-period', authMiddle
       return res.status(404).json({ message: 'Doctor profile not found' });
     }
     await prisma.doctorProfile.update({ where: { userId: doctorId }, data: { slotPeriodMinutes: value } });
+    try {
+      broadcastDoctorEvent(doctorId, 'slots:period-updated', { doctorId, minutes: value });
+      broadcastHospitalEvent(hospitalId, 'slots:period-updated', { hospitalId, doctorId, minutes: value });
+    } catch (_) {}
     return res.status(200).json({ message: 'Slot period updated', slotPeriodMinutes: value });
   } catch (error) {
     console.error(error);

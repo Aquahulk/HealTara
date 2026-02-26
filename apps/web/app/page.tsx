@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
@@ -10,6 +10,7 @@ import Header from '@/components/Header';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import DesktopSidebar from '@/components/DesktopSidebar';
+import { useRatingUpdates } from '@/context/RealtimeContext';
 import { 
   Search, 
   ArrowDown, 
@@ -53,6 +54,231 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
+
+// Hero Carousel Component
+function HeroCarousel() {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  
+  const slides = [
+    {
+      title: "Your Health, Our Priority",
+      subtitle: "Connect with verified doctors instantly",
+      description: "Book appointments in 60 seconds",
+      gradient: "from-blue-600 via-purple-600 to-pink-500",
+      icon: <Heart className="w-12 h-12" />,
+      showSteps: false
+    },
+    {
+      title: "How to Book an Appointment",
+      subtitle: "Simple 3-step process",
+      description: "Get started in minutes",
+      gradient: "from-green-500 via-teal-500 to-blue-500",
+      icon: <CheckCircle className="w-12 h-12" />,
+      showSteps: true
+    },
+    {
+      title: "Book Appointments Easily",
+      subtitle: "24/7 online booking",
+      description: "Schedule anytime, anywhere",
+      gradient: "from-purple-600 via-pink-500 to-red-500",
+      icon: <Calendar className="w-12 h-12" />,
+      showSteps: false
+    },
+    {
+      title: "Trusted Healthcare Network",
+      subtitle: "Verified doctors & hospitals",
+      description: "1000+ healthcare professionals",
+      gradient: "from-orange-500 via-red-500 to-pink-600",
+      icon: <Shield className="w-12 h-12" />,
+      showSteps: false
+    },
+    {
+      title: "Quality Healthcare Services",
+      subtitle: "Comprehensive medical care",
+      description: "From consultations to treatments",
+      gradient: "from-indigo-600 via-purple-500 to-pink-500",
+      icon: <Stethoscope className="w-12 h-12" />,
+      showSteps: false
+    }
+  ];
+
+  // Auto-scroll every 5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [slides.length]);
+
+  return (
+    <div className="relative w-full h-[480px] overflow-hidden">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentSlide}
+          initial={{ opacity: 0, x: 100 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -100 }}
+          transition={{ duration: 0.5 }}
+          className={`absolute inset-0 bg-gradient-to-br ${slides[currentSlide].gradient}`}
+        >
+          {/* Animated blob background */}
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute top-0 -left-4 w-56 h-56 bg-white rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+            <div className="absolute top-0 -right-4 w-56 h-56 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+            <div className="absolute -bottom-8 left-20 w-56 h-56 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+          </div>
+
+          {/* Content */}
+          <div className="relative z-10 h-full flex items-center justify-center px-4">
+            <div className="text-center max-w-5xl w-full">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="mb-3 flex justify-center text-white"
+              >
+                {slides[currentSlide].icon}
+              </motion.div>
+              
+              <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="text-2xl md:text-4xl font-black text-white mb-2 leading-tight"
+              >
+                {slides[currentSlide].title}
+              </motion.h1>
+              
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="text-base md:text-lg text-white/90 mb-1 font-bold"
+              >
+                {slides[currentSlide].subtitle}
+              </motion.p>
+              
+              <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                className="text-sm md:text-base text-white/80 mb-6"
+              >
+                {slides[currentSlide].description}
+              </motion.p>
+
+              {/* How to Book Steps - Only show on "How It Works" slide */}
+              {slides[currentSlide].showSteps && (
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, delay: 0.6 }}
+                  className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto mt-6"
+                >
+                  {/* Step 1 */}
+                  <div className="bg-white/95 backdrop-blur-lg rounded-2xl p-4 shadow-2xl border-2 border-white/50 hover:scale-105 transition-transform">
+                    <div className="bg-gradient-to-br from-blue-500 to-cyan-500 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                      <Search className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold px-3 py-1 rounded-full inline-block mb-2">
+                      STEP 1
+                    </div>
+                    <h3 className="text-gray-900 font-bold text-base mb-1">Search Doctor</h3>
+                    <p className="text-gray-600 text-xs">Find the right specialist for your needs</p>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="bg-white/95 backdrop-blur-lg rounded-2xl p-4 shadow-2xl border-2 border-white/50 hover:scale-105 transition-transform">
+                    <div className="bg-gradient-to-br from-green-500 to-emerald-500 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                      <Calendar className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full inline-block mb-2">
+                      STEP 2
+                    </div>
+                    <h3 className="text-gray-900 font-bold text-base mb-1">Select Time</h3>
+                    <p className="text-gray-600 text-xs">Choose convenient appointment slot</p>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="bg-white/95 backdrop-blur-lg rounded-2xl p-4 shadow-2xl border-2 border-white/50 hover:scale-105 transition-transform">
+                    <div className="bg-gradient-to-br from-purple-500 to-pink-500 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                      <CheckCircle className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1 rounded-full inline-block mb-2">
+                      STEP 3
+                    </div>
+                    <h3 className="text-gray-900 font-bold text-base mb-1">Confirm Booking</h3>
+                    <p className="text-gray-600 text-xs">Get instant confirmation & details</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Feature Boxes for other slides */}
+              {!slides[currentSlide].showSteps && (
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.7, delay: 0.6 }}
+                  className="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto mt-6"
+                >
+                  <div className="bg-white/90 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-white/50 flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-blue-600" />
+                    <span className="text-gray-900 font-semibold text-sm">Verified Doctors</span>
+                  </div>
+                  <div className="bg-white/90 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-white/50 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-green-600" />
+                    <span className="text-gray-900 font-semibold text-sm">24/7 Booking</span>
+                  </div>
+                  <div className="bg-white/90 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-white/50 flex items-center gap-2">
+                    <Star className="w-5 h-5 text-yellow-600" />
+                    <span className="text-gray-900 font-semibold text-sm">Top Rated</span>
+                  </div>
+                  <div className="bg-white/90 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-white/50 flex items-center gap-2">
+                    <Video className="w-5 h-5 text-purple-600" />
+                    <span className="text-gray-900 font-semibold text-sm">Online Consult</span>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Navigation Dots */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2">
+        {slides.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => setCurrentSlide(index)}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              index === currentSlide 
+                ? 'bg-white w-6' 
+                : 'bg-white/50 hover:bg-white/75'
+            }`}
+            aria-label={`Go to slide ${index + 1}`}
+          />
+        ))}
+      </div>
+
+      {/* Navigation Arrows */}
+      <button
+        onClick={() => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)}
+        className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2 rounded-full transition-all"
+        aria-label="Previous slide"
+      >
+        <ChevronLeft className="w-4 h-4 text-white" />
+      </button>
+      
+      <button
+        onClick={() => setCurrentSlide((prev) => (prev + 1) % slides.length)}
+        className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2 rounded-full transition-all"
+        aria-label="Next slide"
+      >
+        <ChevronRight className="w-4 h-4 text-white" />
+      </button>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -121,7 +347,7 @@ export default function HomePage() {
             // 🚀 OPTIMIZED: Smaller data fetches for faster loading
             const [hospitalsRes, doctorsRes] = await Promise.allSettled([
               apiClient.getHospitals({ limit: 50 }),
-              apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 1000 }),
+              apiClient.getDoctors({ sort: 'trending', page: 1, pageSize: 20 }),
             ]);
 
             const hospitals = hospitalsRes.status === 'fulfilled' ? 
@@ -166,6 +392,21 @@ export default function HomePage() {
     };
     loadData();
   }, []);
+
+  useRatingUpdates(() => {
+    try {
+      // Refresh lightweight: just fetch fresh data
+      setTimeout(() => {
+        // Trigger background refresh without blocking UI
+        (async () => {
+          try {
+            const items = await apiClient.getHospitals({ limit: 50 });
+            setHospitals(items || []);
+          } catch {}
+        })();
+      }, 100);
+    } catch {}
+  });
 
   useEffect(() => {
     let bc: BroadcastChannel | null = null;
@@ -415,206 +656,195 @@ export default function HomePage() {
       {/* Main content area - Adjusts margin based on sidebar using CSS variable */}
       <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,16rem)]">
         {/* ============================================================================
-            🌟 HERO SECTION - Modern glassmorphism design
+            🌟 HERO CAROUSEL SECTION - Auto-scrollable slides with fixed search
             ============================================================================ */}
-        <section className="relative min-h-[600px] flex items-center justify-center overflow-hidden">
-          {/* Animated gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500">
-            <div className="absolute inset-0 opacity-30">
-              <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-              <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-              <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-            </div>
-          </div>
-
-          <div className="relative z-10 max-w-6xl mx-auto px-4 py-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center mb-8"
-            >
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-white mb-4 leading-tight">
-                Your Health,
-                <span className="block bg-gradient-to-r from-yellow-300 to-pink-300 bg-clip-text text-transparent">
-                  Our Priority
-                </span>
-              </h1>
-              
-              <p className="text-lg md:text-xl text-white/90 mb-8 max-w-2xl mx-auto font-medium">
-                Connect with verified doctors instantly. Book appointments in 60 seconds.
-              </p>
-            </motion.div>
-
-            {/* Modern Search Card with Glassmorphism */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="max-w-4xl mx-auto"
-            >
-              <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl p-6 shadow-2xl">
-                <div className="space-y-4">
-                  {/* Main Search */}
-                  <div className="relative z-30">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/70" />
-                    <input
-                      type="text"
-                      placeholder="Search doctors, specialties, or conditions..."
-                      value={searchQuery}
-                      onChange={async (e) => {
-                        const raw = e.target.value;
-                        setSearchQuery(raw);
-                        const q = raw.trim();
-                        const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
-                        const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
-                        const nextSpace = raw.indexOf(' ', caret);
-                        const end = nextSpace === -1 ? raw.length : nextSpace;
-                        const active = raw.substring(start, end).trim();
-
-                        if (!q) {
-                          const seeds = apiClient.getSeedSuggestions();
-                          setSuggestions(seeds);
-                          setShowSuggestions(seeds.length > 0);
-                          return;
-                        }
-
-                        let quick: string[] = [];
-                        if (active) {
-                          const cachedTok = apiClient.peekCachedSearch(active);
-                          if (cachedTok && Array.isArray(cachedTok.suggestions)) {
-                            quick = cachedTok.suggestions.slice(0, 8);
-                          } else {
-                            quick = apiClient.getLocalSuggestions(active).slice(0, 8);
-                          }
-                        } else {
-                          quick = apiClient.getSeedSuggestions().slice(0, 8);
-                        }
-                        setSuggestions(quick);
-                        setShowSuggestions(quick.length > 0);
-
-                        try {
-                          const resp = await apiClient.searchDoctors(q);
-                          const combined = resp.suggestions.slice(0, 8);
-                          setSuggestions(combined);
-                          setShowSuggestions(combined.length > 0);
-                          apiClient.trackSearchDebounced(q, {
-                            matchedSpecialties: resp.matchedSpecialties,
-                            matchedConditions: resp.matchedConditions,
-                            topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id),
-                          });
-                        } catch {
-                          apiClient.trackSearchDebounced(q);
-                        }
-                      }}
-                      onFocus={() => setShowSuggestions(suggestions.length > 0)}
-                      onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const raw = searchQuery;
+        <section className="relative min-h-[580px] flex flex-col overflow-hidden">
+          {/* Hero Carousel Container */}
+          <HeroCarousel />
+          
+          {/* Fixed Search Bar - Positioned at bottom of hero */}
+          <div className="relative z-20 -mt-20 pb-6">
+            <div className="max-w-3xl mx-auto px-4">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                {/* Search Container - p-4 for increased height */}
+                <div className="backdrop-blur-xl bg-white/95 border border-gray-200 rounded-2xl p-8 shadow-2xl">
+                  <div className="space-y-3">
+                    {/* Main Search */}
+                    <div className="relative z-30">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search doctors, specialties..."
+                        value={searchQuery}
+                        onChange={async (e) => {
+                          const raw = e.target.value;
+                          setSearchQuery(raw);
                           const q = raw.trim();
                           const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
                           const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
                           const nextSpace = raw.indexOf(' ', caret);
                           const end = nextSpace === -1 ? raw.length : nextSpace;
                           const active = raw.substring(start, end).trim();
-                          if (q) {
-                            if (active && suggestions.length === 0 && active.length >= 3) {
-                              apiClient.addLocalSuggestion(active, active);
-                            }
-                            apiClient.trackSearch(q, { source: 'enter' });
-                            setShowSuggestions(false);
-                            router.push(`/doctors?search=${encodeURIComponent(q)}`);
+
+                          if (!q) {
+                            const seeds = apiClient.getSeedSuggestions();
+                            setSuggestions(seeds);
+                            setShowSuggestions(seeds.length > 0);
+                            return;
                           }
-                        }
-                      }}
-                      className="w-full pl-12 pr-4 py-4 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-2xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all text-lg"
-                    />
-                    {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-2 backdrop-blur-xl bg-white/95 border border-white/20 rounded-2xl shadow-2xl z-50 max-h-60 overflow-auto">
-                        {suggestions.map((s, i) => (
-                          <button
-                            key={i}
-                            className="w-full text-left px-4 py-3 text-gray-900 hover:bg-blue-50 transition-colors"
-                            onMouseDown={(ev) => {
-                              const raw = searchQuery;
-                              const inputEl = ev.currentTarget.ownerDocument.querySelector('input[type="text"]') as HTMLInputElement | null;
-                              const caret = inputEl?.selectionStart ?? raw.length;
-                              const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, (caret ?? raw.length) - 1)) + 1);
-                              const nextSpace = raw.indexOf(' ', caret ?? raw.length);
-                              const end = nextSpace === -1 ? raw.length : nextSpace;
-                              const active = raw.substring(start, end).trim();
-                              const picked = s.replace(/ \((specialization)\)$/i, '');
-                              const newRaw = raw.slice(0, start) + picked + (end < raw.length ? raw.slice(end) : '');
-                              const newQ = newRaw.trim();
-                              setSearchQuery(newRaw);
+
+                          let quick: string[] = [];
+                          if (active) {
+                            const cachedTok = apiClient.peekCachedSearch(active);
+                            if (cachedTok && Array.isArray(cachedTok.suggestions)) {
+                              quick = cachedTok.suggestions.slice(0, 8);
+                            } else {
+                              quick = apiClient.getLocalSuggestions(active).slice(0, 8);
+                            }
+                          } else {
+                            quick = apiClient.getSeedSuggestions().slice(0, 8);
+                          }
+                          setSuggestions(quick);
+                          setShowSuggestions(quick.length > 0);
+
+                          try {
+                            const resp = await apiClient.searchDoctors(q);
+                            const combined = resp.suggestions.slice(0, 8);
+                            setSuggestions(combined);
+                            setShowSuggestions(combined.length > 0);
+                            apiClient.trackSearchDebounced(q, {
+                              matchedSpecialties: resp.matchedSpecialties,
+                              matchedConditions: resp.matchedConditions,
+                              topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id),
+                            });
+                          } catch {
+                            apiClient.trackSearchDebounced(q);
+                          }
+                        }}
+                        onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const raw = searchQuery;
+                            const q = raw.trim();
+                            const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
+                            const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
+                            const nextSpace = raw.indexOf(' ', caret);
+                            const end = nextSpace === -1 ? raw.length : nextSpace;
+                            const active = raw.substring(start, end).trim();
+                            if (q) {
+                              if (active && suggestions.length === 0 && active.length >= 3) {
+                                apiClient.addLocalSuggestion(active, active);
+                              }
+                              apiClient.trackSearch(q, { source: 'enter' });
                               setShowSuggestions(false);
-                              if (active) apiClient.addLocalSuggestion(active, picked);
-                              apiClient.trackSearch(newQ, { source: 'suggestion_click', selectedSuggestion: picked });
-                              router.push(`/doctors?search=${encodeURIComponent(newQ)}`);
-                            }}
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Filters Row */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <select
-                      value={selectedSpecialization}
-                      onChange={(e) => setSelectedSpecialization(e.target.value)}
-                      className="px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all"
-                    >
-                      <option value="" className="text-gray-900">Specialization</option>
-                      <option value="cardiology" className="text-gray-900">Cardiology</option>
-                      <option value="dermatology" className="text-gray-900">Dermatology</option>
-                      <option value="neurology" className="text-gray-900">Neurology</option>
-                      <option value="orthopedics" className="text-gray-900">Orthopedics</option>
-                    </select>
-
-                    <select
-                      value={selectedCity}
-                      onChange={(e) => setSelectedCity(e.target.value)}
-                      className="px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all"
-                    >
-                      <option value="" className="text-gray-900">City/Town</option>
-                      <option value="mumbai" className="text-gray-900">Mumbai</option>
-                      <option value="delhi" className="text-gray-900">Delhi</option>
-                      <option value="bangalore" className="text-gray-900">Bangalore</option>
-                      <option value="chennai" className="text-gray-900">Chennai</option>
-                    </select>
-
-                    <select
-                      value={selectedAvailability}
-                      onChange={(e) => setSelectedAvailability(e.target.value)}
-                      className="px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 transition-all"
-                    >
-                      <option value="" className="text-gray-900">Availability</option>
-                      <option value="today" className="text-gray-900">Today</option>
-                      <option value="tomorrow" className="text-gray-900">Tomorrow</option>
-                      <option value="week" className="text-gray-900">This Week</option>
-                    </select>
-
-                    <label className="flex items-center justify-center px-3 py-3 bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-xl cursor-pointer hover:bg-white/30 transition-all">
-                      <input
-                        type="checkbox"
-                        checked={isOnline}
-                        onChange={(e) => setIsOnline(e.target.checked)}
-                        className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
+                              router.push(`/doctors?search=${encodeURIComponent(q)}`);
+                            }
+                          }
+                        }}
+                        className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                       />
-                      <span className="text-white font-medium">Online</span>
-                    </label>
-                  </div>
+                      {showSuggestions && suggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-60 overflow-auto">
+                          {suggestions.map((s, i) => (
+                            <button
+                              key={i}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-900 hover:bg-blue-50 transition-colors"
+                              onMouseDown={(ev) => {
+                                const raw = searchQuery;
+                                const inputEl = ev.currentTarget.ownerDocument.querySelector('input[type="text"]') as HTMLInputElement | null;
+                                const caret = inputEl?.selectionStart ?? raw.length;
+                                const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, (caret ?? raw.length) - 1)) + 1);
+                                const nextSpace = raw.indexOf(' ', caret ?? raw.length);
+                                const end = nextSpace === -1 ? raw.length : nextSpace;
+                                const active = raw.substring(start, end).trim();
+                                const picked = s.replace(/ \((specialization)\)$/i, '');
+                                const newRaw = raw.slice(0, start) + picked + (end < raw.length ? raw.slice(end) : '');
+                                const newQ = newRaw.trim();
+                                setSearchQuery(newRaw);
+                                setShowSuggestions(false);
+                                if (active) apiClient.addLocalSuggestion(active, picked);
+                                apiClient.trackSearch(newQ, { source: 'suggestion_click', selectedSuggestion: picked });
+                                router.push(`/doctors?search=${encodeURIComponent(newQ)}`);
+                              }}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-                  <button className="w-full bg-gradient-to-r from-yellow-400 to-pink-500 text-white font-bold py-4 px-6 rounded-2xl hover:from-yellow-500 hover:to-pink-600 transition-all transform hover:scale-[1.02] shadow-2xl text-lg">
-                    Find a Doctor Now
-                  </button>
+                    {/* Filters Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <select
+                        value={selectedSpecialization}
+                        onChange={(e) => setSelectedSpecialization(e.target.value)}
+                        className="px-3 py-2 text-sm bg-white border-2 border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      >
+                        <option value="">Specialization</option>
+                        <option value="cardiology">Cardiology</option>
+                        <option value="dermatology">Dermatology</option>
+                        <option value="neurology">Neurology</option>
+                        <option value="orthopedics">Orthopedics</option>
+                      </select>
+
+                      <select
+                        value={selectedCity}
+                        onChange={(e) => setSelectedCity(e.target.value)}
+                        className="px-3 py-2 text-sm bg-white border-2 border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      >
+                        <option value="">City/Town</option>
+                        <option value="mumbai">Mumbai</option>
+                        <option value="delhi">Delhi</option>
+                        <option value="bangalore">Bangalore</option>
+                        <option value="chennai">Chennai</option>
+                      </select>
+
+                      <select
+                        value={selectedAvailability}
+                        onChange={(e) => setSelectedAvailability(e.target.value)}
+                        className="px-3 py-2 text-sm bg-white border-2 border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      >
+                        <option value="">Availability</option>
+                        <option value="today">Today</option>
+                        <option value="tomorrow">Tomorrow</option>
+                        <option value="week">This Week</option>
+                      </select>
+
+                      <label className="flex items-center justify-center px-3 py-2 text-sm bg-white border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all">
+                        <input
+                          type="checkbox"
+                          checked={isOnline}
+                          onChange={(e) => setIsOnline(e.target.checked)}
+                          className="mr-2 w-3 h-3 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-gray-900 font-medium">Online</span>
+                      </label>
+                    </div>
+
+                    <button 
+                      onClick={() => {
+                        const params = new URLSearchParams();
+                        if (searchQuery) params.set('search', searchQuery);
+                        if (selectedSpecialization) params.set('specialization', selectedSpecialization);
+                        if (selectedCity) params.set('city', selectedCity);
+                        if (selectedAvailability) params.set('availability', selectedAvailability);
+                        if (isOnline) params.set('online', 'true');
+                        router.push(`/doctors?${params.toString()}`);
+                      }}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-3 px-6 rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all transform hover:scale-[1.02] shadow-xl text-sm"
+                    >
+                      Find a Doctor Now
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
           </div>
         </section>
 
@@ -642,7 +872,7 @@ export default function HomePage() {
                   whileHover={{ y: -8, scale: 1.02 }}
                   className="group cursor-pointer"
                 >
-                  <a href={category.link} className="block">
+                  <Link href={category.link} className="block" prefetch={true}>
                     <div className="relative bg-white rounded-2xl p-6 text-center shadow-lg hover:shadow-2xl transition-all border border-gray-100 overflow-hidden">
                       {/* Gradient overlay on hover */}
                       <div className={`absolute inset-0 bg-gradient-to-br ${category.color} opacity-0 group-hover:opacity-10 transition-opacity`}></div>
@@ -653,7 +883,7 @@ export default function HomePage() {
                       <h3 className="text-base font-bold text-gray-900 mb-1">{category.title}</h3>
                       <p className="text-sm text-gray-600">{category.description}</p>
                     </div>
-                  </a>
+                  </Link>
                 </motion.div>
               ))}
             </div>
@@ -827,6 +1057,9 @@ export default function HomePage() {
                           <Link
                             href={`/doctor-site/${doctor.doctorProfile.slug}`}
                             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-center text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center"
+                            onMouseEnter={() => {
+                              router.prefetch(`/doctor-site/${doctor.doctorProfile.slug}`);
+                            }}
                             onClick={(e) => {
                               // Only use subdomain if enabled and a slug exists
                               if (shouldUseSubdomainNav()) {
@@ -1016,6 +1249,16 @@ export default function HomePage() {
                         <a
                           href={`/hospital-site/${hospital.id}`}
                           className="block w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 md:py-2.5 px-3 md:px-4 rounded-lg md:rounded-xl transition-all text-center text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center shadow-md hover:shadow-lg"
+                          onMouseEnter={() => {
+                            try {
+                              router.prefetch(`/hospital-site/${hospital.id}`);
+                              if (shouldUseSubdomainNav()) {
+                                const sub = (hospital as any)?.subdomain as string | undefined;
+                                const url = sub && sub.length > 1 ? customSubdomainUrl(sub) : (hospital.name ? hospitalMicrositeUrl(hospital.name) : '');
+                                if (url) import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
+                              }
+                            } catch {}
+                          }}
                           onClick={(e) => {
                             try {
                               if (shouldUseSubdomainNav()) {
@@ -1426,12 +1669,13 @@ export default function HomePage() {
                 <div className="text-3xl mb-3">👨‍⚕️</div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Join 200+ Verified Doctors</h3>
                 <p className="text-sm text-gray-600 mb-4">Expand your practice and reach more patients</p>
-                <a
+                <Link
                   href="/register/doctor-hospital?role=doctor"
+                  prefetch={true}
                   className="inline-block bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md text-sm"
                 >
                   Register as Doctor
-                </a>
+                </Link>
               </motion.div>
 
               {/* For Users */}
@@ -1444,12 +1688,13 @@ export default function HomePage() {
                 <div className="text-3xl mb-3">👩‍💼</div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Find Your Doctor Today</h3>
                 <p className="text-sm text-gray-600 mb-4">Get the healthcare you deserve, when you need it</p>
-                <a
+                <Link
                   href="/doctors"
+                  prefetch={true}
                   className="inline-block bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md text-sm"
                 >
                   Find a Doctor
-                </a>
+                </Link>
               </motion.div>
             </div>
           </div>
@@ -1490,11 +1735,11 @@ export default function HomePage() {
             <div>
               <h3 className="text-xl font-bold mb-6">Quick Links</h3>
               <ul className="space-y-3">
-                <li><a href="/" className="text-gray-400 hover:text-white transition-colors">🏠 Home</a></li>
-                <li><a href="/doctors" className="text-gray-400 hover:text-white transition-colors">👨‍⚕️ Find Doctors</a></li>
-                <li><a href="/hospitals" className="text-gray-400 hover:text-white transition-colors">🏥 Hospitals</a></li>
-                <li><a href="/clinics" className="text-gray-400 hover:text-white transition-colors">🏥 Clinics</a></li>
-                <li><a href="/reviews" className="text-gray-400 hover:text-white transition-colors">⭐ Reviews</a></li>
+                <li><Link href="/" prefetch={true} className="text-gray-400 hover:text-white transition-colors">🏠 Home</Link></li>
+                <li><Link href="/doctors" prefetch={true} className="text-gray-400 hover:text-white transition-colors">👨‍⚕️ Find Doctors</Link></li>
+                <li><Link href="/hospitals" prefetch={true} className="text-gray-400 hover:text-white transition-colors">🏥 Hospitals</Link></li>
+                <li><Link href="/clinics" prefetch={true} className="text-gray-400 hover:text-white transition-colors">🏥 Clinics</Link></li>
+                <li><Link href="/reviews" prefetch={true} className="text-gray-400 hover:text-white transition-colors">⭐ Reviews</Link></li>
               </ul>
             </div>
 
@@ -1502,10 +1747,10 @@ export default function HomePage() {
             <div>
               <h3 className="text-xl font-bold mb-6">For Providers</h3>
               <ul className="space-y-3">
-                <li><a href="/register/doctor-hospital?role=doctor" className="text-gray-400 hover:text-white transition-colors">👨‍⚕️ Doctor Sign-up</a></li>
-                <li><a href="/register/doctor-hospital?role=hospital" className="text-gray-400 hover:text-white transition-colors">🏥 Hospital Sign-up</a></li>
-                <li><a href="/login/doctors" className="text-gray-400 hover:text-white transition-colors">🔑 Doctor Login</a></li>
-                <li><a href="/slot-admin/login" className="text-gray-400 hover:text-white transition-colors">🧑‍⚕️ Doctors Management</a></li>
+                <li><Link href="/register/doctor-hospital?role=doctor" prefetch={true} className="text-gray-400 hover:text-white transition-colors">👨‍⚕️ Doctor Sign-up</Link></li>
+                <li><Link href="/register/doctor-hospital?role=hospital" prefetch={true} className="text-gray-400 hover:text-white transition-colors">🏥 Hospital Sign-up</Link></li>
+                <li><Link href="/login/doctors" prefetch={true} className="text-gray-400 hover:text-white transition-colors">🔑 Doctor Login</Link></li>
+                <li><Link href="/slot-admin/login" prefetch={true} className="text-gray-400 hover:text-white transition-colors">🧑‍⚕️ Doctors Management</Link></li>
               </ul>
             </div>
 
@@ -1513,11 +1758,11 @@ export default function HomePage() {
             <div>
               <h3 className="text-xl font-bold mb-6">Support</h3>
               <ul className="space-y-3">
-                <li><a href="/about" className="text-gray-400 hover:text-white transition-colors">📖 About</a></li>
-                <li><a href="/contact" className="text-gray-400 hover:text-white transition-colors">📞 Contact</a></li>
-                <li><a href="/terms" className="text-gray-400 hover:text-white transition-colors">📋 Terms</a></li>
-                <li><a href="/privacy" className="text-gray-400 hover:text-white transition-colors">🔒 Privacy</a></li>
-                <li><a href="/careers" className="text-gray-400 hover:text-white transition-colors">💼 Careers</a></li>
+                <li><Link href="/about" prefetch={true} className="text-gray-400 hover:text-white transition-colors">📖 About</Link></li>
+                <li><Link href="/contact" prefetch={true} className="text-gray-400 hover:text-white transition-colors">📞 Contact</Link></li>
+                <li><Link href="/terms" prefetch={true} className="text-gray-400 hover:text-white transition-colors">📋 Terms</Link></li>
+                <li><Link href="/privacy" prefetch={true} className="text-gray-400 hover:text-white transition-colors">🔒 Privacy</Link></li>
+                <li><Link href="/careers" prefetch={true} className="text-gray-400 hover:text-white transition-colors">💼 Careers</Link></li>
               </ul>
             </div>
           </div>

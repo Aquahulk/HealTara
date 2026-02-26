@@ -375,15 +375,27 @@ class ApiClient {
       page: String(params.page || 1),
       pageSize: String(params.pageSize || 30),
     }).toString();
-    const response = await this.request(`/api/doctors?${query}`);
-    
-    // Handle the new API response format
-    if (response && typeof response === 'object' && 'success' in response && response.success && 'data' in response) {
-      return (response as any).data;
+    try {
+      const response = await this.request(`/api/doctors?${query}`);
+      if (response && typeof response === 'object' && 'success' in response && (response as any).success && 'data' in response) {
+        return (response as any).data;
+      }
+      // If proxy returned unexpected shape, try direct backend
+      if (this.baseURL) {
+        const direct = await fetch(`${this.baseURL}/api/doctors?${query}`, { headers: { 'Content-Type': 'application/json' } }).then(r => r.json()).catch(() => null);
+        if (direct && direct.success && Array.isArray(direct.data)) return direct.data;
+      }
+      return Array.isArray(response) ? response : [];
+    } catch {
+      // Final fallback: direct backend call
+      if (this.baseURL) {
+        try {
+          const direct = await fetch(`${this.baseURL}/api/doctors?${query}`, { headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
+          if (direct && direct.success && Array.isArray(direct.data)) return direct.data;
+        } catch {}
+      }
+      return [];
     }
-    
-    // Fallback for backward compatibility
-    return Array.isArray(response) ? response : [];
   }
 
   async searchDoctors(q: string): Promise<SearchDoctorsResponse> {
@@ -558,15 +570,25 @@ class ApiClient {
       page: String(params.page || 1),
       limit: String(params.limit || 50),
     }).toString();
-    const response = await this.request(`/api/hospitals?${query}`);
-    
-    // Handle the new API response format
-    if (response && typeof response === 'object' && 'success' in response && response.success && 'data' in response) {
-      return (response as any).data;
+    try {
+      const response = await this.request(`/api/hospitals?${query}`);
+      if (response && typeof response === 'object' && 'success' in response && (response as any).success && 'data' in response) {
+        return (response as any).data;
+      }
+      if (this.baseURL) {
+        const direct = await fetch(`${this.baseURL}/api/hospitals?${query}`, { headers: { 'Content-Type': 'application/json' } }).then(r => r.json()).catch(() => null);
+        if (direct && direct.success && Array.isArray(direct.data)) return direct.data;
+      }
+      return Array.isArray(response) ? response : [];
+    } catch {
+      if (this.baseURL) {
+        try {
+          const direct = await fetch(`${this.baseURL}/api/hospitals?${query}`, { headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
+          if (direct && direct.success && Array.isArray(direct.data)) return direct.data;
+        } catch {}
+      }
+      return [];
     }
-    
-    // Fallback for backward compatibility
-    return Array.isArray(response) ? response : [];
   }
 
   async createHospital(payload: { name: string; address?: string; city?: string; state?: string; phone?: string }): Promise<{ id: number }> {

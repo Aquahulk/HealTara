@@ -85,6 +85,14 @@ export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery 
           <Link
             href={`/doctor-site/${slug}`}
             className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
+            onMouseEnter={() => {
+              try {
+                if (shouldUseSubdomainNav()) {
+                  const url = doctorMicrositeUrl(slug);
+                  import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
+                }
+              } catch {}
+            }}
             onClick={(e) => {
               if (shouldUseSubdomainNav()) {
                 e.preventDefault();
@@ -133,6 +141,11 @@ export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery 
         )}
         {onBookAppointment ? (
           <button
+            onMouseEnter={() => {
+              try {
+                import('@/lib/slotsPrefetch').then(m => m.prefetchDoctorToday(doctor.id).catch(() => {}));
+              } catch {}
+            }}
             onClick={() => {
               onBookAppointment();
               import("@/lib/api").then(({ apiClient }) => {

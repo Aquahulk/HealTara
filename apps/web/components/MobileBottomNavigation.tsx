@@ -2,6 +2,7 @@
 
 import { Stethoscope, Building2, Home, Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { useInstantNav } from "../hooks/useInstantNav";
 
 interface MobileBottomNavigationProps {
   currentPath?: string;
@@ -14,6 +15,7 @@ export default function MobileBottomNavigation({
 }: MobileBottomNavigationProps = {}) {
   const pathname = usePathname();
   const router = useRouter();
+  const { getNavProps } = useInstantNav();
   const activePath = currentPath || pathname;
 
   const navItems = [
@@ -119,6 +121,7 @@ export default function MobileBottomNavigation({
               key={item.href}
               href={item.href}
               onClick={(e) => handleNavigation(e, item.href)}
+              {...getNavProps(item.href)}
               className={`
                 flex flex-col items-center justify-center
                 min-h-[44px] min-w-[44px]

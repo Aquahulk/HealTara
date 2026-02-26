@@ -3,128 +3,34 @@
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/database-pool';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🏥 Hospitals API: Fetching hospitals with counts and ratings');
-    
-    // Use executeQuery directly with the already configured Pool in lib/database-pool.ts
-    // This is more reliable than trying to require Prisma from the api package
-    const sql = `
-      SELECT 
-        h.id,
-        h.name,
-        h.city,
-        h.state,
-        h.address,
-        h.subdomain,
-        h.profile,
-        (SELECT COUNT(*) FROM "Department" WHERE "hospitalId" = h.id) as dept_count,
-        (SELECT COUNT(*) FROM "HospitalDoctor" WHERE "hospitalId" = h.id) as doc_count,
-        (SELECT COUNT(*) FROM "Appointment" WHERE "doctorId" IN (SELECT "doctorId" FROM "HospitalDoctor" WHERE "hospitalId" = h.id)) as appt_count,
-        (SELECT COUNT(*) FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
-        (SELECT AVG(rating) FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
-      FROM "Hospital" h
-      ORDER BY avg_rating DESC NULLS LAST, h.name ASC
-    `;
-
-    const rows = await executeQuery(sql);
-    
-    if (rows.length === 0) {
-      console.log('⚠️ No hospitals found in database, returning sample data');
-      return NextResponse.json({
-        success: true,
-        data: getSampleHospitals(),
-        count: 3,
-        isRealData: false,
-        message: 'Sample data (no hospitals in database)'
-      });
+    const apiHost = process.env.NEXT_PUBLIC_API_URL;
+    const url = new URL(request.url);
+    const qs = url.search ? url.search : '';
+    if (!apiHost) throw new Error('API host not configured');
+    const resp = await fetch(`${apiHost}/api/hospitals${qs}`, { cache: 'no-store' });
+    const body = await resp.text();
+    try {
+      const json = JSON.parse(body);
+      return NextResponse.json(json, { status: resp.status });
+    } catch {
+      return NextResponse.json({ success: false, message: body || 'Upstream error' }, { status: resp.status || 502 });
     }
 
-    const hospitals = rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      city: row.city,
-      state: row.state,
-      address: row.address,
-      subdomain: row.subdomain,
-      _count: {
-        departments: parseInt(row.dept_count) || 0,
-        doctors: parseInt(row.doc_count) || 0,
-        appointments: parseInt(row.appt_count) || 0,
-        reviews: parseInt(row.review_count) || 0
-      },
-      rating: parseFloat(row.avg_rating) || 0,
-      totalReviews: parseInt(row.review_count) || 0,
-      profile: row.profile || {
-        general: {
-          logoUrl: null,
-          description: "Healthcare facility"
-        }
-      }
-    }));
-
-    console.log(`✅ Found ${hospitals.length} hospitals with counts and ratings`);
-    return NextResponse.json({
-      success: true,
-      data: hospitals,
-      count: hospitals.length,
-      isRealData: true,
-      message: 'Real hospital data from database'
-    });
-
   } catch (error: any) {
-    console.error('❌ Hospitals API Error:', error);
+    console.error('❌ Hospitals API Proxy Error:', error);
     return NextResponse.json({
-      success: true,
-      data: getSampleHospitals(),
-      count: 3,
-      isRealData: false,
-      message: 'Sample data (database error: ' + error.message + ')'
+      success: false,
+      message: 'Upstream unavailable: ' + error.message
     });
   }
 }
 
-function getSampleHospitals() {
-  return [
-    {
-      id: 1,
-      name: "City General Hospital (Demo)",
-      city: "Mumbai",
-      state: "Maharashtra",
-      address: "123 Main Street",
-      _count: { departments: 15, doctors: 45, appointments: 1200, reviews: 350 },
-      rating: 4.5,
-      totalReviews: 350,
-      profile: { general: { logoUrl: null, description: "Demo data" } }
-    },
-    {
-      id: 2,
-      name: "Apollo Medical Center (Demo)",
-      city: "Delhi",
-      state: "Delhi",
-      address: "456 Park Avenue",
-      _count: { departments: 20, doctors: 65, appointments: 1800, reviews: 520 },
-      rating: 4.7,
-      totalReviews: 520,
-      profile: { general: { logoUrl: null, description: "Demo data" } }
-    },
-    {
-      id: 3,
-      name: "Lifeline Care Hospital (Demo)",
-      city: "Bangalore",
-      state: "Karnataka",
-      address: "789 Tech Park Road",
-      _count: { departments: 12, doctors: 38, appointments: 900, reviews: 280 },
-      rating: 4.3,
-      totalReviews: 280,
-      profile: { general: { logoUrl: null, description: "Demo data" } }
-    }
-  ];
-}
+// No local fallback; rely on upstream API data
 
 // ============================================================================
 // 📤 POST HOSPITAL - Create new hospital
@@ -132,49 +38,25 @@ function getSampleHospitals() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, city, state, address } = body;
-
-    if (!name || !city) {
-      return NextResponse.json(
-        { success: false, error: 'Hospital name and city are required' },
-        { status: 400 }
-      );
+    // Proxy creation to backend API
+    const apiHost = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiHost) throw new Error('API host not configured');
+    const body = await request.text();
+    const resp = await fetch(`${apiHost}/api/hospitals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    const text = await resp.text();
+    try {
+      const json = JSON.parse(text);
+      return NextResponse.json(json, { status: resp.status });
+    } catch {
+      return NextResponse.json({ success: false, message: text || 'Upstream error' }, { status: resp.status || 502 });
     }
-
-    const insertSql = `
-      INSERT INTO "Hospital" (name, city, state, address, "isActive", "createdAt", "updatedAt")
-      VALUES ($1, $2, $3, $4, true, NOW(), NOW())
-      RETURNING id, name, city, state, address
-    `;
-
-    const result = await executeQuery(insertSql, [
-      name,
-      city,
-      state || '',
-      address || ''
-    ]);
-
-    if (result.length > 0) {
-      console.log('✅ Created hospital in database:', result[0].name);
-      return NextResponse.json({
-        success: true,
-        data: {
-          ...result[0],
-          _count: { departments: 0, doctors: 0, appointments: 0, reviews: 0 }
-        },
-        message: 'Hospital created successfully',
-        isRealData: true
-      });
-    }
-
-    throw new Error('Failed to insert hospital');
 
   } catch (error: any) {
-    console.error('❌ Create Hospital Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Database connection failed: ' + error.message },
-      { status: 500 }
-    );
+    console.error('❌ Create Hospital Proxy Error:', error);
+    return NextResponse.json({ success: false, message: 'Upstream unavailable: ' + error.message }, { status: 502 });
   }
 }

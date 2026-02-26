@@ -51,7 +51,7 @@ export default function Header() {
               🏥 LOGO SECTION - Company branding and home link
               ============================================================================ */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-1 md:space-x-2">
+            <Link href="/" className="flex items-center space-x-1 md:space-x-2" prefetch={true}>
               <div className="text-lg md:text-2xl">🏥</div>
               <span className="text-base md:text-xl font-bold text-white">Healtara</span>
             </Link>
@@ -70,6 +70,7 @@ export default function Header() {
                 ============================================================================ */}
             <Link
               href="/doctors"
+              prefetch={true}
               className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-3 py-1.5 md:px-6 md:py-2 rounded-full hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold text-xs md:text-sm"
             >
               📅 <span className="hidden sm:inline">Book Appointment</span><span className="sm:hidden">Book</span>
@@ -106,6 +107,7 @@ export default function Header() {
                         ============================================================================ */}
                     <Link
                       href="/dashboard"
+                      prefetch={true}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
@@ -142,12 +144,14 @@ export default function Header() {
               <div className="hidden md:flex space-x-2">
                 <Link
                   href="/login"
+                  prefetch={true}
                   className="text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                 >
                   🧑‍⚕️ Patient Login
                 </Link>
                 <Link
                   href="/login/doctors"
+                  prefetch={true}
                   className="text-white/90 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
                 >
                   🏥 Doctor/Hospital Login

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { io } from "socket.io-client";
+import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 
 const API_URL = ""; // use relative URLs with Next.js dev rewrites
 
@@ -354,6 +355,15 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
     socket.on('appointment-updated-optimistic', refresh);
     socket.on('appointment-cancelled', refresh);
     socket.on('appointment-booked', refresh);
+    socket.on('slots:period-updated', async (payload: any) => {
+      try {
+        if (!token) return;
+        const did = Number(doctorId);
+        if (payload && Number(payload.doctorId) === did) {
+          await loadSlotPeriod(token, did);
+        }
+      } catch {}
+    });
 
     joinRooms();
 
@@ -362,6 +372,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
       socket.off('appointment-updated-optimistic', refresh);
       socket.off('appointment-cancelled', refresh);
       socket.off('appointment-booked', refresh);
+      socket.off('slots:period-updated', refresh as any);
       socket.disconnect();
     };
   }, [token, doctorId, hospitalId]);
@@ -1019,7 +1030,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 pb-24 lg:pb-8">
         {message && (
           <div className="mb-6 p-4 rounded-lg bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 font-medium shadow-sm">{message}</div>
         )}
@@ -2080,6 +2091,11 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
           </div>
         </div>
       </main>
+      </div>
+      
+      {/* Mobile Bottom Navigation - Only visible on mobile */}
+      <div className="lg:hidden">
+        <MobileBottomNavigation />
       </div>
     </div>
   );

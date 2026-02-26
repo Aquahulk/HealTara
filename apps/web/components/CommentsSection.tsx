@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Star, MessageSquare, ThumbsUp, ThumbsDown, Flag, Reply, MoreHorizontal } from 'lucide-react';
 import { EnhancedRatingDisplay } from './SimpleRatingDisplay';
+import { useRatingUpdates } from '@/context/RealtimeContext';
 
 // ============================================================================
 // 🌟 RATING DISPLAY COMPONENT
@@ -428,6 +429,16 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   useEffect(() => {
     loadComments();
   }, [entityType, entityId]);
+
+  useRatingUpdates((payload: any) => {
+    try {
+      if (!payload) return;
+      const match = String(payload.entityType) === String(entityType) && String(payload.entityId) === String(entityId);
+      if (match) {
+        loadComments(1);
+      }
+    } catch {}
+  });
 
   const handleCommentPosted = (newComment: any) => {
     setComments([newComment, ...comments]);

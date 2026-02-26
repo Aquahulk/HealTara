@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext"; // Import the provider
 import { MobileProvider } from "@/context/MobileContext"; // Import mobile provider
 import AppShell from "@/components/AppShell"; // App shell handles header visibility
+import { RealtimeProvider } from "@/context/RealtimeContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="overflow-x-hidden">
       <body className={`${inter.className} overflow-x-hidden`}>
-        <AuthProvider> {/* Wrap children with the provider */}
-          <MobileProvider> {/* Wrap with mobile provider for global mobile state */}
-            <AppShell>{children}</AppShell>
+        <AuthProvider>
+          <MobileProvider>
+            <RealtimeProvider>
+              <AppShell>{children}</AppShell>
+            </RealtimeProvider>
           </MobileProvider>
         </AuthProvider>
       </body>

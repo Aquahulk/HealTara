@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useInstantNav } from "../hooks/useInstantNav";
 import { 
   Home, 
   Calendar, 
@@ -25,6 +26,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { getNavProps } = useInstantNav();
 
   // Notify parent when collapse state changes
   useEffect(() => {
@@ -131,6 +133,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
               <li key={item.href}>
                 <button
                   onClick={() => router.push(item.href)}
+                  {...getNavProps(item.href)}
                   className={`
                     w-full flex items-center gap-3 px-3 py-3 rounded-lg
                     transition-all duration-200
