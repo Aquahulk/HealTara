@@ -772,7 +772,7 @@ app.get('/api/comments', async (req: Request, res: Response) => {
     if (!entityType || !entityIdRaw) return res.status(400).json({ error: 'entityType and entityId are required' });
     const entityId = parseInt(entityIdRaw, 10);
     const offset = (page - 1) * limit;
-    const rows = await prisma.$queryRaw(`
+    const rows = await prisma.$queryRawUnsafe(`
       SELECT 
         c.id,
         c.name,
@@ -787,12 +787,12 @@ app.get('/api/comments', async (req: Request, res: Response) => {
         (SELECT COUNT(*) FROM "public"."comments" WHERE parent_id = c.id AND is_active = true) as reply_count
       FROM "public"."comments" c
       LEFT JOIN "public"."User" u ON c.user_id = u.id
-      WHERE c.entity_type = ${entityType} AND c.entity_id = ${entityId} AND c.is_active = true
+      WHERE c.entity_type = '${entityType}' AND c.entity_id = ${entityId} AND c.is_active = true
       ORDER BY c.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
-    const countRows = await prisma.$queryRaw(`
-      SELECT COUNT(*)::int as total FROM "public"."comments" WHERE entity_type = ${entityType} AND entity_id = ${entityId} AND is_active = true
+    const countRows: any[] = await prisma.$queryRawUnsafe(`
+      SELECT COUNT(*)::int as total FROM "public"."comments" WHERE entity_type = '${entityType}' AND entity_id = ${entityId} AND is_active = true
     `);
     const total = countRows[0]?.total ?? 0;
     return res.json({ success: true, data: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
