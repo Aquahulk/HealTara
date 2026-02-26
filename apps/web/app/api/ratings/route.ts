@@ -95,6 +95,36 @@ export async function GET(request: NextRequest) {
     } catch (dbError: any) {
       console.error('❌ Database rating error:', dbError);
       
+      const msg = String(dbError?.message || '');
+      const code = String((dbError as any)?.code || '');
+      const noDb = code === 'NO_DB_CONFIG' || msg.includes('NO_DB_CONFIG');
+
+      if (noDb) {
+        try {
+          const apiHost = process.env.NEXT_PUBLIC_API_URL;
+          if (!apiHost) throw new Error('NO_API_HOST');
+          
+          console.warn('⚠️ No DB config, falling back to API proxy for fetching ratings');
+          
+          const qs = `?entityType=${entityType}&entityId=${entityId}`;
+          const resp = await fetch(`${apiHost}/api/ratings${qs}`, {
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store'
+          });
+
+          if (!resp.ok) {
+            const t = await resp.text().catch(() => '');
+            throw new Error(`Upstream error: ${t || resp.status}`);
+          }
+
+          const data = await resp.json().catch(() => ({} as any));
+          return NextResponse.json(data);
+        } catch (proxyErr: any) {
+          console.error('❌ Ratings GET Fallback Error:', proxyErr);
+          // Fall through to default return
+        }
+      }
+      
       // Return default rating when database fails
       return NextResponse.json({
         success: true,
