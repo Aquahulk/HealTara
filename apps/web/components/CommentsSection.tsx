@@ -441,18 +441,31 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   });
 
   const handleCommentPosted = (newComment: any) => {
-    setComments([newComment, ...comments]);
-    // Refresh from server to ensure pagination and counts are in sync
-    loadComments(1);
+    if (!newComment || !newComment.id) return;
+
+    // 1. Optimistic update: Add the new comment immediately
+    setComments((prevComments) => {
+      // Avoid duplicates if this runs multiple times
+      if (prevComments.some(c => c.id === newComment.id)) return prevComments;
+      return [newComment, ...prevComments];
+    });
+    
+    // 2. Trigger updates for rating displays
     try {
       window.dispatchEvent(new CustomEvent('rating:updated', { detail: { entityType, entityId } }));
-      try {
-        const bc = new BroadcastChannel('entity_updates');
-        bc.postMessage({ type: 'rating:updated', entityType, entityId });
-        try { localStorage.setItem('entity_updated', JSON.stringify({ type: 'rating:updated', entityType, entityId, ts: Date.now() })); } catch {}
-        try { bc.close(); } catch {}
-      } catch {}
+      const bc = new BroadcastChannel('entity_updates');
+      bc.postMessage({ type: 'rating:updated', entityType, entityId });
+      bc.close();
     } catch {}
+
+    // 3. Delayed background refresh to ensure DB consistency
+    // We don't want to immediately overwrite the valid new comment with potentially stale data
+    setTimeout(() => {
+      // Only refresh if we are on the first page
+      if (page === 1) {
+        loadComments(1);
+      }
+    }, 2000); // Increased delay to 2s to be safe
   };
 
   const loadMoreComments = () => {
