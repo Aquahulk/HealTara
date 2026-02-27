@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "cd apps/api && npm start"
+buildCommand = "cd apps/api && npm run build"
+
+[[services]]
+name = "api"
+source = "."

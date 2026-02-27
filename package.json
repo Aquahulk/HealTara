@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run dev --workspace=apps/api",
-    "dev": "npm run dev:web"
+    "dev": "npm run dev:web",
+    "build": "cd apps/api && npm run build",
+    "start": "cd apps/api && npm start"
   },
   "keywords": [],
   "author": "",

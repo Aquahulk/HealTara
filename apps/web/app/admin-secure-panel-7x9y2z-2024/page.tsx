@@ -1,10 +1,15 @@
 // ============================================================================
 // 🔒 SECURE ADMIN PANEL - Dual Security Code System Administration
 // ============================================================================
+
+
+
 // This is the main admin dashboard that provides system-wide management capabilities
 // It allows administrators to manage users, doctors, appointments, and view system statistics
 // Access is restricted to users with ADMIN role only with multiple security layers
-// 
+
+
+
 // SECURITY FEATURES:
 // 1. Session encryption validation
 // 2. Fixed security code validation (12061808)
@@ -13,13 +18,15 @@
 // 5. User agent verification
 // 6. Access attempt logging
 // 7. Automatic session expiration
-// 
+
 // IMPORTANT: This is a highly secure, hidden admin interface with complex URL
 // ============================================================================
 
 // ============================================================================
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
+
+
 'use client';                                              // Enable React hooks and client-side features
 import { useState, useEffect } from 'react';               // React hooks for state management and side effects
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
