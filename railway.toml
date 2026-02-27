@@ -4,7 +4,15 @@ builder = "nixpacks"
 [deploy]
 startCommand = "cd apps/api && npm start"
 buildCommand = "cd apps/api && npm run build"
+healthcheckPath = "/api"
+healthcheckTimeout = 100
 
 [[services]]
 name = "api"
 source = "."
+
+[services.web]
+name = "api"
+source = "."
+healthcheckPath = "/api"
+healthcheckTimeout = 100
