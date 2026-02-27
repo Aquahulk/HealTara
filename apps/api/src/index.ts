@@ -176,6 +176,13 @@ app.use(cors());                                           // Allow cross-origin
 app.use(express.json({ limit: '50mb' }));                   // Parse JSON request bodies with increased limit
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Parse URL-encoded bodies with increased limit
 
+// ============================================================================
+// 🩺 HEALTH CHECK - Keep the server alive
+// ============================================================================
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // Static file serving for uploads (logos, photos)
 const uploadsDir = path.resolve(__dirname, '../uploads');
 app.use('/uploads', express.static(uploadsDir));
