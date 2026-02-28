@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import SaveButton from "@/components/SaveButton";
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from "@/lib/subdomain";
 
 export interface DoctorCardProps {
@@ -49,7 +50,10 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
     }, [doctor.id]);
 
 	return (
-		<div ref={cardRef} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col">
+		<div ref={cardRef} className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col relative">
+            <div className="absolute top-2 right-2 z-10">
+                <SaveButton entityType="doctor" entityId={doctor.id} />
+            </div>
 			<div className="p-4 flex-1">
 				<h3 className="text-xl font-semibold text-gray-900">{clinicName}</h3>
 				<p className="text-sm text-gray-600 mt-1">{specialization}</p>

@@ -7,6 +7,7 @@ import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shoul
 import { Building2, Users } from 'lucide-react';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
+import SaveButton from '@/components/SaveButton';
 import { apiClient } from '@/lib/api';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 
@@ -175,7 +176,10 @@ export default function HospitalsPage() {
                   const location = [city, state].filter(Boolean).join(', ');
                   const logoUrl = h.profile && typeof h.profile === 'object' && 'logoUrl' in h.profile ? (h.profile as any).logoUrl : null;
                   return (
-                    <div key={h.id} className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                    <div key={h.id} className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow relative">
+                      <div className="absolute top-2 right-2 z-10">
+                        <SaveButton entityType="hospital" entityId={h.id} />
+                      </div>
                       <div className="p-4 md:p-5 flex items-center gap-3 md:gap-4">
                         <div className="w-14 h-14 md:w-16 md:h-16 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
                           {logoUrl ? (

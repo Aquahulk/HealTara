@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import SaveButton from "@/components/SaveButton";
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from "@/lib/subdomain";
 
 interface DoctorGridCardProps {
@@ -49,7 +50,10 @@ export default function DoctorGridCard({ doctor, onBookAppointment, searchQuery 
   const displayName = slug ? toTitle(slug) : emailName;
 
   return (
-    <div ref={cardRef} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+    <div ref={cardRef} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
+      <div className="absolute top-2 right-2 z-10">
+        <SaveButton entityType="doctor" entityId={doctor.id} />
+      </div>
       <div className="p-4">
         <div className="flex items-start gap-4">
           <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-3xl">👨‍⚕️</div>

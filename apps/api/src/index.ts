@@ -640,6 +640,146 @@ app.get('/api/doctor/stats', authMiddleware, async (req: Request, res: Response)
   }
 });
 
+// ============================================================================
+// 💾 SAVED ITEMS ENDPOINTS - Bookmark doctors & hospitals
+// ============================================================================
+
+// Save an item
+app.post('/api/saved', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const { entityType, entityId } = req.body;
+
+  if (!entityType || !entityId) {
+    return res.status(400).json({ message: 'entityType and entityId are required' });
+  }
+
+  try {
+    const saved = await prisma.savedItem.create({
+      data: {
+        userId,
+        entityType,
+        entityId: Number(entityId)
+      }
+    });
+    res.status(201).json(saved);
+  } catch (error: any) {
+    // Check for unique constraint violation (already saved)
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Item already saved' });
+    }
+    console.error('Error saving item:', error);
+    res.status(500).json({ message: 'Failed to save item' });
+  }
+});
+
+// Remove a saved item
+app.delete('/api/saved', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const { entityType, entityId } = req.query;
+
+  if (!entityType || !entityId) {
+    return res.status(400).json({ message: 'entityType and entityId are required' });
+  }
+
+  try {
+    await prisma.savedItem.deleteMany({
+      where: {
+        userId,
+        entityType: String(entityType),
+        entityId: Number(entityId)
+      }
+    });
+    res.status(200).json({ message: 'Item removed' });
+  } catch (error) {
+    console.error('Error removing saved item:', error);
+    res.status(500).json({ message: 'Failed to remove saved item' });
+  }
+});
+
+// Check if an item is saved
+app.get('/api/saved/check', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const { entityType, entityId } = req.query;
+
+  if (!entityType || !entityId) {
+    return res.status(400).json({ message: 'entityType and entityId are required' });
+  }
+
+  try {
+    const item = await prisma.savedItem.findUnique({
+      where: {
+        userId_entityType_entityId: {
+          userId,
+          entityType: String(entityType),
+          entityId: Number(entityId)
+        }
+      }
+    });
+    res.status(200).json({ saved: !!item });
+  } catch (error) {
+    console.error('Error checking saved status:', error);
+    res.status(500).json({ message: 'Failed to check status' });
+  }
+});
+
+// Get all saved items
+app.get('/api/saved', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+
+  try {
+    const savedItems = await prisma.savedItem.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Enhance items with details
+    const enhancedItems = await Promise.all(savedItems.map(async (item) => {
+      let details = null;
+      if (item.entityType === 'doctor') {
+        const doctor = await prisma.user.findUnique({
+          where: { id: item.entityId },
+          include: { doctorProfile: true }
+        });
+        if (doctor) {
+          details = {
+            id: doctor.id,
+            name: `Dr. ${doctor.email.split('@')[0]}`,
+            email: doctor.email,
+            specialization: doctor.doctorProfile?.specialization,
+            image: doctor.doctorProfile?.profileImage,
+            city: doctor.doctorProfile?.city,
+            fee: doctor.doctorProfile?.consultationFee,
+            slug: doctor.doctorProfile?.slug,
+            experience: doctor.doctorProfile?.experience,
+            clinicName: doctor.doctorProfile?.clinicName
+          };
+        }
+      } else if (item.entityType === 'hospital') {
+        const hospital = await prisma.hospital.findUnique({
+          where: { id: item.entityId },
+          include: { departments: true } // Include some departments for context
+        });
+        if (hospital) {
+          details = {
+            id: hospital.id,
+            name: hospital.name,
+            city: hospital.city,
+            image: (hospital.profile as any)?.general?.logoUrl,
+            subdomain: hospital.subdomain,
+            departmentCount: hospital.departments.length
+          };
+        }
+      }
+      return { ...item, details };
+    }));
+
+    res.status(200).json(enhancedItems.filter(i => i.details));
+  } catch (error) {
+    console.error('Error fetching saved items:', error);
+    res.status(500).json({ message: 'Failed to fetch saved items' });
+  }
+});
+
 // --- Get All Users Endpoint (for debugging) ---
 app.get('/api/users', async (req: Request, res: Response) => {
   try {

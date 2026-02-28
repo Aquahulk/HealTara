@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Doctor } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import SaveButton from "@/components/SaveButton";
 // Subdomain helpers for name-only microsite URLs
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from "@/lib/subdomain";
@@ -62,7 +63,10 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
   }, [doctor.id]);
 
   return (
-    <div ref={cardRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-4">
+    <div ref={cardRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-4 relative">
+      <div className="absolute top-2 right-2 z-10">
+        <SaveButton entityType="doctor" entityId={doctor.id} />
+      </div>
       <div className="flex flex-col md:flex-row gap-3 md:gap-4">
         {/* Image / avatar - Smaller on mobile */}
         <div className="w-full h-32 md:w-44 md:h-28 rounded-lg bg-gray-100 flex items-center justify-center text-3xl md:text-4xl shrink-0">

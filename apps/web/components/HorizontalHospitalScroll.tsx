@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, MapPin, Building2, Users, Phone } from "lucide-react";
+import SaveButton from "@/components/SaveButton";
 import { EnhancedRatingDisplay } from './SimpleRatingDisplay';
 
 interface Hospital {
@@ -79,7 +80,10 @@ export default function HorizontalHospitalScroll({ hospitals }: HorizontalHospit
               transition={{ delay: index * 0.1 }}
               className="flex-shrink-0"
             >
-              <div className="group bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 w-56 md:w-80 p-4 md:p-6 border border-gray-100">
+              <div className="group bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 w-56 md:w-80 p-4 md:p-6 border border-gray-100 relative">
+                <div className="absolute top-2 right-2 z-20">
+                    <SaveButton entityType="hospital" entityId={hospital.id} />
+                </div>
                 {/* Hospital Header - Compact on mobile */}
                 <div className="flex items-center mb-3 md:mb-4">
                   <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg md:rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-xl mr-3 md:mr-4">

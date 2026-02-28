@@ -28,6 +28,19 @@ model User {
   doctorSlots            Slot[]             @relation("UserDoctorSlots")
   managedDoctorProfile   DoctorProfile?     @relation("UserManagedDoctorProfile", fields: [managedDoctorProfileId], references: [id])
   managedHospital        Hospital?          @relation("UserManagedHospital", fields: [managedHospitalId], references: [id])
+  savedItems             SavedItem[]
+}
+
+model SavedItem {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  entityType String   // 'doctor' or 'hospital'
+  entityId   Int      // ID of the doctor or hospital
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId])
 }
 
 model DoctorProfile {
