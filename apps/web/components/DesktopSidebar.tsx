@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { useInstantNav } from "../hooks/useInstantNav";
 import { 
   Home, 
@@ -14,7 +15,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  FileText
+  FileText,
+  LogOut
 } from "lucide-react";
 
 interface DesktopSidebarProps {
@@ -26,6 +28,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { user, logout } = useAuth();
   const { getNavProps } = useInstantNav();
 
   // Notify parent when collapse state changes
@@ -45,51 +48,68 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
       href: "/",
       icon: Home,
       label: "Home",
-      description: "Back to homepage"
+      description: "Back to homepage",
+      protected: false
     },
     {
       href: "/my-bookings",
       icon: Calendar,
       label: "My Bookings",
-      description: "View appointments"
+      description: "View appointments",
+      protected: true
     },
     {
       href: "/saved",
       icon: Heart,
       label: "Saved",
-      description: "Saved doctors & hospitals"
+      description: "Saved doctors & hospitals",
+      protected: true
     },
     {
       href: "/doctors",
       icon: Stethoscope,
       label: "Find Doctors",
-      description: "Search doctors"
+      description: "Search doctors",
+      protected: false
     },
     {
       href: "/hospitals",
       icon: Building2,
       label: "Hospitals",
-      description: "Browse hospitals"
+      description: "Browse hospitals",
+      protected: false
     },
     {
       href: "/history",
       icon: Clock,
       label: "History",
-      description: "Past appointments"
+      description: "Past appointments",
+      protected: true
     },
     {
       href: "/profile",
       icon: User,
       label: "Profile",
-      description: "Your profile"
+      description: "Your profile",
+      protected: true
     },
     {
       href: "/settings",
       icon: Settings,
       label: "Settings",
-      description: "Account settings"
+      description: "Account settings",
+      protected: true
     }
   ];
+
+  const handleNavigation = (href: string, isProtected: boolean) => {
+    if (isProtected && !user) {
+      // Redirect to login if user is not authenticated for protected routes
+      router.push('/auth?redirect=' + encodeURIComponent(href));
+      return;
+    }
+    router.push(href);
+  };
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -132,7 +152,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
             return (
               <li key={item.href}>
                 <button
-                  onClick={() => router.push(item.href)}
+                  onClick={() => handleNavigation(item.href, item.protected)}
                   {...getNavProps(item.href)}
                   className={`
                     w-full flex items-center gap-3 px-3 py-3 rounded-lg
@@ -174,7 +194,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
       {/* Sidebar Footer */}
       {!isCollapsed && (
         <div className="p-4 border-t border-blue-700">
-          <div className="bg-blue-700 rounded-lg p-3 border border-blue-600">
+          <div className="bg-blue-700 rounded-lg p-3 border border-blue-600 mb-2">
             <div className="flex items-start gap-2">
               <FileText className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
               <div>
@@ -187,6 +207,16 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
               </div>
             </div>
           </div>
+          
+          {user && (
+            <button
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-blue-100 hover:bg-blue-700 transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="text-sm font-medium">Log Out</span>
+            </button>
+          )}
         </div>
       )}
     </aside>

@@ -221,6 +221,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // ============================================================================
         // 🎯 ROLE-BASED REDIRECTION - Redirect users based on their role
         // ============================================================================
+        
+        // Check for redirect param in current URL
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        
+        if (redirect) {
+          window.location.href = decodeURIComponent(redirect);
+          return;
+        }
+
         if (userData.role === 'ADMIN') {
           // ============================================================================
           // 🔒 ADMIN REDIRECT - Send admins to admin panel

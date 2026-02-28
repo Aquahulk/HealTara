@@ -61,9 +61,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // For main domain or any other cases, let them pass through
-  return NextResponse.next();
-
   // Protect admin routes
   if (url.pathname.startsWith('/admin-secure-panel-7x9y2z-2024')) {
     // Allow access to admin login page
