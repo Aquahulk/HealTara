@@ -920,6 +920,38 @@ class ApiClient {
   }
 
   // ============================================================================
+  // 💾 SAVED ITEMS - Bookmarks
+  // ============================================================================
+  async saveItem(entityType: 'doctor' | 'hospital', entityId: number | string): Promise<any> {
+    return this.request('/api/saved', {
+      method: 'POST',
+      body: JSON.stringify({ entityType, entityId })
+    });
+  }
+
+  async unsaveItem(entityType: 'doctor' | 'hospital', entityId: number | string): Promise<any> {
+    const query = new URLSearchParams({
+      entityType,
+      entityId: String(entityId)
+    }).toString();
+    return this.request(`/api/saved?${query}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async checkSavedStatus(entityType: 'doctor' | 'hospital', entityId: number | string): Promise<{ saved: boolean }> {
+    const query = new URLSearchParams({
+      entityType,
+      entityId: String(entityId)
+    }).toString();
+    return this.request(`/api/saved/check?${query}`);
+  }
+
+  async getSavedItems(): Promise<any[]> {
+    return this.request('/api/saved');
+  }
+
+  // ============================================================================
   // 🚪 LOGOUT FUNCTION - Clear authentication data
   // ============================================================================
   logout(): void {

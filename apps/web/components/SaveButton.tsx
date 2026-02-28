@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Bookmark } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api';
 
 interface SaveButtonProps {
   entityType: 'doctor' | 'hospital';
@@ -12,27 +13,20 @@ interface SaveButtonProps {
 export default function SaveButton({ entityType, entityId, className = '' }: SaveButtonProps) {
   const [isSaved, setIsSaved] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   // Check if item is saved on mount
   useEffect(() => {
-    if (user && token) {
+    if (user) {
       checkSavedStatus();
     }
-  }, [user, token, entityId]);
+  }, [user, entityId]);
 
   const checkSavedStatus = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/saved/check?entityType=${entityType}&entityId=${entityId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setIsSaved(data.saved);
-      }
+      const data = await apiClient.checkSavedStatus(entityType, entityId);
+      setIsSaved(data.saved);
     } catch (error) {
       console.error('Error checking saved status:', error);
     }
@@ -52,27 +46,14 @@ export default function SaveButton({ entityType, entityId, className = '' }: Sav
     setLoading(true);
 
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/saved`;
-      
       if (isSaved) {
         // DELETE
-        const deleteUrl = `${url}?entityType=${entityType}&entityId=${entityId}`;
-        const res = await fetch(deleteUrl, { 
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` } 
-        });
-        if (res.ok) setIsSaved(false);
+        await apiClient.unsaveItem(entityType, entityId);
+        setIsSaved(false);
       } else {
         // POST
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ entityType, entityId })
-        });
-        if (res.ok) setIsSaved(true);
+        await apiClient.saveItem(entityType, entityId);
+        setIsSaved(true);
       }
     } catch (error) {
       console.error('Error toggling save:', error);
