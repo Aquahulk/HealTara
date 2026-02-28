@@ -9,9 +9,10 @@ import { useRouter } from 'next/navigation';
 import { Building2 } from 'lucide-react';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
+import { apiClient } from '@/lib/api';
 
 export default function SavedPage() {
-  const { user, token, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [savedItems, setSavedItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,23 +25,16 @@ export default function SavedPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (user && token) {
+    if (user) {
       fetchSavedItems();
     }
-  }, [user, token]);
+  }, [user]);
 
   const fetchSavedItems = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/saved`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSavedItems(data);
-      }
+      const data = await apiClient.getSavedItems();
+      setSavedItems(data || []);
     } catch (error) {
       console.error('Failed to fetch saved items', error);
     } finally {
