@@ -54,6 +54,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
+import SaveButton from '@/components/SaveButton';
 
 // Hero Carousel Component
 function HeroCarousel() {
@@ -980,6 +981,9 @@ export default function HomePage() {
                   className="group"
                 >
                   <div className="relative bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100">
+                    <div className="absolute top-2 right-2 z-20">
+                      <SaveButton entityType="doctor" entityId={doctor.id} />
+                    </div>
                     {/* Background Gradient Overlay - Medical colors: light green, blue, white */}
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     
@@ -1146,11 +1150,14 @@ export default function HomePage() {
                     whileInView={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     whileHover={{ y: -4 }}
-                    className="group"
-                  >
-                    <div className="relative bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100">
-                      {/* Background Pattern */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  className="group"
+                >
+                  <div className="relative bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100">
+                    <div className="absolute top-2 right-2 z-20">
+                      <SaveButton entityType="hospital" entityId={hospital.id} />
+                    </div>
+                    {/* Background Pattern */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                       
                       {/* Content Container - More compact on mobile */}
                       <div className="relative p-3 md:p-4">
