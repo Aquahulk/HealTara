@@ -75,6 +75,7 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
       (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
       (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
     FROM "Hospital" h
+    WHERE h.status = 'ACTIVE'
     ORDER BY h.id ASC
   `;
 
@@ -405,8 +406,9 @@ app.post('/api/register', async (req: Request, res: Response) => {
     // ============================================================================
     // 💾 DATABASE CREATION - Save new user to database
     // ============================================================================
+    const initialStatus = ['DOCTOR', 'HOSPITAL_ADMIN'].includes(String(role)) ? 'PENDING' : 'ACTIVE';
     const newUser = await prisma.user.create({
-      data: { email, password: hashedPassword, role },
+      data: { email, password: hashedPassword, role, status: initialStatus },
     });
     
     // ============================================================================
@@ -577,6 +579,62 @@ app.get('/api/doctor/profile', authMiddleware, async (req: Request, res: Respons
   }
 });
 
+// --- Doctor: Submit verification details ---
+app.post('/api/doctor/verification', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only doctors can submit verification.' });
+  }
+  try {
+    const { registrationNumber, phone, specialization, clinicAddress, consultationFee } = (req.body || {}) as { 
+      registrationNumber?: string; 
+      phone?: string; 
+      specialization?: string; 
+      clinicAddress?: string; 
+      consultationFee?: number;
+    };
+    let profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId } });
+    if (!profile) {
+      const defaultName = `Clinic of ${user.email.split('@')[0]}`;
+      profile = await prisma.doctorProfile.create({
+        data: {
+          userId: user.userId,
+          specialization: specialization || 'General Practice',
+          qualifications: '',
+          experience: 0,
+          clinicName: defaultName,
+          clinicAddress: clinicAddress || 'Not provided',
+          city: '',
+          state: '',
+          phone: phone || '',
+          consultationFee: Number.isFinite(consultationFee as number) ? Number(consultationFee) : 0,
+          registrationNumber: registrationNumber || null,
+          verificationSubmitted: true,
+          verificationStatus: 'PENDING'
+        }
+      });
+    } else {
+      profile = await prisma.doctorProfile.update({
+        where: { userId: user.userId },
+        data: {
+          registrationNumber: registrationNumber ?? profile.registrationNumber ?? null,
+          phone: phone ?? profile.phone,
+          verificationSubmitted: true,
+          verificationStatus: 'PENDING'
+        }
+      });
+    }
+    await prisma.user.update({ where: { id: user.userId }, data: { status: 'PENDING' } });
+    await prisma.adminAuditLog.create({
+      data: { adminId: user.userId, action: 'DOCTOR_VERIFICATION_SUBMIT', entityType: 'USER', entityId: user.userId, details: registrationNumber || '' }
+    }).catch(() => {});
+    return res.status(200).json({ success: true, profile });
+  } catch (error) {
+    console.error('Doctor verification submit error:', error);
+    return res.status(500).json({ message: 'Failed to submit verification' });
+  }
+});
+
 // ============================================================================
 // 📊 DOCTOR STATS ENDPOINT - Dashboard statistics for the authenticated doctor
 // ============================================================================
@@ -704,7 +762,7 @@ app.get('/api/saved/check', authMiddleware, async (req: Request, res: Response) 
   if (!entityType || !entityId) {
     return res.status(400).json({ message: 'entityType and entityId are required' });
   }
-
+  
   try {
     const item = await prisma.savedItem.findUnique({
       where: {
@@ -733,7 +791,7 @@ app.get('/api/saved', authMiddleware, async (req: Request, res: Response) => {
     });
 
     // Enhance items with details
-    const enhancedItems = await Promise.all(savedItems.map(async (item) => {
+    const enhancedItems = await Promise.all(savedItems.map(async (item: any) => {
       let details = null;
       if (item.entityType === 'doctor') {
         const doctor = await prisma.user.findUnique({
@@ -777,6 +835,70 @@ app.get('/api/saved', authMiddleware, async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching saved items:', error);
     res.status(500).json({ message: 'Failed to fetch saved items' });
+  }
+});
+
+// ============================================================================
+// 👤 PATIENT PROFILE - Create/Update and Fetch
+// ============================================================================
+// Fetch patient profile
+app.get('/api/patient/profile', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const profile = await prisma.patientProfile.findUnique({ where: { userId } });
+    res.status(200).json(profile || {});
+  } catch (error) {
+    console.error('Error fetching patient profile:', error);
+    res.status(500).json({ message: 'Failed to fetch patient profile' });
+  }
+});
+
+// Create or update patient profile
+app.post('/api/patient/profile', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const {
+      name,
+      age,
+      gender,
+      phone,
+      address,
+      city,
+      state,
+      bloodGroup,
+      allergies,
+    } = req.body || {};
+
+    const profile = await prisma.patientProfile.upsert({
+      where: { userId },
+      update: {
+        name,
+        age: typeof age === 'number' ? age : Number(age) || null,
+        gender,
+        phone,
+        address,
+        city,
+        state,
+        bloodGroup,
+        allergies,
+      },
+      create: {
+        userId,
+        name,
+        age: typeof age === 'number' ? age : Number(age) || null,
+        gender,
+        phone,
+        address,
+        city,
+        state,
+        bloodGroup,
+        allergies,
+      },
+    });
+    res.status(200).json({ success: true, profile });
+  } catch (error) {
+    console.error('Error saving patient profile:', error);
+    res.status(500).json({ message: 'Failed to save patient profile' });
   }
 });
 
@@ -825,7 +947,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
         (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
       FROM "User" u
       JOIN "DoctorProfile" dp ON u.id = dp."userId"
-      WHERE u.role = 'DOCTOR'
+      WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE'
       ORDER BY 
         ${sort === 'trending' ? 'appt_count DESC,' : ''}
         ${sort === 'experience' ? 'dp.experience DESC,' : ''}
@@ -834,7 +956,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
     `;
 
     const rows = await prisma.$queryRawUnsafe(doctorsSql, pageSize, skip);
-    const totalCountRow: any[] = await prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "User" WHERE role = 'DOCTOR'`;
+    const totalCountRow: any[] = await prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "User" WHERE role = 'DOCTOR' AND status = 'ACTIVE'`;
     const totalCount = totalCountRow[0]?.count || 0;
 
     const formattedDoctors = (rows as any[]).map(row => {
@@ -1556,6 +1678,73 @@ const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// --- Homepage Content (Admin) ---
+app.get('/api/homepage', async (req: Request, res: Response) => {
+  try {
+    console.log('🔍 API - Loading homepage content...');
+    
+    const latest = await prisma.adminAuditLog.findFirst({
+      where: { entityType: 'HOMEPAGE', action: 'HOMEPAGE_SAVE' },
+      orderBy: { createdAt: 'desc' },
+      select: { details: true, createdAt: true, adminId: true }
+    });
+    
+    console.log('🔍 API - Latest homepage log:', {
+      found: !!latest,
+      hasDetails: !!latest?.details,
+      createdAt: latest?.createdAt
+    });
+    
+    if (!latest || !latest.details) {
+      console.log('🔍 API - No homepage content found, returning empty');
+      return res.status(200).json({});
+    }
+    
+    try {
+      const content = JSON.parse(latest.details);
+      console.log('🔍 API - Parsed homepage content, keys:', Object.keys(content));
+      return res.status(200).json(content || {});
+    } catch (parseError) {
+      console.error('🔍 API - Error parsing homepage content:', parseError);
+      return res.status(200).json({});
+    }
+  } catch (error) {
+    console.error('Failed to load homepage content:', error);
+    return res.status(500).json({ message: 'Failed to load homepage content' });
+  }
+});
+
+app.patch('/api/admin/homepage-content', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user!.userId;
+    const payload = req.body || {};
+    const details = JSON.stringify(payload);
+    
+    console.log('🔍 API - Admin saving homepage content:', {
+      adminId,
+      payloadKeys: Object.keys(payload),
+      hasHero: !!payload.hero,
+      hasTrustedBy: !!payload.trustedBy
+    });
+    
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId,
+        action: 'HOMEPAGE_SAVE',
+        entityType: 'HOMEPAGE',
+        entityId: null,
+        details
+      }
+    });
+    
+    console.log('🔍 API - Homepage content saved successfully');
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Failed to save homepage content:', error);
+    return res.status(500).json({ message: 'Failed to save homepage content' });
+  }
+});
+
 // --- Admin: View learning weights ---
 app.get('/api/admin/learning/weights', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
@@ -1593,6 +1782,143 @@ app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, async (req: Req
   }
 });
 
+app.get('/api/admin/metrics', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const dau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patientId")::int AS dau FROM "Appointment" WHERE "createdAt" >= NOW() - INTERVAL '1 day'`;
+    const mau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patientId")::int AS mau FROM "Appointment" WHERE "createdAt" >= NOW() - INTERVAL '30 day'`;
+    const totalPatients = await prisma.user.count({ where: { role: 'PATIENT' } });
+    const totalDoctors = await prisma.user.count({ where: { role: 'DOCTOR' } });
+    const totalAppointments = await prisma.appointment.count();
+    const confirmedAppointments = await prisma.appointment.count({ where: { status: 'CONFIRMED' } });
+    const cancelledAppointments = await prisma.appointment.count({ where: { status: 'CANCELLED' } });
+    const revenueRows: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(SUM(dp."consultationFee"), 0)::float AS revenue
+      FROM "Appointment" a
+      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      WHERE a.status = 'CONFIRMED'
+    `;
+    const revenueByCity: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(dp.city, 'Unknown') AS city, COALESCE(SUM(dp."consultationFee"),0)::float AS revenue, COUNT(*)::int AS count
+      FROM "Appointment" a
+      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      WHERE a.status = 'CONFIRMED'
+      GROUP BY city
+      ORDER BY revenue DESC
+      LIMIT 12
+    `;
+    const revenueBySpecialty: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(dp.specialization, 'General') AS specialty, COALESCE(SUM(dp."consultationFee"),0)::float AS revenue, COUNT(*)::int AS count
+      FROM "Appointment" a
+      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      WHERE a.status = 'CONFIRMED'
+      GROUP BY specialty
+      ORDER BY revenue DESC
+      LIMIT 12
+    `;
+    const revenueByTier: any[] = await prisma.$queryRaw`
+      SELECT
+        CASE
+          WHEN dp."consultationFee" < 300 THEN 'Tier 1'
+          WHEN dp."consultationFee" BETWEEN 300 AND 600 THEN 'Tier 2'
+          ELSE 'Tier 3'
+        END AS tier,
+        COALESCE(SUM(dp."consultationFee"),0)::float AS revenue,
+        COUNT(*)::int AS count
+      FROM "Appointment" a
+      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      WHERE a.status = 'CONFIRMED'
+      GROUP BY tier
+      ORDER BY revenue DESC
+    `;
+    const bookingsByState: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(dp.state, 'Unknown') AS state, COUNT(*)::int AS count
+      FROM "Appointment" a
+      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      GROUP BY state
+      ORDER BY count DESC
+      LIMIT 20
+    `;
+    const topCities: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(dp.city, 'Unknown') AS city, COUNT(*)::int AS count
+      FROM "Appointment" a
+      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      GROUP BY city
+      ORDER BY count DESC
+      LIMIT 10
+    `;
+    const doctorDensity: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(dp.state, 'Unknown') AS state, COUNT(*)::int AS doctors
+      FROM "DoctorProfile" dp
+      GROUP BY state
+      ORDER BY doctors DESC
+      LIMIT 20
+    `;
+    const revenueTodayRows: any[] = await prisma.$queryRaw`
+      SELECT COALESCE(SUM(dp."consultationFee"),0)::float AS revenue
+      FROM "Appointment" a
+      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      WHERE a.status = 'CONFIRMED' AND DATE(a."createdAt") = CURRENT_DATE
+    `;
+    const liveAppointmentsRows: any[] = await prisma.$queryRaw`
+      SELECT COUNT(*)::int AS live
+      FROM "Appointment" a
+      WHERE a.status = 'CONFIRMED' AND a."createdAt" >= NOW() - INTERVAL '60 minute'
+    `;
+    const doctorsUpcomingRows: any[] = await prisma.$queryRaw`
+      SELECT COUNT(DISTINCT a."doctorId")::int AS count
+      FROM "Appointment" a
+      WHERE a."createdAt" >= NOW() - INTERVAL '120 minute'
+    `;
+    const dauVal = dau[0]?.dau || 0;
+    const mauVal = mau[0]?.mau || 0;
+    const totalRevenue = revenueRows[0]?.revenue || 0;
+    const revenueToday = revenueTodayRows[0]?.revenue || 0;
+    const liveAppointments = liveAppointmentsRows[0]?.live || 0;
+    const doctorsOnline = doctorsUpcomingRows[0]?.count || 0;
+    const avgBookingValue = confirmedAppointments ? totalRevenue / confirmedAppointments : 0;
+    const conversionRate = totalAppointments ? Math.round((confirmedAppointments / Math.max(1, totalAppointments)) * 100) : 0;
+    const refundRate = totalAppointments ? Math.round((cancelledAppointments / Math.max(1, totalAppointments)) * 100) : 0;
+    res.status(200).json({
+      core: {
+        totalPatients,
+        totalDoctors,
+        dau: dauVal,
+        mau: mauVal,
+        totalAppointments,
+        conversionRate,
+        revenue: totalRevenue
+      },
+      revenue: {
+        totalRevenue,
+        revenueByCity,
+        revenueBySpecialty,
+        revenueByTier,
+        avgBookingValue,
+        refundRate,
+        paymentFailureRate: 0
+      },
+      operational: {
+        appointmentSuccessRate: totalAppointments ? Math.round((confirmedAppointments / Math.max(1, totalAppointments)) * 100) : 0,
+        noShowRate: 0,
+        cancellationTrend: cancelledAppointments
+      },
+      geographic: {
+        bookingsByState,
+        topCities,
+        doctorDensity
+      },
+      realtime: {
+        liveAppointments,
+        doctorsOnline,
+        usersBrowsing: dauVal,
+        revenueToday
+      }
+    });
+  } catch (error) {
+    console.error('admin metrics error', error);
+    res.status(500).json({ message: 'Failed to compute admin metrics' });
+  }
+});
 // --- Get All Users (Admin Only) ---
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
@@ -1764,6 +2090,35 @@ app.get('/api/admin/doctors', authMiddleware, adminMiddleware, async (req: Reque
   }
 });
 
+app.get('/api/admin/doctors/:doctorId/details', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: doctorId },
+      include: {
+        doctorProfile: true,
+        hospitalMemberships: {
+          include: { hospital: true }
+        }
+      }
+    });
+    if (!user || user.role !== 'DOCTOR') return res.status(404).json({ message: 'Doctor not found' });
+    const appointments = await prisma.appointment.findMany({
+      where: { doctorId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: {
+        patient: { select: { id: true, email: true } }
+      }
+    });
+    const totalAppointments = await prisma.appointment.count({ where: { doctorId } });
+    res.status(200).json({ doctor: user, totalAppointments, recentAppointments: appointments });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch doctor details' });
+  }
+});
 // --- Admin: List all hospitals with status and stats ---
 app.get('/api/admin/hospitals', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
@@ -1850,6 +2205,32 @@ app.get('/api/admin/hospitals/:hospitalId/full-details', authMiddleware, adminMi
   }
 });
 
+app.get('/api/admin/hospitals/:hospitalId/appointments', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  const limit = Number(req.query.limit ?? 10);
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  try {
+    const memberships = await prisma.hospitalDoctor.findMany({
+      where: { hospitalId },
+      select: { doctorId: true }
+    });
+    const doctorIds = memberships.map((m: { doctorId: number }) => m.doctorId);
+    if (!doctorIds.length) return res.status(200).json([]);
+    const appts = await prisma.appointment.findMany({
+      where: { doctorId: { in: doctorIds } },
+      orderBy: { createdAt: 'desc' },
+      take: Math.max(1, Math.min(100, limit)),
+      include: {
+        doctor: { select: { id: true, email: true } },
+        patient: { select: { id: true, email: true } }
+      }
+    });
+    res.status(200).json(appts);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch hospital appointments' });
+  }
+});
 // --- Admin: Update doctor status (suspend/unsuspend) ---
 app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   const doctorId = Number(req.params.doctorId);
@@ -1863,6 +2244,13 @@ app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware
       where: { id: doctorId },
       data: { status }
     });
+    // Update verification status on profile
+    try {
+      await prisma.doctorProfile.update({
+        where: { userId: doctorId },
+        data: { verificationStatus: status === 'ACTIVE' ? 'APPROVED' : 'PENDING' }
+      });
+    } catch {}
 
     await prisma.adminAuditLog.create({
       data: {
@@ -1881,6 +2269,90 @@ app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware
   }
 });
 
+app.get('/api/admin/verifications/pending', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  try {
+    const doctors = await prisma.user.findMany({
+      where: { role: 'DOCTOR', OR: [{ status: 'PENDING' }, { doctorProfile: { verificationStatus: 'PENDING' } }] },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        doctorProfile: {
+          select: {
+            registrationNumber: true,
+            phone: true,
+            verificationSubmitted: true,
+            verificationStatus: true,
+            specialization: true,
+            clinicName: true,
+            city: true,
+            state: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    const hospitals = await prisma.hospital.findMany({
+      where: { OR: [{ status: 'PENDING' }, { verificationStatus: 'PENDING' }] },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        registrationNumberGov: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        admin: { select: { email: true } },
+        verificationSubmitted: true,
+        verificationStatus: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.status(200).json({ doctors, hospitals });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch pending verifications' });
+  }
+});
+
+app.patch('/api/admin/verifications/doctor/:doctorId', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  const decision = String(req.body?.decision || '').toUpperCase();
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  if (!['APPROVE', 'REJECT'].includes(decision)) return res.status(400).json({ message: 'Invalid decision' });
+  try {
+    if (decision === 'APPROVE') {
+      await prisma.user.update({ where: { id: doctorId }, data: { status: 'ACTIVE' } });
+      await prisma.doctorProfile.update({ where: { userId: doctorId }, data: { verificationStatus: 'APPROVED' } });
+    } else {
+      await prisma.user.update({ where: { id: doctorId }, data: { status: 'SUSPENDED' } });
+      await prisma.doctorProfile.update({ where: { userId: doctorId }, data: { verificationStatus: 'REJECTED' } });
+    }
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update doctor verification' });
+  }
+});
+
+app.patch('/api/admin/verifications/hospital/:hospitalId', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  const decision = String(req.body?.decision || '').toUpperCase();
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  if (!['APPROVE', 'REJECT'].includes(decision)) return res.status(400).json({ message: 'Invalid decision' });
+  try {
+    if (decision === 'APPROVE') {
+      await prisma.hospital.update({ where: { id: hospitalId }, data: { status: 'ACTIVE', verificationStatus: 'APPROVED' } });
+    } else {
+      await prisma.hospital.update({ where: { id: hospitalId }, data: { status: 'SUSPENDED', verificationStatus: 'REJECTED' } });
+    }
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update hospital verification' });
+  }
+});
 // --- Admin: Update hospital status (suspend/unsuspend) ---
 app.patch('/api/admin/hospitals/:hospitalId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   const hospitalId = Number(req.params.hospitalId);
@@ -1894,6 +2366,13 @@ app.patch('/api/admin/hospitals/:hospitalId/status', authMiddleware, adminMiddle
       where: { id: hospitalId },
       data: { status }
     });
+    // Update verification status
+    try {
+      await prisma.hospital.update({
+        where: { id: hospitalId },
+        data: { verificationStatus: status === 'ACTIVE' ? 'APPROVED' : 'PENDING' }
+      });
+    } catch {}
 
     await prisma.adminAuditLog.create({
       data: {
@@ -3259,7 +3738,7 @@ app.post('/api/hospitals', authMiddleware, async (req: Request, res: Response) =
   }
   try {
     const created = await prisma.hospital.create({
-      data: { name: name.trim(), address, city, state, phone, adminId: user.userId },
+      data: { name: name.trim(), address, city, state, phone, adminId: user.userId, status: 'PENDING', verificationSubmitted: false, verificationStatus: 'PENDING' },
       select: { id: true }
     });
     cachedHospitals = [];
@@ -3273,6 +3752,60 @@ app.post('/api/hospitals', authMiddleware, async (req: Request, res: Response) =
   }
 });
 
+// --- Hospital Admin: Submit verification details ---
+app.post('/api/hospital/verification', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (!['HOSPITAL_ADMIN', 'ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Hospital admin access required' });
+  }
+  try {
+    let hospital = await prisma.hospital.findFirst({ where: { adminId: user.userId } });
+    if (!hospital) {
+      const me = await prisma.user.findUnique({ where: { id: user.userId }, select: { managedHospitalId: true, email: true } });
+      if (me?.managedHospitalId) {
+        hospital = await prisma.hospital.findUnique({ where: { id: me.managedHospitalId } });
+      }
+    }
+    const { registrationNumberGov, phone, address, city, state, name } = (req.body || {}) as { registrationNumberGov?: string; phone?: string; address?: string; city?: string; state?: string; name?: string };
+    if (!hospital) {
+      const derivedName = name || `Hospital of ${user.email.split('@')[0]}`;
+      hospital = await prisma.hospital.create({
+        data: {
+          name: derivedName,
+          address: address || '',
+          city: city || '',
+          state: state || '',
+          phone: phone || '',
+          adminId: user.userId,
+          status: 'PENDING',
+          verificationSubmitted: false,
+          verificationStatus: 'PENDING',
+          registrationNumberGov: null
+        }
+      });
+    }
+    const updated = await prisma.hospital.update({
+      where: { id: hospital.id },
+      data: {
+        registrationNumberGov: registrationNumberGov ?? hospital.registrationNumberGov ?? null,
+        phone: phone ?? hospital.phone,
+        address: address ?? hospital.address,
+        city: city ?? hospital.city,
+        state: state ?? hospital.state,
+        verificationSubmitted: true,
+        verificationStatus: 'PENDING',
+        status: 'PENDING'
+      }
+    });
+    await prisma.adminAuditLog.create({
+      data: { adminId: user.userId, action: 'HOSPITAL_VERIFICATION_SUBMIT', entityType: 'HOSPITAL', entityId: updated.id, details: registrationNumberGov || '' }
+    }).catch(() => {});
+    return res.status(200).json({ success: true, hospital: { id: updated.id } });
+  } catch (error) {
+    console.error('Hospital verification submit error:', error);
+    return res.status(500).json({ message: 'Failed to submit hospital verification' });
+  }
+});
 // --- Debug endpoint for hospital cache ---
 app.get('/api/debug/hospitals', async (req: Request, res: Response) => {
   try {

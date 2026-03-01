@@ -1495,6 +1495,73 @@ useEffect(() => {
   return result;
 };
 
+  // Check if it's user's first time and needs verification
+  const isFirstTimeUser = user && (
+    (user.role === 'DOCTOR' && (!doctorProfile || doctorProfile.micrositeEnabled === false)) ||
+    (user.role === 'HOSPITAL_ADMIN' && (!hospitalProfile || (hospitalProfile as any)?.profile?.serviceStatus === 'PENDING'))
+  );
+
+  // Show registration/verification flow for first-time users
+  if (isFirstTimeUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-10 px-6">
+        <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-8">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 0l6 6v6m0 6h6m-6 0l6 6M3 5h14a2 2 0 0-2 2M7 11a2 2 0 0-2 2M21 12a2 2 0 0-2 2M9 5l7 7 0 0-2 2m3 3a2 2 0 0-2 2" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              {user.role === 'DOCTOR' ? 'Complete Your Doctor Profile' : 'Complete Your Hospital Profile'}
+            </h1>
+            <p className="text-gray-600 mb-6">
+              {user.role === 'DOCTOR' 
+                ? 'To access your dashboard, please complete your profile and submit verification details. After admin approval, you can manage appointments and patients.'
+                : 'To access your dashboard, please complete your hospital profile and submit verification details. After admin approval, you can manage doctors and appointments.'
+              }
+            </p>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <h2 className="font-semibold text-gray-900 mb-2">
+                {user.role === 'DOCTOR' ? 'Doctor Verification Checklist' : 'Hospital Verification Checklist'}
+              </h2>
+              <ul className="list-disc ml-6 text-gray-800">
+                {user.role === 'DOCTOR' ? (
+                  <>
+                    <li>Registration Number</li>
+                    <li>Clinic Details</li>
+                    <li>Mobile Number</li>
+                    <li>Specialization</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Hospital Registration Number</li>
+                    <li>Contact Details</li>
+                    <li>Address Information</li>
+                  </>
+                )}
+              </ul>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Link 
+                href={user.role === 'DOCTOR' ? "/dashboard/profile" : "/hospital-admin/profile"}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold"
+              >
+                {user.role === 'DOCTOR' ? 'Go to Profile' : 'Go to Hospital Profile'}
+              </Link>
+              
+              {(doctorProfile?.micrositeEnabled === false || (hospitalProfile as any)?.profile?.serviceStatus === 'PENDING') && (
+                <span className="text-sm text-gray-600">Waiting for admin confirmation…</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Helper: format an hour range like "09:00 - 10:00"
   const formatHourRange = (dateKey: string, hour: number) => {
     const start = new Date(`${dateKey}T00:00:00`);

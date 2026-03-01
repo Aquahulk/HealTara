@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useInstantNav } from "../hooks/useInstantNav";
 import { 
@@ -27,6 +27,7 @@ interface DesktopSidebarProps {
 export default function DesktopSidebar({ className = "", onCollapseChange }: DesktopSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user, logout } = useAuth();
   const { getNavProps } = useInstantNav();
@@ -103,18 +104,46 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
   ];
 
   const handleNavigation = (href: string, isProtected: boolean) => {
+    // Resolve destination based on route and role
+    const resolveHref = (raw: string) => {
+      if (raw === "/my-bookings") {
+        return "/dashboard?tab=appointments";
+      }
+      if (raw === "/profile") {
+        if (user?.role === "HOSPITAL_ADMIN") return "/hospital-admin/profile";
+        // Patients and Doctors land on the unified dashboard profile editor
+        return "/dashboard/profile";
+      }
+      return raw;
+    };
+
+    const target = resolveHref(href);
+
     if (isProtected && !user) {
-      // Redirect to login if user is not authenticated for protected routes
-      router.push('/auth?redirect=' + encodeURIComponent(href));
+      router.push("/auth?redirect=" + encodeURIComponent(target));
       return;
     }
-    router.push(href);
+
+    router.push(target);
   };
 
   const isActive = (href: string) => {
     if (href === "/") {
       return pathname === "/";
     }
+    
+    // Special handling for My Bookings - active when on dashboard with appointments tab
+    if (href === "/my-bookings") {
+      return pathname === "/dashboard" && searchParams?.get('tab') === 'appointments';
+    }
+    
+    // Profile can resolve to different routes based on role
+    if (href === "/profile") {
+      if (pathname?.startsWith("/dashboard/profile")) return true;
+      if (pathname?.startsWith("/hospital-admin/profile")) return true;
+      return false;
+    }
+    
     return pathname?.startsWith(href);
   };
 

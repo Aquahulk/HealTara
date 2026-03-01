@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
 import { loadWithCache, PerformanceMonitor, CacheManager } from '@/lib/performance';
+import { useHomepageContent } from '@/hooks/useHomepageContent';
 import Header from '@/components/Header';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
@@ -48,7 +49,8 @@ import {
   MessageCircle,
   BookOpen,
   ArrowRight,
-  MapIcon
+  MapIcon,
+  FileText
 } from "lucide-react";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -56,17 +58,65 @@ import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shoul
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import SaveButton from '@/components/SaveButton';
 
+// Icon mapping function - Convert string names to React components
+const getIconComponent = (iconName: string, className: string = "w-12 h-12") => {
+  const icons: Record<string, React.ReactNode> = {
+    'Heart': <Heart className={className} />,
+    'CheckCircle': <CheckCircle className={className} />,
+    'Calendar': <Calendar className={className} />,
+    'Shield': <Shield className={className} />,
+    'Stethoscope': <Stethoscope className={className} />,
+    'Search': <Search className={className} />,
+    'Users': <Users className={className} />,
+    'Star': <Star className={className} />,
+    'MessageCircle': <MessageCircle className={className} />,
+    'Globe': <Globe className={className} />,
+    'Building2': <Building2 className={className} />,
+    'Activity': <Activity className={className} />,
+    'Phone': <Phone className={className} />,
+    'Mail': <Mail className={className} />,
+    'MapPin': <MapPin className={className} />,
+    'Clock': <Clock className={className} />,
+    'Award': <Award className={className} />,
+    'TrendingUp': <TrendingUp className={className} />,
+    'FileText': <FileText className={className} />,
+    'UserCheck': <UserCheck className={className} />,
+    'Hospital': <Hospital className={className} />,
+    'Microscope': <Microscope className={className} />,
+    'Pill': <Pill className={className} />,
+    'BookOpen': <BookOpen className={className} />,
+    'Video': <Video className={className} />,
+    'ArrowRight': <ArrowRight className={className} />,
+    'MapIcon': <MapIcon className={className} />,
+    'ChevronRight': <ChevronRight className={className} />,
+    'ChevronLeft': <ChevronLeft className={className} />,
+    'Play': <Play className={className} />,
+    'Facebook': <Facebook className={className} />,
+    'Twitter': <Twitter className={className} />,
+    'Instagram': <Instagram className={className} />,
+    'Linkedin': <Linkedin className={className} />,
+    'Zap': <Zap className={className} />,
+    'Smartphone': <Smartphone className={className} />,
+    'DollarSign': <DollarSign className={className} />,
+    'ArrowDown': <ArrowDown className={className} />
+  };
+  
+  return icons[iconName] || <Heart className={className} />;
+};
+
 // Hero Carousel Component
 function HeroCarousel() {
+  const { content } = useHomepageContent();
   const [currentSlide, setCurrentSlide] = useState(0);
   
-  const slides = [
+  // Use admin-managed content or fallback to default
+  const slides = content?.hero?.slides || [
     {
       title: "Your Health, Our Priority",
       subtitle: "Connect with verified doctors instantly",
       description: "Book appointments in 60 seconds",
       gradient: "from-blue-600 via-purple-600 to-pink-500",
-      icon: <Heart className="w-12 h-12" />,
+      icon: "Heart",
       showSteps: false
     },
     {
@@ -74,7 +124,7 @@ function HeroCarousel() {
       subtitle: "Simple 3-step process",
       description: "Get started in minutes",
       gradient: "from-green-500 via-teal-500 to-blue-500",
-      icon: <CheckCircle className="w-12 h-12" />,
+      icon: "CheckCircle",
       showSteps: true
     },
     {
@@ -82,7 +132,7 @@ function HeroCarousel() {
       subtitle: "24/7 online booking",
       description: "Schedule anytime, anywhere",
       gradient: "from-purple-600 via-pink-500 to-red-500",
-      icon: <Calendar className="w-12 h-12" />,
+      icon: "Calendar",
       showSteps: false
     },
     {
@@ -90,7 +140,7 @@ function HeroCarousel() {
       subtitle: "Verified doctors & hospitals",
       description: "1000+ healthcare professionals",
       gradient: "from-orange-500 via-red-500 to-pink-600",
-      icon: <Shield className="w-12 h-12" />,
+      icon: "Shield",
       showSteps: false
     },
     {
@@ -98,7 +148,7 @@ function HeroCarousel() {
       subtitle: "Comprehensive medical care",
       description: "From consultations to treatments",
       gradient: "from-indigo-600 via-purple-500 to-pink-500",
-      icon: <Stethoscope className="w-12 h-12" />,
+      icon: "Stethoscope",
       showSteps: false
     }
   ];
@@ -138,7 +188,7 @@ function HeroCarousel() {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="mb-3 flex justify-center text-white"
               >
-                {slides[currentSlide].icon}
+                {getIconComponent(slides[currentSlide].icon, "w-16 h-16")}
               </motion.div>
               
               <motion.h1
@@ -283,6 +333,7 @@ function HeroCarousel() {
 
 export default function HomePage() {
   const { user } = useAuth();
+  const { content: homepageContent, loading: contentLoading, error: contentError } = useHomepageContent();
   const router = useRouter();
   const [doctors, setDoctors] = useState<any[]>([]);
   const [hospitals, setHospitals] = useState<any[]>([]);
@@ -563,19 +614,19 @@ export default function HomePage() {
       step: 1,
       title: "Search",
       description: "Find the right doctor/clinic",
-      icon: Search
+      icon: "Search"
     },
     {
       step: 2,
       title: "Book",
       description: "Select time & pay booking fee",
-      icon: Calendar
+      icon: "Calendar"
     },
     {
       step: 3,
       title: "Visit",
       description: "Confirmed appointment + rating system",
-      icon: CheckCircle
+      icon: "CheckCircle"
     }
   ];
 
@@ -584,22 +635,22 @@ export default function HomePage() {
     {
       title: "Verified Doctors",
       description: "All doctors are verified by license ID",
-      icon: Shield
+      icon: "Shield"
     },
     {
       title: "Transparent Reviews",
       description: "1 booking = 1 review system",
-      icon: MessageCircle
+      icon: "MessageCircle"
     },
     {
       title: "Multi-language Support",
       description: "Available in multiple languages",
-      icon: Globe
+      icon: "Globe"
     },
     {
       title: "One-stop Healthcare",
       description: "Doctors, clinics, hospitals, labs, insurance",
-      icon: Building2
+      icon: "Building2"
     }
   ];
 
@@ -628,15 +679,15 @@ export default function HomePage() {
     }
   ];
 
-  // Stats Data
+  // Stats Data - Use admin-managed content or fallback
   const stats = [
-    { label: "Verified Doctors", value: 2500, icon: Users },
-    { label: "Patients Served", value: 100000, icon: Heart },
-    { label: "Cities Covered", value: 75, icon: MapPin },
-    { label: "Partner Hospitals", value: 150, icon: Building2 }
+    { label: "Verified Doctors", value: homepageContent?.trustedBy?.stats?.doctors || 2500, icon: Users },
+    { label: "Patients Served", value: homepageContent?.trustedBy?.stats?.patients || 100000, icon: Heart },
+    { label: "Cities Covered", value: homepageContent?.trustedBy?.stats?.cities || 75, icon: MapPin },
+    { label: "Reviews", value: homepageContent?.trustedBy?.stats?.reviews || 10000, icon: Star }
   ];
 
-  if (loading) {
+  if (loading || contentLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50 to-blue-50 flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
@@ -645,6 +696,11 @@ export default function HomePage() {
         </div>
       </div>
     );
+  }
+
+  if (contentError) {
+    console.error('Homepage content error:', contentError);
+    // Continue with default content, just log the error
   }
 
   return (
@@ -1307,10 +1363,10 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3">
-                Trusted by Thousands
+                {homepageContent?.trustedBy?.title || "Trusted by Thousands"}
               </h2>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Join our growing community of healthcare providers and satisfied patients
+                {homepageContent?.trustedBy?.subtitle || "Join our growing community of healthcare providers and satisfied patients"}
               </p>
             </div>
 
@@ -1394,15 +1450,15 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-black text-white mb-3">
-                How It Works
+                {homepageContent?.howItWorks?.title || "How It Works"}
               </h2>
               <p className="text-lg text-blue-100 max-w-2xl mx-auto">
-                Get started in 3 simple steps
+                {homepageContent?.howItWorks?.subtitle || "Get started in 3 simple steps"}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {howItWorks.map((step, index) => (
+              {(homepageContent?.howItWorks?.steps || howItWorks).map((step, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 20 }}
@@ -1420,7 +1476,7 @@ export default function HomePage() {
                     
                     <div className="mt-6">
                       <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg group-hover:scale-110 transition-transform">
-                        <step.icon className="w-10 h-10 text-white" />
+                        {getIconComponent(step.icon, "w-10 h-10 text-white")}
                       </div>
                       <h3 className="text-xl font-bold text-gray-900 mb-3">{step.title}</h3>
                       <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
@@ -1446,15 +1502,15 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3">
-                Why Choose Us
+                {homepageContent?.whyChooseUs?.title || "Why Choose Us"}
               </h2>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Experience healthcare reimagined for the digital age
+                {homepageContent?.whyChooseUs?.subtitle || "Experience healthcare reimagined for the digital age"}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {whyChooseUs.map((feature, index) => (
+              {(homepageContent?.whyChooseUs?.features || whyChooseUs).map((feature, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 20 }}
@@ -1468,7 +1524,7 @@ export default function HomePage() {
                     
                     <div className="relative">
                       <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 transition-transform">
-                        <feature.icon className="w-8 h-8 text-white" />
+                        {getIconComponent(feature.icon, "w-8 h-8 text-white")}
                       </div>
                       <h3 className="text-lg font-bold text-gray-900 mb-3">{feature.title}</h3>
                       <p className="text-sm text-gray-600 leading-relaxed">{feature.description}</p>
@@ -1487,10 +1543,10 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-black text-white mb-3">
-                What Our Users Say
+                {homepageContent?.testimonials?.title || "What Our Users Say"}
               </h2>
               <p className="text-lg text-blue-100 max-w-2xl mx-auto">
-                Real stories from real people
+                {homepageContent?.testimonials?.subtitle || "Real stories from real people"}
               </p>
             </div>
 
@@ -1508,25 +1564,25 @@ export default function HomePage() {
                 <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-200 rounded-full filter blur-3xl opacity-20"></div>
                 
                 <div className="relative">
-                  <div className="text-6xl mb-4">{testimonials[currentTestimonial].avatar}</div>
+                  <div className="text-6xl mb-4">{(homepageContent?.testimonials?.reviews || testimonials)[currentTestimonial].avatar}</div>
                   <div className="flex justify-center mb-4">
-                    {[...Array(testimonials[currentTestimonial].rating)].map((_, i) => (
+                    {[...Array((homepageContent?.testimonials?.reviews || testimonials)[currentTestimonial].rating)].map((_, i) => (
                       <Star key={i} className="w-6 h-6 text-yellow-500 fill-current" />
                     ))}
                   </div>
                   <blockquote className="text-lg text-gray-700 mb-6 leading-relaxed font-medium">
-                    "{testimonials[currentTestimonial].content}"
+                    "{(homepageContent?.testimonials?.reviews || testimonials)[currentTestimonial].content}"
                   </blockquote>
                   <div>
-                    <div className="text-lg font-bold text-gray-900">{testimonials[currentTestimonial].name}</div>
-                    <div className="text-sm text-purple-600 font-semibold">{testimonials[currentTestimonial].role}</div>
+                    <div className="text-lg font-bold text-gray-900">{(homepageContent?.testimonials?.reviews || testimonials)[currentTestimonial].name}</div>
+                    <div className="text-sm text-purple-600 font-semibold">{(homepageContent?.testimonials?.reviews || testimonials)[currentTestimonial].role}</div>
                   </div>
                 </div>
               </motion.div>
 
               {/* Testimonial Navigation Dots */}
               <div className="flex justify-center mt-6 space-x-2">
-                {testimonials.map((_, index) => (
+                {(homepageContent?.testimonials?.reviews || testimonials).map((_, index) => (
                   <button
                     key={index}
                     onClick={() => setCurrentTestimonial(index)}
@@ -1600,37 +1656,34 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-8">
               <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                Health Tips from Our Doctors
+                {homepageContent?.healthTips?.title || "Health Tips from Our Doctors"}
               </h2>
               <p className="text-base text-blue-100 max-w-2xl mx-auto">
-                Expert advice and health awareness articles
+                {homepageContent?.healthTips?.subtitle || "Expert advice and health awareness articles"}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[
+              {(homepageContent?.healthTips?.tips || [
                 {
                   title: "Dengue Prevention Tips",
-                  excerpt: "Essential precautions to protect yourself from dengue fever",
-                  author: "Dr. Sarah Johnson",
-                  category: "Preventive Care",
-                  readTime: "5 min read"
+                  description: "Essential precautions to protect yourself from dengue fever",
+                  icon: "Shield",
+                  category: "Preventive Care"
                 },
                 {
                   title: "Diabetes Management Guide",
-                  excerpt: "Comprehensive guide to managing diabetes effectively",
-                  author: "Dr. Michael Chen",
-                  category: "Chronic Conditions",
-                  readTime: "8 min read"
+                  description: "Comprehensive guide to managing diabetes effectively",
+                  icon: "Activity",
+                  category: "Chronic Conditions"
                 },
                 {
                   title: "Mental Health Awareness",
-                  excerpt: "Understanding and supporting mental health in daily life",
-                  author: "Dr. Priya Sharma",
-                  category: "Mental Health",
-                  readTime: "6 min read"
+                  description: "Understanding and supporting mental health in daily life",
+                  icon: "Heart",
+                  category: "Mental Health"
                 }
-              ].map((article, index) => (
+              ]).map((article, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 20 }}
@@ -1639,15 +1692,20 @@ export default function HomePage() {
                   whileHover={{ scale: 1.02 }}
                 >
                   <div className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-all border border-gray-100">
-                    <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-semibold inline-block mb-3">
-                      {article.category}
+                    <div className="flex items-center mb-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                        {getIconComponent(article.icon, "w-5 h-5 text-blue-600")}
+                      </div>
+                      <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-semibold">
+                        {article.category}
+                      </div>
                     </div>
                     <h3 className="text-lg font-bold text-gray-900 mb-2">{article.title}</h3>
-                    <p className="text-sm text-gray-600 mb-4 leading-relaxed">{article.excerpt}</p>
+                    <p className="text-sm text-gray-600 mb-4 leading-relaxed">{article.description}</p>
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-xs text-gray-500">By {article.author}</div>
-                        <div className="text-xs text-gray-400">{article.readTime}</div>
+                        <div className="text-xs text-gray-500">Health Tip</div>
+                        <div className="text-xs text-gray-400">5 min read</div>
                       </div>
                       <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-all hover:from-blue-700 hover:to-indigo-700 shadow-md text-xs">
                         Read More

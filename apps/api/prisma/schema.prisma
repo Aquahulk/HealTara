@@ -23,6 +23,7 @@ model User {
   patientAppointments    Appointment[]      @relation("PatientAppointments")
   doctorEngagements      DoctorEngagement[] @relation("UserDoctorEngagements")
   doctorProfile          DoctorProfile?     @relation("UserDoctorProfile")
+  patientProfile         PatientProfile?
   adminHospitals         Hospital[]         @relation("UserAdminHospitals")
   hospitalMemberships    HospitalDoctor[]   @relation("UserHospitalDoctor")
   doctorSlots            Slot[]             @relation("UserDoctorSlots")
@@ -61,10 +62,30 @@ model DoctorProfile {
   slotPeriodMinutes Int                  @default(15)
   micrositeEnabled  Boolean              @default(true)
   profileImage      String?
+  registrationNumber String?
+  verificationSubmitted Boolean          @default(false)
+  verificationStatus String              @default("PENDING") // PENDING, APPROVED, REJECTED
   user              User                 @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
   timeOffs          DoctorTimeOff[]
   workingHours      DoctorWorkingHours[]
   slotAdmins        User[]               @relation("UserManagedDoctorProfile")
+}
+
+model PatientProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  name        String?
+  age         Int?
+  gender      String?
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  bloodGroup  String?
+  allergies   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model DoctorTimeOff {
@@ -118,7 +139,10 @@ model Hospital {
   state       String?
   phone       String?
   profile     Json?
-  status      String           @default("ACTIVE") // ACTIVE, SUSPENDED
+  status      String           @default("ACTIVE") // ACTIVE, SUSPENDED, PENDING
+  registrationNumberGov String?
+  verificationSubmitted Boolean @default(false)
+  verificationStatus    String  @default("PENDING") // PENDING, APPROVED, REJECTED
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   adminId     Int?

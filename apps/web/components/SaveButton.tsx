@@ -16,19 +16,47 @@ export default function SaveButton({ entityType, entityId, className = '' }: Sav
   const { user } = useAuth();
   const router = useRouter();
 
-  // Check if item is saved on mount
+  // Get localStorage key for this item
+  const getStorageKey = () => `saved_${entityType}_${entityId}`;
+
+  // Initialize state from localStorage first, then verify with API
   useEffect(() => {
+    // Check localStorage first for instant UI
+    const savedState = localStorage.getItem(getStorageKey());
+    console.log('🔍 Bookmark Debug - Mount:', {
+      entityType,
+      entityId,
+      localStorageState: savedState,
+      isLoggedIn: !!user
+    });
+    
+    if (savedState === 'true') {
+      setIsSaved(true);
+      console.log('🔍 Bookmark Debug - Set state from localStorage: true');
+    }
+    
+    // Only verify with API if user is logged in
     if (user) {
       checkSavedStatus();
+    } else {
+      console.log('🔍 Bookmark Debug - User not logged in, skipping API call');
     }
   }, [user, entityId]);
 
   const checkSavedStatus = async () => {
     try {
+      console.log('🔍 Bookmark Debug - Checking API status...');
       const data = await apiClient.checkSavedStatus(entityType, entityId);
+      console.log('🔍 Bookmark Debug - API response:', data);
+      
       setIsSaved(data.saved);
+      // Update localStorage with actual state from server
+      localStorage.setItem(getStorageKey(), String(data.saved));
+      console.log('🔍 Bookmark Debug - Updated state from API:', data.saved);
     } catch (error) {
       console.error('Error checking saved status:', error);
+      // If API fails, keep localStorage state
+      console.log('🔍 Bookmark Debug - API failed, keeping localStorage state');
     }
   };
 
@@ -45,18 +73,24 @@ export default function SaveButton({ entityType, entityId, className = '' }: Sav
     if (loading) return;
     setLoading(true);
 
+    // 🚀 INSTANT UPDATE: Optimistic UI update
+    const newSavedState = !isSaved;
+    setIsSaved(newSavedState);
+    localStorage.setItem(getStorageKey(), String(newSavedState));
+
     try {
-      if (isSaved) {
-        // DELETE
-        await apiClient.unsaveItem(entityType, entityId);
-        setIsSaved(false);
-      } else {
-        // POST
+      if (newSavedState) {
+        // POST - Save item
         await apiClient.saveItem(entityType, entityId);
-        setIsSaved(true);
+      } else {
+        // DELETE - Unsave item
+        await apiClient.unsaveItem(entityType, entityId);
       }
     } catch (error) {
       console.error('Error toggling save:', error);
+      // Revert on error
+      setIsSaved(!newSavedState);
+      localStorage.setItem(getStorageKey(), String(!newSavedState));
     } finally {
       setLoading(false);
     }
@@ -75,7 +109,7 @@ export default function SaveButton({ entityType, entityId, className = '' }: Sav
       title={isSaved ? "Remove from saved" : "Save"}
     >
       <Bookmark 
-        className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} 
+        className={`w-5 h-5 ${isSaved ? 'fill-current' : ''} ${loading ? 'animate-pulse' : ''}`} 
       />
     </button>
   );

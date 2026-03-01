@@ -177,6 +177,26 @@ export default function HospitalAdminProfilePage() {
     }));
   };
 
+  // Verification submission for hospital
+  const [verification, setVerification] = useState<{ registrationNumberGov: string; phone: string; address: string; city: string; state: string }>({
+    registrationNumberGov: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+  });
+  async function submitHospitalVerification() {
+    try {
+      setSaving(true);
+      setMessage('');
+      await apiClient.submitHospitalVerification(verification);
+      setMessage('Verification submitted. Waiting for admin confirmation.');
+    } catch (e: any) {
+      setMessage(e?.message || 'Failed to submit hospital verification');
+    } finally {
+      setSaving(false);
+    }
+  }
   const updateDepartment = (idx: number, field: string, value: any) => {
     setProfile((prev) => {
       const list = [...(prev.departments || [])];
@@ -709,6 +729,74 @@ export default function HospitalAdminProfilePage() {
           </div>
         )}
 
+        {/* Verification Section */}
+        {hospitalId && (
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Verification</h2>
+              <p className="text-gray-600">Submit required details to enable services</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Government Registration Number</label>
+                <input
+                  type="text"
+                  value={verification.registrationNumberGov}
+                  onChange={(e) => setVerification((v) => ({ ...v, registrationNumberGov: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                  placeholder="Gov Reg. Number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile</label>
+                <input
+                  type="text"
+                  value={verification.phone}
+                  onChange={(e) => setVerification((v) => ({ ...v, phone: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                  placeholder="+91..."
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                <input
+                  type="text"
+                  value={verification.address}
+                  onChange={(e) => setVerification((v) => ({ ...v, address: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                  placeholder="Street and locality"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">City</label>
+                <input
+                  type="text"
+                  value={verification.city}
+                  onChange={(e) => setVerification((v) => ({ ...v, city: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
+                <input
+                  type="text"
+                  value={verification.state}
+                  onChange={(e) => setVerification((v) => ({ ...v, state: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg p-3"
+                />
+              </div>
+            </div>
+            <div className="mt-4">
+              <button
+                disabled={saving}
+                onClick={submitHospitalVerification}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-all duration-200"
+              >
+                {saving ? 'Submitting…' : 'Submit Verification'}
+              </button>
+            </div>
+          </div>
+        )}
         {/* Navigation Tabs */}
         {hospitalId && (
           <>

@@ -9,9 +9,23 @@
 // ============================================================================
 
 // ============================================================================
-// 🔗 API CONFIGURATION - Server connection settings
+// 🔗 API CONFIGURATION - Smart environment-based URL selection
 // ============================================================================
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? '';              // Backend server address
+// Automatically chooses localhost for development, Render for production
+const isDevelopment = process.env.NODE_ENV === 'development';
+const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const useLocalAPI = isDevelopment && isLocalhost;
+
+const API_BASE_URL = useLocalAPI 
+  ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
+  : (process.env.NEXT_PUBLIC_API_URL_PROD ?? process.env.NEXT_PUBLIC_API_URL ?? 'https://healtara.onrender.com');
+
+// Debug: Show which API URL is being used
+console.log('🌐 API URL Selection:');
+console.log('  Environment:', process.env.NODE_ENV);
+console.log('  Hostname:', typeof window !== 'undefined' ? window.location.hostname : 'server');
+console.log('  Use Local API:', useLocalAPI);
+console.log('  Final API URL:', API_BASE_URL);
 
 // ============================================================================
 // 🏗️ INTERFACE DEFINITIONS - TypeScript types for our data
@@ -546,6 +560,23 @@ class ApiClient {
     return this.request('/api/me/hospital');
   }
 
+  async adminGetPendingVerifications(): Promise<{ doctors: any[]; hospitals: any[] }> {
+    return this.request('/api/admin/verifications/pending');
+  }
+
+  async adminDecideDoctorVerification(doctorId: number, decision: 'APPROVE' | 'REJECT'): Promise<any> {
+    return this.request(`/api/admin/verifications/doctor/${doctorId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ decision }),
+    });
+  }
+
+  async adminDecideHospitalVerification(hospitalId: number, decision: 'APPROVE' | 'REJECT'): Promise<any> {
+    return this.request(`/api/admin/verifications/hospital/${hospitalId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ decision }),
+    });
+  }
   async getHospitalDetails(hospitalId: number): Promise<any> {
     return this.request(`/api/hospitals/${hospitalId}/details`);
   }
@@ -729,6 +760,11 @@ class ApiClient {
     return this.request(`/api/admin/hospitals/${hospitalId}/full-details`);
   }
 
+  async adminGetHospitalAppointments(hospitalId: number, limit: number = 10): Promise<any[]> {
+    const query = new URLSearchParams({ limit: String(limit) }).toString();
+    return this.request(`/api/admin/hospitals/${hospitalId}/appointments?${query}`);
+  }
+
   async adminUpdateDoctorStatus(doctorId: number, status: 'ACTIVE' | 'SUSPENDED'): Promise<any> {
     return this.request(`/api/admin/doctors/${doctorId}/status`, {
       method: 'PATCH',
@@ -740,6 +776,27 @@ class ApiClient {
     return this.request(`/api/admin/hospitals/${hospitalId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    });
+  }
+
+  async adminGetDoctorDetails(doctorId: number): Promise<any> {
+    return this.request(`/api/admin/doctors/${doctorId}/details`);
+  }
+
+  // ============================================================================
+  // ✅ Verification submission
+  // ============================================================================
+  async submitDoctorVerification(payload: { registrationNumber?: string; phone?: string }): Promise<any> {
+    return this.request('/api/doctor/verification', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async submitHospitalVerification(payload: { registrationNumberGov?: string; phone?: string; address?: string; city?: string; state?: string }): Promise<any> {
+    return this.request('/api/hospital/verification', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
@@ -799,6 +856,12 @@ class ApiClient {
 
   async deleteUser(userId: number): Promise<any> {
     return this.request(`/api/admin/users/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async adminDeleteHospital(hospitalId: number): Promise<any> {
+    return this.request(`/api/admin/hospitals/${hospitalId}`, {
       method: 'DELETE',
     });
   }
@@ -949,6 +1012,30 @@ class ApiClient {
 
   async getSavedItems(): Promise<any[]> {
     return this.request('/api/saved');
+  }
+
+  // ============================================================================
+  // 👤 PATIENT PROFILE - Fetch and Save
+  // ============================================================================
+  async getPatientProfile(): Promise<any> {
+    return this.request('/api/patient/profile');
+  }
+
+  async savePatientProfile(payload: {
+    name?: string;
+    age?: number;
+    gender?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    bloodGroup?: string;
+    allergies?: string;
+  }): Promise<any> {
+    return this.request('/api/patient/profile', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // ============================================================================
