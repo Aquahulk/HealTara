@@ -1710,7 +1710,7 @@ app.get('/api/homepage', async (req: Request, res: Response) => {
     }
   } catch (error) {
     console.error('Failed to load homepage content:', error);
-    return res.status(500).json({ message: 'Failed to load homepage content' });
+    return res.status(200).json({});
   }
 });
 
