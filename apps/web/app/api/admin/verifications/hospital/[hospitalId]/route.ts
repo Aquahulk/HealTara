@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function PATCH(request: NextRequest, { params }: { params: { hospitalId: string } }) {
+export async function PATCH(request: NextRequest, context: { params: Promise<{ hospitalId: string }> }) {
+  const { hospitalId } = await context.params;
   try {
     const apiHost = process.env.NEXT_PUBLIC_API_URL;
     if (!apiHost) {
       return NextResponse.json({ success: false, message: 'API host not configured' }, { status: 500 });
     }
-    const hospitalId = params.hospitalId;
     const body = await request.text();
     const auth = request.headers.get('authorization') || undefined;
     const resp = await fetch(`${apiHost}/api/admin/verifications/hospital/${encodeURIComponent(hospitalId)}`, {
