@@ -1,0 +1,22 @@
+# ============================================================================
+# 🛡️ WEB ENVIRONMENT - Development Setup (Fixed)
+# This fixes localhost issues by disabling API proxying
+# ============================================================================
+
+# Environment
+NEXT_PUBLIC_ENV=development
+
+# API Configuration - Disable proxying for development
+NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_DISABLE_API_PROXY=true
+
+# Feature Flags (Development)
+NEXT_PUBLIC_ENABLE_DEV_TOOLS=true
+NEXT_PUBLIC_USE_MOCK_DATA=false
+
+# Debug Settings (Development)
+NEXT_PUBLIC_DEBUG_MODE=true
+NEXT_PUBLIC_LOG_LEVEL=debug
+
+# Cache Settings (Development)
+NEXT_PUBLIC_DISABLE_CACHE=true

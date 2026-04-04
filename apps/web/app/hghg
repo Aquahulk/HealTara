@@ -1,0 +1,202 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
+
+/*
+  DecentralizedKYC.sol
+
+  - Purpose: Minimal, privacy-focused registry for KYC claims.
+  - Principles: Never store plaintext PII on-chain. Store only hashes/roots and encrypted pointers (CID).
+  - Usage:
+      - Issuers (accounts with ISSUER_ROLE) call registerClaim(...)
+      - Anyone can read claim info, check validity, verify signature and request off-chain data via CID.
+      - Optional: Use Merkle roots as dataHash so verifiers can submit Merkle proofs for selective disclosure.
+*/
+
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+
+contract DecentralizedKYC is AccessControl {
+    using ECDSA for bytes32;
+
+    bytes32 public constant ISSUER_ROLE = keccak256("ISSUER_ROLE");
+
+    struct Claim {
+        address issuer;      // who issued it
+        bytes32 dataHash;    // keccak of canonical JSON OR Merkle root of attributes
+        string cid;          // ipfs/arweave pointer (expected to be encrypted)
+        uint256 timestamp;   // time of registration
+        bool valid;          // revoked or not
+        bytes signature;     // issuer signature over dataHash
+        bytes32 idHash;      // optional hashed national ID (salted) for uniqueness checks; zero if not used
+    }
+
+    // claimKey => Claim
+    mapping(bytes32 => Claim) private claims;
+
+    // optional: idHash => claimKey (to detect duplicates). idHash must be computed off-chain as keccak(nationalId || salt)
+    mapping(bytes32 => bytes32) private idHashToClaim;
+
+    event ClaimRegistered(bytes32 indexed claimKey, address indexed issuer, bytes32 dataHash, string cid, uint256 timestamp, bytes32 indexed idHash);
+    event ClaimUpdated(bytes32 indexed claimKey, address indexed issuer, string newCid, uint256 timestamp);
+    event ClaimRevoked(bytes32 indexed claimKey, address indexed issuer, uint256 timestamp);
+    event IssuerAdded(address indexed issuer);
+    event IssuerRemoved(address indexed issuer);
+
+    constructor(address admin) {
+        require(admin != address(0), "admin zero address");
+        _setupRole(DEFAULT_ADMIN_ROLE, admin);
+        _setupRole(ISSUER_ROLE, admin);
+    }
+
+    modifier onlyIssuer() {
+        require(hasRole(ISSUER_ROLE, msg.sender), "Caller is not an issuer");
+        _;
+    }
+
+    /// @notice Compute a deterministic claim key off-chain or on-chain for lookups.
+    /// @param user Address or identifier for user (e.g., user wallet). Use the agreed identifier.
+    /// @param issuer Address of issuer (optional: can be msg.sender for register).
+    /// @return claimKey bytes32 deterministic key
+    function computeClaimKey(address user, address issuer) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(user, issuer));
+    }
+
+    /// @notice Register a new claim. Only callable by accounts with ISSUER_ROLE.
+    /// @param claimKey Unique key to store the claim (deterministic: keccak(user || issuer) recommended).
+    /// @param dataHash bytes32 keccak of canonical JSON or Merkle root of attributes.
+    /// @param cid string pointer to encrypted off-chain storage (IPFS/Arweave).
+    /// @param signature bytes signature produced by issuer over the dataHash (eth signed message).
+    /// @param optionalIdHash bytes32 optional salted hash of national ID (or zero) for duplicate detection.
+    function registerClaim(
+        bytes32 claimKey,
+        bytes32 dataHash,
+        string calldata cid,
+        bytes calldata signature,
+        bytes32 optionalIdHash
+    ) external onlyIssuer {
+        require(claimKey != bytes32(0), "claimKey zero");
+        require(dataHash != bytes32(0), "dataHash zero");
+        require(bytes(cid).length > 0, "cid required");
+
+        // Verify signature recovers to msg.sender
+        address signer = _recoverSigner(dataHash, signature);
+        require(signer == msg.sender, "signature not from caller");
+
+        // If optionalIdHash provided, ensure not already used
+        if (optionalIdHash != bytes32(0)) {
+            require(idHashToClaim[optionalIdHash] == bytes32(0), "idHash already registered");
+            idHashToClaim[optionalIdHash] = claimKey;
+        }
+
+        Claim storage c = claims[claimKey];
+        require(c.issuer == address(0), "claimKey already exists"); // prevent overwrite. Use updateClaim to change CID later.
+
+        c.issuer = msg.sender;
+        c.dataHash = dataHash;
+        c.cid = cid;
+        c.timestamp = block.timestamp;
+        c.valid = true;
+        c.signature = signature;
+        c.idHash = optionalIdHash;
+
+        emit ClaimRegistered(claimKey, msg.sender, dataHash, cid, block.timestamp, optionalIdHash);
+    }
+
+    /// @notice Update CID (pointer) of an existing claim. Only issuer who registered it can update.
+    function updateClaimCID(bytes32 claimKey, string calldata newCid) external {
+        require(bytes(newCid).length > 0, "cid required");
+        Claim storage c = claims[claimKey];
+        require(c.issuer != address(0), "claim not found");
+        require(c.issuer == msg.sender, "only issuer can update");
+
+        c.cid = newCid;
+        c.timestamp = block.timestamp;
+
+        emit ClaimUpdated(claimKey, msg.sender, newCid, block.timestamp);
+    }
+
+    /// @notice Revoke a claim. Only the claim issuer or admin can revoke.
+    function revokeClaim(bytes32 claimKey) external {
+        Claim storage c = claims[claimKey];
+        require(c.issuer != address(0), "claim not found");
+        require(msg.sender == c.issuer || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "not authorized to revoke");
+
+        c.valid = false;
+        c.timestamp = block.timestamp;
+
+        emit ClaimRevoked(claimKey, msg.sender, block.timestamp);
+    }
+
+    /// @notice Get claim data (public read).
+    function getClaim(bytes32 claimKey) external view returns (
+        address issuer,
+        bytes32 dataHash,
+        string memory cid,
+        uint256 timestamp,
+        bool valid,
+        bytes memory signature,
+        bytes32 idHash
+    ) {
+        Claim storage c = claims[claimKey];
+        return (c.issuer, c.dataHash, c.cid, c.timestamp, c.valid, c.signature, c.idHash);
+    }
+
+    /// @notice Check if claim exists and is valid.
+    function isClaimValid(bytes32 claimKey) external view returns (bool) {
+        Claim storage c = claims[claimKey];
+        return (c.issuer != address(0) && c.valid);
+    }
+
+    /// @notice Verify signature matches issuer stored in the claim.
+    function verifyClaimSignature(bytes32 claimKey) external view returns (bool) {
+        Claim storage c = claims[claimKey];
+        if (c.issuer == address(0)) return false;
+        address recovered = _recoverSigner(c.dataHash, c.signature);
+        return (recovered == c.issuer);
+    }
+
+    /// @notice Verify a Merkle proof against the dataHash stored in claim (treat dataHash as Merkle root).
+    /// @param claimKey The claim that stores the Merkle root as dataHash
+    /// @param leaf The leaf (keccak of attribute||value||salt) being revealed
+    /// @param proof Merkle proof array
+    /// @return valid True if proof verifies against stored root
+    function verifyMerkleProof(bytes32 claimKey, bytes32 leaf, bytes32[] calldata proof) external view returns (bool valid) {
+        Claim storage c = claims[claimKey];
+        if (c.issuer == address(0)) return false;
+        if (c.dataHash == bytes32(0)) return false;
+        return MerkleProof.verify(proof, c.dataHash, leaf);
+    }
+
+    /// @notice Get claimKey by idHash (if registered). Returns zero bytes32 if not found.
+    function getClaimForIdHash(bytes32 idHash) external view returns (bytes32) {
+        return idHashToClaim[idHash];
+    }
+
+    // ---- Admin / Issuer management ----
+
+    /// @notice Add an issuer. Only admin.
+    function addIssuer(address issuer) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "only admin");
+        grantRole(ISSUER_ROLE, issuer);
+        emit IssuerAdded(issuer);
+    }
+
+    /// @notice Remove an issuer. Only admin.
+    function removeIssuer(address issuer) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "only admin");
+        revokeRole(ISSUER_ROLE, issuer);
+        emit IssuerRemoved(issuer);
+    }
+
+    // ---- Internal helpers ----
+
+    /// @dev Recovers signer from dataHash and signature.
+    ///      dataHash is expected to be the raw bytes32 Keccak512 of canonical data OR Merkle root.
+    ///      The signature should be an Ethereum signed message signature (i.e., signed via eth_sign or EIP-191).
+    function _recoverSigner(bytes32 dataHash, bytes memory signature) internal pure returns (address) {
+        // Match how the issuer created signature. This uses Ethereum Signed Message:
+        bytes32 ethSigned = ECDSA.toEthSignedMessageHash(abi.encodePacked(dataHash));
+        return ECDSA.recover(ethSigned, signature);
+    }
+}

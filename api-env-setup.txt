@@ -1,0 +1,23 @@
+# ============================================================================
+# 🛡️ API ENVIRONMENT - Development Setup
+# This fixes localhost issues while protecting live website
+# ============================================================================
+
+# Server Configuration
+PORT=3001
+
+# PostgreSQL Connection (Local Development)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/docproc_dev?sslmode=disable&connection_limit=5&pool_timeout=30
+
+# JWT Secret (Development)
+JWT_SECRET=dev-secret-key-change-in-production-12345
+
+# CORS Origins (Local Development)
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003
+
+# Environment Flag
+NODE_ENV=development
+
+# Debug Settings (Development)
+DEBUG=true
+LOG_LEVEL=debug

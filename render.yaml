@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: docproc-web
+    env: node
+    rootDir: apps/web
+    plan: starter
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
+  - type: web
+    name: docproc-api
+    env: node
+    rootDir: apps/api
+    plan: starter
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    postDeployCommand: npm run prisma:migrate
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://heal-tara-web.vercel.app
+      - key: CORS_PRIMARY_DOMAIN
+        value: heal-tara-web.vercel.app
+      - key: NODE_ENV
+        value: production

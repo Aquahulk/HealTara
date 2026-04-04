@@ -1,0 +1,21 @@
+name: Keep Alive
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # Every 15 minutes as requested
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep Alive Backend
+        run: |
+          # Use GET request (-f: fail on error, -L: follow redirects)
+          curl -fL https://api.healtara.com/health
+          
+          # Warm up the database by fetching hospitals (common search/landing page data)
+          curl -fL https://api.healtara.com/api/hospitals
+          
+          # Optional: Add your frontend URL if it's also on Render
+          # curl -fL https://healtara-web.onrender.com/
