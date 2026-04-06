@@ -1378,8 +1378,8 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
         include: { doctorProfile: { include: { workingHours: true } } }
       });
       
-      results = results.filter(r => {
-        const doc = doctorsWithHours.find(d => d.id === r.id);
+      results = results.filter((r: any) => {
+        const doc = doctorsWithHours.find((d: any) => d.id === r.id);
         return isDoctorAvailable(doc, timeSlot);
       });
     }
@@ -1411,13 +1411,15 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
 
     // 5. Suggestions logic (optimized with cache)
     let suggestions: string[] = [];
+    let seedSpecs: string[] = [];
     const sugCached = suggestionCache.get(normalizedQuery);
     if (sugCached && (now - sugCached.ts) < SUGGESTION_CACHE_MS) {
       suggestions = sugCached.suggestions;
+      seedSpecs = mapQueryToSeedSpecialties(normalizedQuery); // still needed for payload
     } else {
       const candidatesForSuggestions = await getDoctorCandidates(prisma);
       const doctorSuggestions = suggestFromDoctors(normalizedQuery, candidatesForSuggestions);
-      const seedSpecs = mapQueryToSeedSpecialties(normalizedQuery);
+      seedSpecs = mapQueryToSeedSpecialties(normalizedQuery);
       const seedMappedSuggestions = seedSuggestions(normalizedQuery);
       suggestions = Array.from(new Set([
         ...specialties.map(s => `${s} (specialization)`),
@@ -1447,7 +1449,7 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
     // Fallback to simpler search if FTS fails (e.g. invalid query syntax)
     try {
       const candidates = await getDoctorCandidates(prisma);
-      const filtered = candidates.filter(d => {
+      const filtered = candidates.filter((d: any) => {
         const spec = String(d.doctorProfile?.specialization || '').toLowerCase();
         const handle = String(d.email || '').toLowerCase();
         return spec.includes(normalizedQuery) || handle.includes(normalizedQuery);
