@@ -28,7 +28,7 @@ import { seedSuggestions, mapQueryToSeedSpecialties } from './suggestionSeeds';
 import { getGeocache, setGeocache } from './geocache';
 
 // Fast in-memory caches to reduce latency on frequent searches
-const DOCTORS_CACHE_MS = 5 * 60 * 1000; // Increased to 5 minutes
+const DOCTORS_CACHE_MS = 15 * 60 * 1000; // 15 minutes
 let cachedDoctors: any[] = [];
 let lastDoctorsFetch = 0;
 async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
@@ -46,7 +46,7 @@ async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
 }
 
 // Hospital caching for better performance
-const HOSPITALS_CACHE_MS = 2 * 60 * 1000; // Increased to 2 minutes (was 5s)
+const HOSPITALS_CACHE_MS = 15 * 60 * 1000; // 15 minutes
 let cachedHospitals: any[] = [];
 let lastHospitalsFetch = 0;
 async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]> {
@@ -184,7 +184,20 @@ const port = process.env.PORT || 3001;                    // Use environment por
 
 // Initialize HTTP server and Socket.IO for realtime WebSocket updates
 const server = createServer(app);
-const io = new SocketIOServer(server, { cors: { origin: '*' } });
+const io = new SocketIOServer(server, { 
+  cors: { 
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'http://localhost:3003',
+      'https://healtara.com',
+      'https://www.healtara.com',
+      'https://api.healtara.com'
+    ],
+    credentials: true
+  } 
+});
 io.on('connection', (socket) => {
   socket.on('join-hospital', (hospitalId: number) => {
     if (Number.isFinite(hospitalId)) socket.join(`hospital:${hospitalId}`);
@@ -200,7 +213,26 @@ io.on('connection', (socket) => {
 // ============================================================================
 // ⚙️ MIDDLEWARE SETUP - Functions that run before your routes
 // ============================================================================
-app.use(cors());                                           // Allow cross-origin requests (frontend ↔ backend)
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'http://localhost:3003',
+      'https://healtara.com',
+      'https://www.healtara.com',
+      'https://api.healtara.com'
+    ];
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+};
+app.use(cors(corsOptions));                                           // Allow cross-origin requests (frontend ↔ backend)
 app.use(express.json({ limit: '50mb' }));                   // Parse JSON request bodies with increased limit
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Parse URL-encoded bodies with increased limit
 
@@ -1254,72 +1286,181 @@ app.put('/api/comments', async (req: Request, res: Response) => {
   }
 });
 
-// Smart Search: map condition → specialties and rank doctors
+// Fast suggestion cache
+const SUGGESTION_CACHE_MS = 60 * 1000; // 1 minute
+const suggestionCache = new Map<string, { ts: number; suggestions: string[] }>();
+
+// Smart Hybrid Search: Combine FTS, Medical Intent, and Ratings
 app.get('/api/search/doctors', async (req: Request, res: Response) => {
-  const qRaw = String(req.query.q ?? '');
+  const qRaw = String(req.query.q ?? '').trim();
   const timeSlot = String(req.query.time ?? '');
   const availabilityOnly = req.query.availabilityOnly === 'true';
+  
+  if (!qRaw) {
+    return res.status(200).json({ query: '', doctors: [], suggestions: [] });
+  }
+
   const { normalizedQuery, conditions, specialties } = mapQueryToSpecialties(qRaw);
+  const tsQuery = normalizedQuery.split(' ').filter(Boolean).join(' & ');
+
   try {
-    // Short-circuit identical queries for a few seconds
+    // 1. Check cache
     const cacheKey = `${normalizedQuery}:${timeSlot}:${availabilityOnly}`;
-    const cached = cacheKey ? searchCache.get(cacheKey) : undefined;
+    const cached = searchCache.get(cacheKey);
     const now = Date.now();
     if (cached && (now - cached.ts) < SEARCH_CACHE_MS) {
       return res.status(200).json(cached.result);
     }
-    let candidates = await getDoctorCandidates(prisma);
 
-    // Apply availability filter if requested
+    // 2. Perform Hybrid Search via Raw SQL
+    // This query combines:
+    // - Full-Text Search (ts_rank)
+    // - Medical Intent (specialty match bonus)
+    // - Quality (avg rating)
+    // - Reliability (review count logarithmic boost)
+    
+    const specialtyList = specialties.length > 0 ? specialties.map(s => `'${s.replace(/'/g, "''")}'`).join(',') : "''";
+    
+    const hybridSearchSql = `
+      WITH candidates AS (
+        SELECT 
+          u.id,
+          u.email,
+          u.status,
+          dp.id as profile_id,
+          dp.specialization,
+          dp.qualifications,
+          dp.experience,
+          dp."clinicName",
+          dp."clinicAddress",
+          dp.city,
+          dp.state,
+          dp.phone,
+          dp."consultationFee",
+          dp.slug,
+          dp."profileImage",
+          -- Full-Text Search Rank
+          ts_rank(
+            setweight(to_tsvector('english', COALESCE(dp.specialization, '')), 'A') ||
+            setweight(to_tsvector('english', COALESCE(dp."clinicName", '')), 'B') ||
+            setweight(to_tsvector('english', COALESCE(u.email, '')), 'C'),
+            to_tsquery('english', $1)
+          ) as text_rank,
+          -- Medical Intent Match (1.0 bonus if in mapped specialties)
+          CASE WHEN dp.specialization IN (${specialtyList}) THEN 1.0 ELSE 0.0 END as intent_match,
+          -- Quality Score (Avg Rating)
+          (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as avg_rating,
+          -- Reliability Score (Review count)
+          (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count
+        FROM "User" u
+        JOIN "DoctorProfile" dp ON u.id = dp."userId"
+        WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE'
+      )
+      SELECT *,
+        -- Final Hybrid Rank Calculation
+        ((text_rank * 2.0) + (intent_match * 1.5) + (avg_rating * 0.2) + (ln(review_count + 1) * 0.1)) as final_rank
+      FROM candidates
+      WHERE text_rank > 0 OR intent_match > 0
+      ORDER BY final_rank DESC
+      LIMIT 50;
+    `;
+
+    const rows = await prisma.$queryRawUnsafe(hybridSearchSql, tsQuery || normalizedQuery);
+    let results = rows as any[];
+
+    // 3. Post-filter for availability (needs complex logic not easily done in SQL)
     if (availabilityOnly || timeSlot) {
-      candidates = candidates.filter(d => isDoctorAvailable(d, timeSlot));
+      // We need working hours for this, which were not in the flat raw query
+      // For efficiency, we'll fetch them for the candidate set
+      const ids = results.map(r => r.id);
+      const doctorsWithHours = await prisma.user.findMany({
+        where: { id: { in: ids } },
+        include: { doctorProfile: { include: { workingHours: true } } }
+      });
+      
+      results = results.filter(r => {
+        const doc = doctorsWithHours.find(d => d.id === r.id);
+        return isDoctorAvailable(doc, timeSlot);
+      });
     }
 
-    const matchedSpecs = new Set(specialties.map(s => s.toLowerCase()));
-    const scored = candidates.map((d: any) => {
-      const profile = d.doctorProfile || {};
-      const spec = String(profile.specialization || '').toLowerCase();
-      const handle = String(d.email || '').split('@')[0].toLowerCase();
-      const textMatch = normalizedQuery && (spec.includes(normalizedQuery) || handle.includes(normalizedQuery)) ? 0.2 : 0;
-      const specMatch = matchedSpecs.size > 0 && Array.from(matchedSpecs).some(ms => spec.includes(ms)) ? 1.0 : 0;
-      const experienceBoost = Number(profile.experience || 0) > 5 ? 0.1 : 0;
-      const score = specMatch + textMatch + experienceBoost;
-      return { score, d };
-    }).filter((x: any) => x.score > 0 || specialties.length === 0);
+    // 4. Format for frontend
+    const formattedResults = results.map(row => ({
+      id: row.id,
+      email: row.email,
+      status: row.status,
+      name: row.email.split('@')[0].charAt(0).toUpperCase() + row.email.split('@')[0].slice(1),
+      doctorProfile: {
+        id: row.profile_id,
+        specialization: row.specialization,
+        qualifications: row.qualifications,
+        experience: row.experience,
+        clinicName: row.clinicName,
+        clinicAddress: row.clinicAddress,
+        city: row.city,
+        state: row.state,
+        phone: row.phone,
+        consultationFee: row.consultationFee,
+        slug: row.slug,
+        profileImage: row.profileImage
+      },
+      rating: row.avg_rating || 0,
+      totalReviews: row.review_count || 0,
+      _count: { reviews: row.review_count || 0 }
+    }));
 
-    const ranked = scored.sort((a: any, b: any) => b.score - a.score).map((x: any) => x.d);
-
-    const mappedSuggestions = specialties.map(s => `${s} (specialization)`);
-    const doctorSuggestions = suggestFromDoctors(normalizedQuery, candidates);
-    const seedSpecs = mapQueryToSeedSpecialties(normalizedQuery);
-    const seedMappedSuggestions = seedSuggestions(normalizedQuery);
-    const suggestions = Array.from(new Set([...mappedSuggestions, ...seedMappedSuggestions, ...doctorSuggestions])).slice(0, 10);
-
-    const finalDoctors = specialties.length > 0 ? ranked : candidates.filter((d: any) => {
-      const profile = d.doctorProfile || {};
-      const spec = String(profile.specialization || '').toLowerCase();
-      const handle = String(d.email || '').split('@')[0].toLowerCase();
-      return normalizedQuery ? (spec.includes(normalizedQuery) || handle.includes(normalizedQuery)) : true;
-    });
+    // 5. Suggestions logic (optimized with cache)
+    let suggestions: string[] = [];
+    const sugCached = suggestionCache.get(normalizedQuery);
+    if (sugCached && (now - sugCached.ts) < SUGGESTION_CACHE_MS) {
+      suggestions = sugCached.suggestions;
+    } else {
+      const candidatesForSuggestions = await getDoctorCandidates(prisma);
+      const doctorSuggestions = suggestFromDoctors(normalizedQuery, candidatesForSuggestions);
+      const seedSpecs = mapQueryToSeedSpecialties(normalizedQuery);
+      const seedMappedSuggestions = seedSuggestions(normalizedQuery);
+      suggestions = Array.from(new Set([
+        ...specialties.map(s => `${s} (specialization)`),
+        ...seedMappedSuggestions,
+        ...doctorSuggestions
+      ])).slice(0, 10);
+      suggestionCache.set(normalizedQuery, { ts: now, suggestions });
+    }
 
     const payload = {
       query: qRaw,
       normalizedQuery,
       matchedConditions: conditions,
       matchedSpecialties: Array.from(new Set([...specialties, ...seedSpecs])),
-      doctors: finalDoctors,
+      doctors: formattedResults,
       suggestions,
-      meta: { strategy: (specialties.length || seedSpecs.length) ? 'seed+condition-specialty' : 'text-fallback' }
+      meta: { 
+        strategy: 'hybrid-fts-intent-quality',
+        ftsQuery: tsQuery
+      }
     };
 
-    const cacheKey2 = normalizedQuery;
-    if (cacheKey2) {
-      searchCache.set(cacheKey2, { ts: Date.now(), result: payload });
-    }
+    searchCache.set(cacheKey, { ts: Date.now(), result: payload });
     res.status(200).json(payload);
   } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({ message: 'Search failed' });
+    console.error('Hybrid Search error:', error);
+    // Fallback to simpler search if FTS fails (e.g. invalid query syntax)
+    try {
+      const candidates = await getDoctorCandidates(prisma);
+      const filtered = candidates.filter(d => {
+        const spec = String(d.doctorProfile?.specialization || '').toLowerCase();
+        const handle = String(d.email || '').toLowerCase();
+        return spec.includes(normalizedQuery) || handle.includes(normalizedQuery);
+      });
+      res.status(200).json({
+        query: qRaw,
+        doctors: filtered.slice(0, 20),
+        suggestions: [],
+        meta: { strategy: 'fallback-text' }
+      });
+    } catch (fallbackError) {
+      res.status(500).json({ message: 'Search failed' });
+    }
   }
 });
 
@@ -1813,20 +1954,24 @@ const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // --- Homepage Content (Admin) ---
+// Fast in-memory cache for homepage content
+const HOMEPAGE_CACHE_MS = 10 * 60 * 1000; // 10 minutes
+let cachedHomepage: any = null;
+let lastHomepageFetch = 0;
+
 app.get('/api/homepage', async (req: Request, res: Response) => {
   try {
+    const now = Date.now();
+    if (cachedHomepage && (now - lastHomepageFetch) < HOMEPAGE_CACHE_MS) {
+      return res.status(200).json(cachedHomepage);
+    }
+
     console.log('🔍 API - Loading homepage content...');
     
     const latest = await prisma.adminAuditLog.findFirst({
       where: { entityType: 'HOMEPAGE', action: 'HOMEPAGE_SAVE' },
       orderBy: { createdAt: 'desc' },
       select: { details: true, createdAt: true, adminId: true }
-    });
-    
-    console.log('🔍 API - Latest homepage log:', {
-      found: !!latest,
-      hasDetails: !!latest?.details,
-      createdAt: latest?.createdAt
     });
     
     if (!latest || !latest.details) {
@@ -1836,8 +1981,10 @@ app.get('/api/homepage', async (req: Request, res: Response) => {
     
     try {
       const content = JSON.parse(latest.details);
-      console.log('🔍 API - Parsed homepage content, keys:', Object.keys(content));
-      return res.status(200).json(content || {});
+      cachedHomepage = content || {};
+      lastHomepageFetch = now;
+      console.log('🔍 API - Parsed and cached homepage content');
+      return res.status(200).json(cachedHomepage);
     } catch (parseError) {
       console.error('🔍 API - Error parsing homepage content:', parseError);
       return res.status(200).json({});
@@ -1854,13 +2001,6 @@ app.patch('/api/admin/homepage-content', authMiddleware, adminMiddleware, async 
     const payload = req.body || {};
     const details = JSON.stringify(payload);
     
-    console.log('🔍 API - Admin saving homepage content:', {
-      adminId,
-      payloadKeys: Object.keys(payload),
-      hasHero: !!payload.hero,
-      hasTrustedBy: !!payload.trustedBy
-    });
-    
     await prisma.adminAuditLog.create({
       data: {
         adminId,
@@ -1871,7 +2011,11 @@ app.patch('/api/admin/homepage-content', authMiddleware, adminMiddleware, async 
       }
     });
     
-    console.log('🔍 API - Homepage content saved successfully');
+    // Invalidate cache on update
+    cachedHomepage = payload;
+    lastHomepageFetch = Date.now();
+    
+    console.log('🔍 API - Homepage content saved and cache updated');
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Failed to save homepage content:', error);

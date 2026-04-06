@@ -807,12 +807,7 @@ export default function HomePage() {
                           const raw = e.target.value;
                           setSearchQuery(raw);
                           const q = raw.trim();
-                          const caret = (e.target as HTMLInputElement).selectionStart ?? raw.length;
-                          const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, caret - 1)) + 1);
-                          const nextSpace = raw.indexOf(' ', caret);
-                          const end = nextSpace === -1 ? raw.length : nextSpace;
-                          const active = raw.substring(start, end).trim();
-
+                          
                           if (!q) {
                             const seeds = apiClient.getSeedSuggestions();
                             setSuggestions(seeds);
@@ -820,19 +815,25 @@ export default function HomePage() {
                             return;
                           }
 
-                          let quick: string[] = [];
-                          if (active) {
-                            const cachedTok = apiClient.peekCachedSearch(active);
-                            if (cachedTok && Array.isArray(cachedTok.suggestions)) {
-                              quick = cachedTok.suggestions.slice(0, 8);
-                            } else {
-                              quick = apiClient.getLocalSuggestions(active).slice(0, 8);
+                          // ⚡ INSTANT CACHE CHECK - If we've seen this query before, show it immediately
+                          const cached = apiClient.peekCachedSearch(q);
+                          if (cached) {
+                            if (Array.isArray(cached.suggestions)) {
+                              setSuggestions(cached.suggestions.slice(0, 8));
+                              setShowSuggestions(true);
+                            }
+                            // Also show cached doctors list while fresh
+                            if (Array.isArray(cached.doctors)) {
+                              setDoctors(cached.doctors);
                             }
                           } else {
-                            quick = apiClient.getSeedSuggestions().slice(0, 8);
+                            // Quick local fallback while waiting for API
+                            const local = apiClient.getLocalSuggestions(q).slice(0, 8);
+                            if (local.length > 0) {
+                              setSuggestions(local);
+                              setShowSuggestions(true);
+                            }
                           }
-                          setSuggestions(quick);
-                          setShowSuggestions(quick.length > 0);
 
                           try {
                             const resp = await apiClient.searchDoctors(q);

@@ -20,7 +20,7 @@ const useLocalAPI = isDevelopment && isLocalhost;
 // DEVELOPMENT: Use localhost:3001 as fallback
 const API_BASE_URL = useLocalAPI 
   ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
-  : (process.env.NEXT_PUBLIC_API_URL_PROD ?? process.env.NEXT_PUBLIC_API_URL ?? 'https://api.healtara.com');
+  : (process.env.NEXT_PUBLIC_API_URL || 'https://api.healtara.com');
 
 // Debug: Show which API URL is being used
 console.log('🌐 API URL Selection:');
@@ -130,7 +130,7 @@ class ApiClient {
   private _searchDebounceTimer: any;                        // Timer for debounced search tracking
   // Client-side micro cache for rapid repeated queries
   private _searchCache: Map<string, { at: number; payload: SearchDoctorsResponse } > = new Map();
-  private _searchCacheTTL: number = 3000; // milliseconds
+  private _searchCacheTTL: number = 30000; // Increased to 30 seconds for better instant feel
   // Local suggestion memory (session) for reinforcing user-confirmed terms
   private _localSuggestions: Map<string, string[]> = new Map();
   private _localSuggestionStoreKey: string = 'localSearchSuggestions';
@@ -434,6 +434,19 @@ class ApiClient {
     // Store in micro-cache
     this._searchCache.set(key, { at: Date.now(), payload: resp });
     return resp;
+  }
+
+  /**
+   * Synchronously check if a search query is already in cache.
+   * Useful for instant UI updates during typing.
+   */
+  peekCachedSearch(q: string, params: { time?: string; availabilityOnly?: boolean } = {}): SearchDoctorsResponse | null {
+    const key = `${q.trim().toLowerCase()}:${params.time || ''}:${params.availabilityOnly || ''}`;
+    const cached = this._searchCache.get(key);
+    if (cached && (Date.now() - cached.at) < this._searchCacheTTL) {
+      return cached.payload;
+    }
+    return null;
   }
 
   async getDoctorBySlug(slug: string): Promise<Doctor> {
@@ -962,16 +975,6 @@ class ApiClient {
         resolve();
       }, delayMs);
     });
-  }
-
-  // Peek cached search result without network
-  peekCachedSearch(q: string): SearchDoctorsResponse | null {
-    const key = q.trim().toLowerCase();
-    const cached = this._searchCache.get(key);
-    if (cached && (Date.now() - cached.at) < this._searchCacheTTL) {
-      return cached.payload;
-    }
-    return null;
   }
 
   // Suggestion memory helpers

@@ -10,36 +10,37 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     // Proxy API routes using env var in production, localhost in dev
+    const isProd = process.env.NODE_ENV === "production";
     const apiBase = process.env.NEXT_PUBLIC_API_URL;
     
-    // If API URL is explicitly set, use it (even in dev)
-    if (apiBase) {
+    // IN PRODUCTION: Ensure we use a secure live URL
+    if (isProd) {
+      const prodApi = apiBase || 'https://api.healtara.com';
       return [
         {
           source: "/api/:path*",
-          destination: `${apiBase}/api/:path*`,
+          destination: `${prodApi}/api/:path*`,
         },
         {
           source: "/uploads/:path*",
-          destination: `${apiBase}/uploads/:path*`,
+          destination: `${prodApi}/uploads/:path*`,
         },
       ];
     }
 
-    if (isDev) {
-      return [
-        {
-          source: "/api/:path*",
-          destination: "http://localhost:3001/api/:path*",
-        },
-        {
-          // Allow frontend to access uploaded media served by API
-          source: "/uploads/:path*",
-          destination: "http://localhost:3001/uploads/:path*",
-        },
-      ];
-    }
-    return [];
+    // IN DEVELOPMENT: Use localhost fallback if no env var is set
+    const devApi = apiBase || "http://localhost:3001";
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${devApi}/api/:path*`,
+      },
+      {
+        // Allow frontend to access uploaded media served by API
+        source: "/uploads/:path*",
+        destination: `${devApi}/uploads/:path*`,
+      },
+    ];
   },
 };
 
