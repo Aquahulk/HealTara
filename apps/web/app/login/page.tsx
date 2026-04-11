@@ -8,6 +8,7 @@ export default function PatientLoginPage() {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +26,7 @@ export default function PatientLoginPage() {
         if (password !== confirm) {
           throw new Error('Passwords do not match.');
         }
-        await register(email, password, 'PATIENT');
+        await register(email, password, 'PATIENT', name.trim() || undefined);
       }
     } catch (err: any) {
       setMessage(err?.message || 'Request failed. Please check your input.');
@@ -61,6 +62,18 @@ export default function PatientLoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Jane Doe"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700">Email</label>
             <input

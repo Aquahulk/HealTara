@@ -58,6 +58,7 @@ import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shoul
 import MapDoctors from '@/components/MapDoctors';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import SaveButton from '@/components/SaveButton';
+import { onAppointmentUpdates, onSlotUpdates } from '@/lib/realtime';
 
 // Icon mapping function - Convert string names to React components
 const getIconComponent = (iconName: string, className: string = "w-12 h-12") => {
@@ -509,6 +510,19 @@ export default function HomePage() {
       }, 10000);
     };
     loadData();
+
+    // Real-time updates for availability and new bookings
+    const unbindAppt = onAppointmentUpdates(() => {
+      loadData();
+    });
+    const unbindSlot = onSlotUpdates(() => {
+      loadData();
+    });
+
+    return () => {
+      unbindAppt();
+      unbindSlot();
+    };
   }, []);
 
   useRatingUpdates(() => {
@@ -1048,23 +1062,31 @@ export default function HomePage() {
         </section>
 
         {/* ============================================================================
-            🔀 TOGGLE SECTION - Modern tab switcher
+            🔍 DISCOVERY SECTION - Combined Doctors & Hospitals
             ============================================================================ */}
-        <section className="py-12 px-4 bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300">
+        <section 
+          className="py-16 px-4 transition-all duration-700 ease-in-out" 
+          style={{
+            background: activeGrid === 'doctors' 
+              ? 'linear-gradient(90deg, rgba(90, 89, 181, 1) 0%, rgba(48, 48, 150, 1) 27%, rgba(0, 212, 255, 1) 100%)'
+              : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+          }}
+        >
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-center gap-4">
+            {/* Unified Toggle Switcher */}
+            <div className="flex items-center justify-center gap-4 mb-16">
               <button
                 onClick={() => setActiveGrid('doctors')}
-                className={`relative px-8 py-4 rounded-2xl font-bold shadow-lg transition-all overflow-hidden ${
+                className={`relative px-10 py-5 rounded-2xl font-black shadow-2xl transition-all overflow-hidden ${
                   activeGrid === 'doctors'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white scale-105'
-                    : 'bg-white text-gray-800 border-2 border-gray-200 hover:border-blue-400 hover:scale-105'
+                    ? 'text-white scale-110'
+                    : 'bg-white/90 backdrop-blur-md text-gray-800 border-2 border-transparent hover:border-white/50 hover:scale-105'
                 }`}
               >
                 <span className="relative z-10">Doctors</span>
                 {activeGrid === 'doctors' && (
                   <motion.div
-                    layoutId="activeTab"
+                    layoutId="activeTabDiscovery"
                     className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600"
                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                   />
@@ -1072,256 +1094,250 @@ export default function HomePage() {
               </button>
               <button
                 onClick={() => setActiveGrid('hospitals')}
-                className={`relative px-8 py-4 rounded-2xl font-bold shadow-lg transition-all overflow-hidden ${
+                className={`relative px-10 py-5 rounded-2xl font-black shadow-2xl transition-all overflow-hidden ${
                   activeGrid === 'hospitals'
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white scale-105'
-                    : 'bg-white text-gray-800 border-2 border-gray-200 hover:border-purple-400 hover:scale-105'
+                    ? 'text-white scale-110'
+                    : 'bg-white/90 backdrop-blur-md text-gray-800 border-2 border-transparent hover:border-white/50 hover:scale-105'
                 }`}
               >
                 <span className="relative z-10">Hospitals</span>
                 {activeGrid === 'hospitals' && (
                   <motion.div
-                    layoutId="activeTab"
+                    layoutId="activeTabDiscovery"
                     className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600"
                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                   />
                 )}
               </button>
             </div>
-          </div>
-        </section>
 
-        {/* ============================================================================
-            👨‍⚕️ DOCTORS SECTION - Top-rated doctors
-            ============================================================================ */}
-        {activeGrid === 'doctors' && (
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(90deg, rgba(90, 89, 181, 1) 0%, rgba(48, 48, 150, 1) 27%, rgba(0, 212, 255, 1) 100%)'
-        }}>
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
-                Doctors
-              </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-cyan-200 mx-auto mb-4"></div>
-              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
-                Top-rated doctors near you, verified by our AI system for excellence in care
-              </p>
+            {/* Doctors Content */}
+            {activeGrid === 'doctors' && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="text-center mb-12">
+                <h2 className="text-3xl md:text-5xl font-black text-white mb-4 drop-shadow-lg">
+                  Doctors
+                </h2>
+                <div className="w-24 h-1.5 bg-gradient-to-r from-white to-cyan-200 mx-auto mb-6 rounded-full shadow-lg"></div>
+                <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md font-medium">
+                  Top-rated doctors near you, verified by our AI system for excellence in care
+                </p>
 
-              {/* Smart match hint */}
-              {(() => {
-                const q = searchQuery.trim().toLowerCase();
-                if (!q) return null;
-                const tokens = q.split(/\s+/).filter(Boolean);
-                const mapped = Array.from(new Set(tokens.flatMap(t => (diseaseToSpecializations as any)[t] || [])));
-                if (mapped.length === 0) return null;
-                return (
-                  <div className="mt-4 inline-flex items-center gap-2 bg-white/20 text-white px-4 py-2 rounded-2xl border border-white/30">
-                    <span className="text-sm opacity-90">Smart matches:</span>
-                    <span className="text-sm font-semibold">{tokens.join(' ')}</span>
-                    <span className="text-sm opacity-90">→ {mapped.join(', ')}</span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* OYO-Style Doctor Cards - Visually engaging design */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {filteredDoctors.map((doctor, index) => (
-                <motion.div 
-                  key={doctor.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ y: -4 }}
-                  className="group"
-                >
-                  <div className="relative bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100">
-                    <div className="absolute top-2 right-2 z-20">
-                      <SaveButton entityType="doctor" entityId={doctor.id} />
+                {/* Smart match hint */}
+                {(() => {
+                  const q = searchQuery.trim().toLowerCase();
+                  if (!q) return null;
+                  const tokens = q.split(/\s+/).filter(Boolean);
+                  const mapped = Array.from(new Set(tokens.flatMap(t => (diseaseToSpecializations as any)[t] || [])));
+                  if (mapped.length === 0) return null;
+                  return (
+                    <div className="mt-6 inline-flex items-center gap-2 bg-white/20 backdrop-blur-md text-white px-6 py-3 rounded-2xl border border-white/30 shadow-xl">
+                      <span className="text-sm opacity-90">Smart matches:</span>
+                      <span className="text-sm font-bold">{tokens.join(' ')}</span>
+                      <span className="text-sm opacity-90">→ {mapped.join(', ')}</span>
                     </div>
-                    {/* Background Gradient Overlay - Medical colors: light green, blue, white */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    {/* Content Container - More compact on mobile */}
-                    <div className="relative p-3 md:p-4">
-                      {/* Top Section: Doctor Info with Image */}
-                      <div className="flex items-start gap-2 md:gap-3 mb-2 md:mb-3">
-                        {/* Doctor Avatar with Badge - Smaller on mobile */}
-                        <div className="relative flex-shrink-0">
-                          <div className="w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-2xl overflow-hidden shadow-md ring-2 ring-white group-hover:ring-emerald-400 transition-all duration-300">
-                            {doctor.doctorProfile?.profileImage ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={doctor.doctorProfile.profileImage}
-                                alt={doctor.email.split('@')[0]}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gradient-to-br from-emerald-400 via-cyan-400 to-blue-400 flex items-center justify-center text-xl md:text-2xl">
-                                👨‍⚕️
-                              </div>
-                            )}
-                          </div>
-                          {/* Verified Badge */}
-                          <div className="absolute -bottom-1 -right-1 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-full p-1 shadow-md">
-                            <CheckCircle className="w-3 h-3 md:w-4 md:h-4 text-white" />
-                          </div>
-                        </div>
-                        
-                        {/* Doctor Details */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm md:text-lg font-bold text-gray-900 mb-1 truncate group-hover:text-emerald-600 transition-colors">
-                            Dr. {doctor.email.split('@')[0]}
-                          </h3>
-                          <div className="inline-flex items-center bg-gradient-to-r from-emerald-50 to-cyan-50 text-emerald-700 px-2 py-0.5 md:py-1 rounded-lg mb-1 md:mb-2 border border-emerald-200">
-                            <Stethoscope className="w-3 h-3 mr-1" />
-                            <span className="text-xs font-semibold truncate">
-                              {doctor.doctorProfile?.specialization || 'General Practitioner'}
-                            </span>
+                  );
+                })()}
+              </div>
+
+              {/* OYO-Style Doctor Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredDoctors.map((doctor, index) => (
+                  <motion.div 
+                    key={doctor.id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ y: -8 }}
+                    className="group"
+                  >
+                    <div className="relative bg-white rounded-2xl md:rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-300 overflow-hidden border border-gray-100">
+                      <div className="absolute top-3 right-3 z-20">
+                        <SaveButton entityType="doctor" entityId={doctor.id} />
+                      </div>
+                      
+                      {/* Background Gradient Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      
+                      {/* Content Container */}
+                      <div className="relative p-4 md:p-6">
+                        {/* Top Section: Doctor Info with Image */}
+                        <div className="flex items-start gap-4 md:gap-6 mb-4 md:mb-6">
+                          {/* Doctor Avatar with Badge */}
+                          <div className="relative flex-shrink-0">
+                            <div className="w-20 h-20 md:w-28 md:h-28 rounded-2xl md:rounded-3xl overflow-hidden shadow-xl ring-4 ring-white group-hover:ring-emerald-400 transition-all duration-300">
+                              {doctor.doctorProfile?.profileImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={doctor.doctorProfile.profileImage}
+                                  alt={doctor.email.split('@')[0]}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-emerald-400 via-cyan-400 to-blue-400 flex items-center justify-center text-3xl md:text-4xl">
+                                  👨‍⚕️
+                                </div>
+                              )}
+                            </div>
+                            {/* Verified Badge */}
+                            <div className="absolute -bottom-2 -right-2 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-full p-2 shadow-xl border-4 border-white">
+                              <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                            </div>
                           </div>
                           
-                          <div className="flex items-center gap-0.5">
-                            <EnhancedRatingDisplay entityType="doctor" entityId={String(doctor.id)} size="sm" />
+                          {/* Doctor Details */}
+                          <div className="flex-1 min-w-0 pt-2">
+                            <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-2 truncate group-hover:text-emerald-600 transition-colors">
+                              Dr. {doctor.email.split('@')[0]}
+                            </h3>
+                            <div className="inline-flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl mb-3 border border-emerald-100 shadow-sm">
+                              <Stethoscope className="w-4 h-4 mr-2" />
+                              <span className="text-sm font-black truncate">
+                                {doctor.doctorProfile?.specialization || 'General Practitioner'}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1">
+                              <EnhancedRatingDisplay entityType="doctor" entityId={String(doctor.id)} size="md" />
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Info Grid - More compact on mobile */}
-                      <div className="grid grid-cols-3 gap-1.5 md:gap-2 mb-2 md:mb-3">
-                        {doctor.doctorProfile?.city && (
-                          <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg p-1.5 md:p-2 text-center border border-cyan-200">
-                            <MapPin className="w-3 h-3 md:w-4 md:h-4 text-cyan-600 mx-auto mb-0.5 md:mb-1" />
-                            <p className="text-xs font-medium text-gray-700 truncate">{doctor.doctorProfile.city}</p>
-                          </div>
-                        )}
-                        
-                        {doctor.doctorProfile?.experience && (
-                          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg p-1.5 md:p-2 text-center border border-emerald-200">
-                            <Award className="w-3 h-3 md:w-4 md:h-4 text-emerald-600 mx-auto mb-0.5 md:mb-1" />
-                            <p className="text-xs font-medium text-gray-700">{doctor.doctorProfile.experience}+ Yrs</p>
-                          </div>
-                        )}
-                        
-                        {doctor.doctorProfile?.consultationFee && (
-                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-1.5 md:p-2 text-center border border-green-200">
-                            <p className="text-xs text-gray-600">Fee</p>
-                            <p className="text-xs md:text-sm font-bold text-green-600">₹{doctor.doctorProfile.consultationFee}</p>
-                          </div>
-                        )}
-                      </div>
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-3 gap-3 mb-6">
+                          {doctor.doctorProfile?.city && (
+                            <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl p-3 text-center border border-cyan-100 shadow-sm">
+                              <MapPin className="w-5 h-5 text-cyan-600 mx-auto mb-1.5" />
+                              <p className="text-xs font-black text-gray-800 truncate">{doctor.doctorProfile.city}</p>
+                            </div>
+                          )}
+                          
+                          {doctor.doctorProfile?.experience && (
+                            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-3 text-center border border-emerald-100 shadow-sm">
+                              <Award className="w-5 h-5 text-emerald-600 mx-auto mb-1.5" />
+                              <p className="text-xs font-black text-gray-800">{doctor.doctorProfile.experience}+ Yrs</p>
+                            </div>
+                          )}
+                          
+                          {doctor.doctorProfile?.consultationFee && (
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-3 text-center border border-green-100 shadow-sm">
+                              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Fee</p>
+                              <p className="text-base font-black text-green-600">₹{doctor.doctorProfile.consultationFee}</p>
+                            </div>
+                          )}
+                        </div>
 
-                      {/* Action Buttons - More compact on mobile */}
-                      <div className="flex gap-1.5 md:gap-2">
-                        {doctor.doctorProfile?.slug ? (
-                          <Link
-                            href={`/doctor-site/${doctor.doctorProfile.slug}`}
-                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-center text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center"
-                            onMouseEnter={() => {
-                              router.prefetch(`/doctor-site/${doctor.doctorProfile.slug}`);
-                            }}
-                            onClick={(e) => {
-                              // Only use subdomain if enabled and a slug exists
-                              if (shouldUseSubdomainNav()) {
-                                e.preventDefault();
-                                window.location.href = doctorMicrositeUrl(String(doctor.doctorProfile?.slug || ''));
-                                return;
-                              }
-                              // Fallback is the standard Link href
-                              import('@/lib/api').then(({ apiClient }) => {
-                                apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
-                              });
-                            }}
+                        {/* Action Buttons */}
+                        <div className="flex gap-3">
+                          {doctor.doctorProfile?.slug ? (
+                            <Link
+                              href={`/doctor-site/${doctor.doctorProfile.slug}`}
+                              className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-900 font-black py-4 px-4 rounded-2xl transition-all text-center text-sm flex items-center justify-center border-2 border-gray-100 shadow-sm"
+                              onMouseEnter={() => {
+                                router.prefetch(`/doctor-site/${doctor.doctorProfile.slug}`);
+                              }}
+                              onClick={(e) => {
+                                if (shouldUseSubdomainNav()) {
+                                  e.preventDefault();
+                                  window.location.href = doctorMicrositeUrl(String(doctor.doctorProfile?.slug || ''));
+                                  return;
+                                }
+                                import('@/lib/api').then(({ apiClient }) => {
+                                  apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {});
+                                });
+                              }}
+                            >
+                              <Globe className="w-4 h-4 mr-2" />
+                              Visit Profile
+                            </Link>
+                          ) : (
+                            <button
+                              className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-900 font-black py-4 px-4 rounded-2xl transition-all text-sm flex items-center justify-center border-2 border-gray-100 shadow-sm"
+                              onClick={() => {
+                                import('@/lib/api').then(({ apiClient }) => {
+                                  apiClient
+                                    .getHospitalByDoctorId(doctor.id)
+                                    .then((resp) => {
+                                      const hId = (resp as any)?.id ?? (resp as any)?.hospitalId;
+                                      if (Number.isFinite(hId)) {
+                                        router.push(`/hospital-site/${String(hId)}`);
+                                      }
+                                    })
+                                    .catch(() => {});
+                                });
+                              }}
+                            >
+                              <Building2 className="w-4 h-4 mr-2" />
+                              Hospital
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => handleBookAppointment(doctor)}
+                            className="flex-1 bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 hover:scale-[1.02] text-white font-black py-4 px-4 rounded-2xl transition-all text-sm flex items-center justify-center shadow-xl"
                           >
-                            <Globe className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                            <span className="hidden sm:inline">Visit</span>
-                          </Link>
-                        ) : (
-                          <button
-                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center"
-                            onClick={() => {
-                              // If no slug, try to find their hospital site
-                              import('@/lib/api').then(({ apiClient }) => {
-                                apiClient
-                                  .getHospitalByDoctorId(doctor.id)
-                                  .then((resp) => {
-                                    const hId = (resp as any)?.id ?? (resp as any)?.hospitalId;
-                                    if (Number.isFinite(hId)) {
-                                      router.push(`/hospital-site/${String(hId)}`);
-                                    }
-                                  })
-                                  .catch(() => {});
-                              });
-                            }}
-                          >
-                            <Building2 className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                            <span className="hidden sm:inline">Hospital</span>
+                            <Calendar className="w-4 h-4 mr-2" />
+                            Book Now
                           </button>
-                        )}
-                        <button 
-                          onClick={() => handleBookAppointment(doctor)}
-                          className="flex-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500 hover:from-emerald-600 hover:via-cyan-600 hover:to-blue-600 text-white font-bold py-2 md:py-2.5 px-2 md:px-3 rounded-lg md:rounded-xl transition-all text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center shadow-md hover:shadow-lg"
-                        >
-                          <Calendar className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                          Book Now
-                        </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-        )}
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+            )}
 
-        {/* ============================================================================
-            🏥 HOSPITALS SECTION - Hospitals (ENHANCED BLUE-PURPLE GRADIENT)
-            ============================================================================ */}
-        {activeGrid === 'hospitals' && (
-        <section className="py-16 px-4" style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-        }}>
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-black text-white mb-4 drop-shadow-lg">
-                Hospitals
-              </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-white to-purple-200 mx-auto mb-4"></div>
-              <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md">
-                Discover our hospitals offering world-class healthcare services and specialized treatments
-              </p>
-            </div>
+            {/* Hospitals Content */}
+            {activeGrid === 'hospitals' && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="text-center mb-12">
+                <h2 className="text-3xl md:text-5xl font-black text-white mb-4 drop-shadow-lg">
+                  Hospitals
+                </h2>
+                <div className="w-24 h-1.5 bg-gradient-to-r from-white to-purple-200 mx-auto mb-6 rounded-full shadow-lg"></div>
+                <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-md font-medium">
+                  Discover our hospitals offering world-class healthcare services and specialized treatments
+                </p>
+              </div>
 
-            {/* OYO-Style Hospital Cards - Visually engaging design */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {hospitals.map((hospital, index) => {
-                const name = hospital.name || '';
-                const location = hospital.address ? `${hospital.city || ''}, ${hospital.state || ''}`.trim() : 'Location';
-                
-                return (
-                  <motion.div 
-                    key={hospital.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileHover={{ y: -4 }}
-                  className="group"
-                >
-                  <div className="relative bg-white rounded-xl md:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100">
-                    <div className="absolute top-2 right-2 z-20">
-                      <SaveButton entityType="hospital" entityId={hospital.id} />
-                    </div>
-                    {/* Background Pattern */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              {/* OYO-Style Hospital Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {hospitals.map((hospital, index) => {
+                  const name = hospital.name || '';
+                  const location = hospital.address ? `${hospital.city || ''}, ${hospital.state || ''}`.trim() : 'Location';
+                  
+                  return (
+                    <motion.div 
+                      key={hospital.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      whileInView={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                      whileHover={{ y: -8 }}
+                    className="group"
+                  >
+                    <div className="relative bg-white rounded-2xl md:rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-300 overflow-hidden border border-gray-100">
+                      <div className="absolute top-3 right-3 z-20">
+                        <SaveButton entityType="hospital" entityId={hospital.id} />
+                      </div>
                       
-                      {/* Content Container - More compact on mobile */}
-                      <div className="relative p-3 md:p-4">
+                      {/* Background Pattern Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        
+                      {/* Content Container */}
+                      <div className="relative p-4 md:p-6">
                         {/* Top Section: Hospital Info with Logo */}
-                        <div className="flex items-start gap-2 md:gap-3 mb-2 md:mb-3">
-                          {/* Hospital Logo with Badge - Smaller on mobile */}
+                        <div className="flex items-start gap-4 md:gap-6 mb-4 md:mb-6">
+                          {/* Hospital Logo with Badge */}
                           <div className="relative flex-shrink-0">
-                            <div className="w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-2xl overflow-hidden shadow-md ring-2 ring-white group-hover:ring-blue-400 transition-all duration-300 bg-gradient-to-br from-blue-400 to-purple-500">
+                            <div className="w-20 h-20 md:w-28 md:h-28 rounded-2xl md:rounded-3xl overflow-hidden shadow-xl ring-4 ring-white group-hover:ring-blue-400 transition-all duration-300 bg-gradient-to-br from-blue-400 to-purple-500">
                               {(() => {
                                 const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || (hospital as any).general?.logoUrl || null;
                                 if (logoUrl && logoUrl.startsWith('http')) {
@@ -1329,99 +1345,81 @@ export default function HomePage() {
                                     <Image
                                       src={logoUrl}
                                       alt={name}
-                                      width={80}
-                                      height={80}
-                                      className="w-full h-full object-contain p-2 bg-white"
+                                      width={112}
+                                      height={112}
+                                      className="w-full h-full object-contain p-3 bg-white"
                                       loading="lazy"
-                                      placeholder="blur"
-                                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwA/8A8A"
-                                      onError={(e) => {
-                                        console.error('Image load error:', logoUrl, e);
-                                        e.currentTarget.style.display = 'none';
-                                      }}
                                     />
                                   );
                                 }
                                 return (
-                                  <div className="w-full h-full flex items-center justify-center text-xl md:text-2xl">
+                                  <div className="w-full h-full flex items-center justify-center text-3xl md:text-4xl">
                                     🏥
                                   </div>
                                 );
                               })()}
                             </div>
                             {/* Verified Badge */}
-                            <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1 shadow-md">
-                              <Shield className="w-3 h-3 md:w-4 md:h-4 text-white" />
+                            <div className="absolute -bottom-2 -right-2 bg-blue-500 rounded-full p-2 shadow-xl border-4 border-white">
+                              <Shield className="w-4 h-4 md:w-5 md:h-5 text-white" />
                             </div>
                           </div>
                           
                           {/* Hospital Details */}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm md:text-lg font-bold text-gray-900 mb-1 truncate group-hover:text-blue-600 transition-colors">
+                          <div className="flex-1 min-w-0 pt-2">
+                            <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-2 truncate group-hover:text-blue-600 transition-colors">
                               {name}
                             </h3>
-                            <div className="inline-flex items-center bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-700 px-2 py-0.5 md:py-1 rounded-lg mb-1 md:mb-2 border border-blue-200">
-                              <Hospital className="w-3 h-3 mr-1" />
-                              <span className="text-xs font-semibold">Multi-Specialty</span>
+                            <div className="inline-flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl mb-3 border border-blue-100 shadow-sm">
+                              <Hospital className="w-4 h-4 mr-2" />
+                              <span className="text-sm font-black">Multi-Specialty</span>
                             </div>
                             
                             {/* Location */}
                             {location && (
-                              <div className="flex items-center text-gray-600 text-xs">
-                                <MapPin className="w-3 h-3 text-blue-500 mr-1 flex-shrink-0" />
+                              <div className="flex items-center text-gray-600 text-sm font-medium">
+                                <MapPin className="w-4 h-4 text-blue-500 mr-2 flex-shrink-0" />
                                 <span className="truncate">{location}</span>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {/* Stats Grid - More compact on mobile */}
-                        <div className="grid grid-cols-3 gap-1.5 md:gap-2 mb-2 md:mb-3">
-                          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg p-1.5 md:p-2 text-center border border-emerald-200">
-                            <Building2 className="w-3 h-3 md:w-4 md:h-4 text-emerald-600 mx-auto mb-0.5 md:mb-1" />
-                            <p className="text-xs font-bold text-emerald-700">{hospital._count?.departments || 0}</p>
-                            <p className="text-xs text-gray-600">Depts</p>
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-3 gap-3 mb-6">
+                          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-3 text-center border border-emerald-100 shadow-sm">
+                            <Building2 className="w-5 h-5 text-emerald-600 mx-auto mb-1.5" />
+                            <p className="text-sm font-black text-emerald-700">{hospital._count?.departments || 0}</p>
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Depts</p>
                           </div>
                           
-                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-1.5 md:p-2 text-center border border-blue-200">
-                            <Users className="w-3 h-3 md:w-4 md:h-4 text-blue-600 mx-auto mb-0.5 md:mb-1" />
-                            <p className="text-xs font-bold text-blue-700">{hospital._count?.doctors || 0}</p>
-                            <p className="text-xs text-gray-600">Doctors</p>
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-3 text-center border border-blue-100 shadow-sm">
+                            <Users className="w-5 h-5 text-blue-600 mx-auto mb-1.5" />
+                            <p className="text-sm font-black text-blue-700">{hospital._count?.doctors || 0}</p>
+                            <p className="text-[10px] font-black text-gray-500 uppercase tracking-tighter">Doctors</p>
                           </div>
                           
-                          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-1.5 md:p-2 text-center border border-yellow-200">
-                            <div className="flex items-center justify-center">
-                              <EnhancedRatingDisplay entityType="hospital" entityId={String(hospital.id)} size="sm" />
-                            </div>
+                          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-3 text-center border border-yellow-100 shadow-sm flex items-center justify-center">
+                            <EnhancedRatingDisplay entityType="hospital" entityId={String(hospital.id)} size="md" />
                           </div>
                         </div>
 
-                        {/* Features Tags - Smaller on mobile */}
-                        <div className="flex flex-wrap gap-1 md:gap-1.5 mb-2 md:mb-3">
-                          <span className="inline-flex items-center bg-purple-50 text-purple-700 px-1.5 md:px-2 py-0.5 md:py-1 rounded-md text-xs font-medium border border-purple-200">
-                            <Activity className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1" />
-                            24/7
+                        {/* Features Tags */}
+                        <div className="flex flex-wrap gap-2 mb-6">
+                          <span className="inline-flex items-center bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl text-xs font-black border border-purple-100 shadow-sm">
+                            <Activity className="w-3.5 h-3.5 mr-1.5" />
+                            24/7 CARE
                           </span>
-                          <span className="inline-flex items-center bg-green-50 text-green-700 px-1.5 md:px-2 py-0.5 md:py-1 rounded-md text-xs font-medium border border-green-200">
-                            <CheckCircle className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1" />
-                            ICU
+                          <span className="inline-flex items-center bg-green-50 text-green-700 px-3 py-1.5 rounded-xl text-xs font-black border border-green-100 shadow-sm">
+                            <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                            ICU READY
                           </span>
                         </div>
 
-                        {/* Visit Button - More compact on mobile */}
+                        {/* Visit Button */}
                         <a
                           href={`/hospital-site/${hospital.id}`}
-                          className="block w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 md:py-2.5 px-3 md:px-4 rounded-lg md:rounded-xl transition-all text-center text-xs md:text-sm min-h-[40px] md:min-h-[44px] flex items-center justify-center shadow-md hover:shadow-lg"
-                          onMouseEnter={() => {
-                            try {
-                              router.prefetch(`/hospital-site/${hospital.id}`);
-                              if (shouldUseSubdomainNav()) {
-                                const sub = (hospital as any)?.subdomain as string | undefined;
-                                const url = sub && sub.length > 1 ? customSubdomainUrl(sub) : (hospital.name ? hospitalMicrositeUrl(hospital.name) : '');
-                                if (url) import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
-                              }
-                            } catch {}
-                          }}
+                          className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:scale-[1.02] text-white font-black py-4 px-6 rounded-2xl transition-all text-center text-sm flex items-center justify-center shadow-xl"
                           onClick={(e) => {
                             try {
                               if (shouldUseSubdomainNav()) {
@@ -1438,13 +1436,12 @@ export default function HomePage() {
                               }
                               router.push(`/hospital-site/${hospital.id}`);
                             } catch (error) {
-                              console.error('Hospital redirect error:', error);
                               router.push(`/hospital-site/${hospital.id}`);
                             }
                           }}
                         >
-                          <ArrowRight className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-                          Visit Hospital
+                          <ArrowRight className="w-5 h-5 mr-2" />
+                          Visit Hospital Facility
                         </a>
                       </div>
                     </div>
@@ -1452,9 +1449,10 @@ export default function HomePage() {
                 );
               })}
             </div>
+          </motion.div>
+          )}
           </div>
         </section>
-        )}
 
         {/* ============================================================================
             🛡️ TRUSTED HEALTHCARE PROVIDERS SECTION - Modern stats showcase

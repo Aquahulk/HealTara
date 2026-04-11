@@ -66,7 +66,7 @@ export default function SaveButton({ entityType, entityId, className = '' }: Sav
 
     if (!user) {
       // Redirect to login if not authenticated
-      router.push(`/auth?redirect=${encodeURIComponent(window.location.pathname)}`);
+      router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
 

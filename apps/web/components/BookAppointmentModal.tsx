@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient, Doctor } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { io } from "socket.io-client";
+import { getSocket, joinDoctorRoom, onAppointmentUpdates, onSlotUpdates } from "@/lib/realtime";
 
 interface BookAppointmentModalProps {
     // Optional: if omitted, modal shows when a doctor/doctorId is provided
@@ -124,7 +124,6 @@ export default function BookAppointmentModal({
                         periodMinutes: 15,
                         hours: defaultHours
                     });
-                    // Don't set loadingAvail to false yet - still fetching real data
                 }
                 
                 // PARALLEL FETCH: Get fresh data in background
@@ -148,47 +147,55 @@ export default function BookAppointmentModal({
                 
             } catch (error) {
                 console.error('Error fetching availability:', error);
-                // FALLBACK: Show error but don't break UX
                 setError('Unable to load available times. Please try again.');
                 setLoadingAvail(false);
             }
         };
 
+        // Real-time updates via WebSockets
+        if (effectiveDoctorId) {
+            joinDoctorRoom(effectiveDoctorId);
+        }
+
+        const unbindAppt = onAppointmentUpdates(() => {
+            refresh();
+        });
+
+        const unbindSlot = onSlotUpdates(() => {
+            refresh();
+        });
+
+        // BroadcastChannel and Storage events for local tab sync
         const bc = bcRef.current;
         const onMsg = (ev: MessageEvent) => {
             try {
                 const msg: any = ev.data;
-                const t = msg?.type;
                 const did = Number(msg?.payload?.doctorId);
-                const dt = String(msg?.payload?.date || '');
-                if (!did || did !== effectiveDoctorId) return;
-                if (t === 'slots:updated' || t === 'appointment-booked') {
+                if (did === effectiveDoctorId) {
                     refresh();
                 }
             } catch {}
         };
 
         const onStorage = (ev: StorageEvent) => {
-            try {
-                if (ev.key === 'slots-updated') {
+            if (ev.key === 'slots-updated') {
+                try {
                     const data = JSON.parse(ev.newValue || '{}');
                     if (Number(data.doctorId) === effectiveDoctorId) {
                         refresh();
                     }
-                }
-            } catch {}
+                } catch {}
+            }
         };
 
-        if (bc) {
-            bc.addEventListener('message', onMsg);
-        }
+        if (bc) bc.addEventListener('message', onMsg);
         window.addEventListener('storage', onStorage);
         refresh();
 
         return () => {
-            if (bc) {
-                bc.removeEventListener('message', onMsg);
-            }
+            unbindAppt();
+            unbindSlot();
+            if (bc) bc.removeEventListener('message', onMsg);
             window.removeEventListener('storage', onStorage);
         };
     }, [effectiveDoctorId, date]);

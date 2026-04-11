@@ -847,6 +847,10 @@ class ApiClient {
     return this.request(`/api/doctors/${doctorId}/tokens/today`);
   }
 
+  async startDoctorToken(doctorId: number): Promise<{ currentToken: number; tokens: any[] }> {
+    return this.request(`/api/doctors/${doctorId}/tokens/start`, { method: 'POST' });
+  }
+
   async advanceDoctorToken(doctorId: number): Promise<{ currentToken: number }> {
     return this.request(`/api/doctors/${doctorId}/tokens/next`, { method: 'POST' });
   }

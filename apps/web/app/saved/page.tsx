@@ -20,7 +20,7 @@ export default function SavedPage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push('/auth?redirect=/saved');
+      router.push('/login?redirect=/saved');
     }
   }, [user, authLoading, router]);
 

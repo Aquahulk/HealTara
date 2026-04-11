@@ -16,7 +16,12 @@ import {
   ChevronRight,
   Clock,
   FileText,
-  LogOut
+  LogOut,
+  LayoutDashboard,
+  Users,
+  Briefcase,
+  PlusCircle,
+  ClipboardList
 } from "lucide-react";
 
 interface DesktopSidebarProps {
@@ -44,64 +49,52 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
     );
   }, [isCollapsed, onCollapseChange]);
 
-  const navItems = [
-    {
-      href: "/",
-      icon: Home,
-      label: "Home",
-      description: "Back to homepage",
-      protected: false
-    },
-    {
-      href: "/my-bookings",
-      icon: Calendar,
-      label: "My Bookings",
-      description: "View appointments",
-      protected: true
-    },
-    {
-      href: "/saved",
-      icon: Heart,
-      label: "Saved",
-      description: "Saved doctors & hospitals",
-      protected: true
-    },
-    {
-      href: "/doctors",
-      icon: Stethoscope,
-      label: "Find Doctors",
-      description: "Search doctors",
-      protected: false
-    },
-    {
-      href: "/hospitals",
-      icon: Building2,
-      label: "Hospitals",
-      description: "Browse hospitals",
-      protected: false
-    },
-    {
-      href: "/history",
-      icon: Clock,
-      label: "History",
-      description: "Past appointments",
-      protected: true
-    },
-    {
-      href: "/profile",
-      icon: User,
-      label: "Profile",
-      description: "Your profile",
-      protected: true
-    },
-    {
-      href: "/settings",
-      icon: Settings,
-      label: "Settings",
-      description: "Account settings",
-      protected: true
+  // Role-specific navigation items
+  const getNavItems = () => {
+    // 🏠 DEFAULT (NOT LOGGED IN)
+    if (!user) {
+      return [
+        { href: "/", icon: Home, label: "Home", description: "Back to homepage", protected: false },
+        { href: "/doctors", icon: Stethoscope, label: "Find Doctors", description: "Search specialists", protected: false },
+        { href: "/hospitals", icon: Building2, label: "Hospitals", description: "Browse facilities", protected: false },
+        { href: "/login", icon: User, label: "Login / Register", description: "Access your account", protected: false },
+      ];
     }
-  ];
+
+    // 👨‍⚕️ DOCTOR SIDEBAR
+    if (user.role === "DOCTOR") {
+      return [
+        { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", description: "Practice overview", protected: true },
+        { href: "/dashboard?tab=appointments", icon: Calendar, label: "Appointments", description: "Manage bookings", protected: true },
+        { href: "/dashboard/profile", icon: User, label: "My Profile", description: "Practice details", protected: true },
+        { href: "/dashboard/settings", icon: Settings, label: "Settings", description: "Account config", protected: true },
+      ];
+    }
+
+    // 🏥 HOSPITAL ADMIN SIDEBAR
+    if (user.role === "HOSPITAL_ADMIN") {
+      return [
+        { href: "/hospital-admin", icon: Building2, label: "Admin Panel", description: "Facility management", protected: true },
+        { href: "/hospital-admin/doctors", icon: Users, label: "Our Doctors", description: "Manage medical staff", protected: true },
+        { href: "/hospital-admin/profile", icon: User, label: "Hospital Profile", description: "Update details", protected: true },
+        { href: "/hospital-admin/settings", icon: Settings, label: "Settings", description: "Admin config", protected: true },
+      ];
+    }
+
+    // 👤 PATIENT SIDEBAR
+    return [
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", description: "Your overview", protected: true },
+      { href: "/", icon: Home, label: "Home Page", description: "Find care", protected: false },
+      { href: "/dashboard?tab=appointments", icon: Calendar, label: "My Bookings", description: "View appointments", protected: true },
+      { href: "/saved", icon: Heart, label: "Saved", description: "Doctors & Hospitals", protected: true },
+      { href: "/doctors", icon: Stethoscope, label: "Find Doctors", description: "Search care", protected: false },
+      { href: "/hospitals", icon: Building2, label: "Hospitals", description: "Browse facilities", protected: false },
+      { href: "/history", icon: Clock, label: "History", description: "Past visits", protected: true },
+      { href: "/dashboard/profile", icon: User, label: "My Profile", description: "Personal info", protected: true },
+    ];
+  };
+
+  const navItems = getNavItems();
 
   const handleNavigation = (href: string, isProtected: boolean) => {
     // Resolve destination based on route and role
@@ -120,7 +113,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
     const target = resolveHref(href);
 
     if (isProtected && !user) {
-      router.push("/auth?redirect=" + encodeURIComponent(target));
+      router.push("/login?redirect=" + encodeURIComponent(target));
       return;
     }
 
@@ -138,13 +131,21 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
     }
     
     // Profile can resolve to different routes based on role
-    if (href === "/profile") {
-      if (pathname?.startsWith("/dashboard/profile")) return true;
-      if (pathname?.startsWith("/hospital-admin/profile")) return true;
-      return false;
+    if (href === "/dashboard/profile" || href === "/hospital-admin/profile") {
+      return pathname === href;
     }
     
-    return pathname?.startsWith(href);
+    // Exact match for dashboard home
+    if (href === "/dashboard" || href === "/hospital-admin") {
+      return pathname === href && !searchParams?.get('tab');
+    }
+
+    // Tab match for appointments
+    if (href.includes("tab=appointments")) {
+      return searchParams?.get('tab') === 'appointments';
+    }
+    
+    return pathname === href || pathname?.startsWith(href + "/");
   };
 
   return (
@@ -231,7 +232,11 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
                   Quick Tip
                 </h3>
                 <p className="text-xs text-blue-100">
-                  Save your favorite doctors for faster booking next time!
+                  {user?.role === 'DOCTOR' 
+                    ? "Update your working hours to stay available!" 
+                    : user?.role === 'HOSPITAL_ADMIN'
+                    ? "Add your top doctors to get more bookings!"
+                    : "Save your favorite doctors for faster booking!"}
                 </p>
               </div>
             </div>

@@ -9,6 +9,7 @@ export default function DoctorLoginPage() {
   const [role, setRole] = useState<'doctor' | 'hospital'>('doctor');
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function DoctorLoginPage() {
           throw new Error('Passwords do not match.');
         }
         const registerRole = role === 'doctor' ? 'DOCTOR' : 'HOSPITAL_ADMIN';
-        await register(email, password, registerRole);
+        await register(email, password, registerRole, name.trim() || undefined);
       }
     } catch (err: any) {
       setMessage(err?.message || 'Request failed. Please check your input.');
@@ -89,6 +90,18 @@ export default function DoctorLoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={role === 'doctor' ? 'Dr. Jane Doe' : 'Hospital Administrator Name'}
+              />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700">Email</label>
             <input

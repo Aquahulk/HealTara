@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react'; 
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
 import { apiClient, Appointment, Slot } from '@/lib/api';  // API client for making HTTP requests
 import Link from 'next/link';                              // Next.js Link component for navigation
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CalendarIcon, 
   UserGroupIcon, 
@@ -35,6 +36,7 @@ import { doctorMicrositeUrl, hospitalMicrositeUrl, customSubdomainUrl, shouldUse
 import { getDoctorLabel, getPatientLabel, getUserLabel } from '@/lib/utils';
 import { io } from 'socket.io-client';
 import { getSocket, joinDoctorRoom } from '@/lib/realtime';
+import { Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 
 function WalkInReserveBox({ userId }: { userId: number }) {
@@ -269,6 +271,12 @@ interface DashboardStats {
 // ============================================================================
 // 🎨 SLOT COLOR UTILITY - Visual differentiation for slot boxes
 // ============================================================================
+const getISTDayIndex = (date: Date) => {
+  const wk = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'short' }).format(date);
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[wk] ?? date.getDay();
+};
+
 const getSlotBoxColors = (appointmentCount: number, _slotStart: Date, capacity: number = 1) => {
   // Unified 5-level capacity palette (time-agnostic):
   // empty → low → medium → high → full
@@ -338,6 +346,7 @@ export default function DashboardPage() {
   const [appointmentViewMode, setAppointmentViewMode] = useState<'list' | 'grouped'>('grouped'); // Doctor appointments view mode
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'|'EMERGENCY'>('ALL'); // Doctor-only filter
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
+  const [showExpiredSlots, setShowExpiredSlots] = useState(false); // Collapsible for expired slots
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
   const [patients, setPatients] = useState<Array<{ patientId: number; email: string; count: number; lastDate: string }>>([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
@@ -503,6 +512,72 @@ const [socketReady, setSocketReady] = useState(false);
       setActiveTab('overview');
     }
   }, [user, activeTab, isDoctorLike]);
+
+  // ============================================================================
+  // 📡 REAL-TIME REFRESH - Listen for global events to update dashboard state
+  // ============================================================================
+  useEffect(() => {
+    if (!user) return;
+    const s = getSocket();
+    
+    const refreshData = async () => {
+      try {
+        const appointmentsResult = await apiClient.getMyAppointments();
+        setAppointments(appointmentsResult);
+        
+        if (user.role === 'DOCTOR') {
+          const statsResult = await apiClient.getDoctorStats();
+          setStats(statsResult);
+          
+          // Refresh Tokens
+          const r = await apiClient.getDoctorTokensToday(user.id);
+          setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : 0 });
+
+          // Refresh Capacity Availability
+          const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+          const dates = Array.from(new Set(appointmentsResult.map((a) => fmtDateIST.format(getAppointmentISTDate(a)))));
+          if (dates.length > 0) {
+            const results = await Promise.all(
+              dates.map((date) => apiClient.getSlotsAndAvailability({ doctorId: user.id, date }).catch(() => null))
+            );
+            const next: any = {};
+            dates.forEach((date, idx) => {
+              const res = results[idx] as any;
+              if (res && res.availability) next[date] = res.availability;
+            });
+            setAvailabilityByDate(prev => ({ ...prev, ...next }));
+          }
+        }
+
+        if (user.role === 'PATIENT') {
+          // Patient token refresh logic is already handled by the 'token:updated' listener
+          // but we might want to refresh appointment list to show changes in status
+        }
+      } catch (err) {
+        console.warn('Real-time refresh failed:', err);
+      }
+    };
+
+    // Join appropriate rooms
+    if (user.role === 'DOCTOR') joinDoctorRoom(user.id);
+    if (user.role === 'HOSPITAL_ADMIN' && hospitalProfile?.id) {
+      // Hospital admins might need to join multiple doctor rooms
+      // For now, refresh on general appointment events
+    }
+
+    // Listen for appointment-related events
+    s.on('appointment-booked', refreshData);
+    s.on('appointment-updated', refreshData);
+    s.on('appointment-cancelled', refreshData);
+    s.on('slots:updated', refreshData);
+    
+    return () => {
+      s.off('appointment-booked', refreshData);
+      s.off('appointment-updated', refreshData);
+      s.off('appointment-cancelled', refreshData);
+      s.off('slots:updated', refreshData);
+    };
+  }, [user?.id, user?.role, hospitalProfile?.id]);
 
   // ============================================================================
   // 🔄 SIDE EFFECTS - Code that runs when component mounts or updates
@@ -1737,7 +1812,7 @@ useEffect(() => {
           <h1 className="text-3xl font-bold text-gray-800 mb-4">Please log in</h1>
           <p className="text-gray-600 mb-6">Access your doctor dashboard</p>
           <Link 
-            href="/auth" 
+            href="/login" 
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all duration-200"
           >
             Go to Login
@@ -2058,6 +2133,80 @@ useEffect(() => {
         {/* ============================================================================
             🧭 NAVIGATION TABS - Tab navigation with smooth transitions (scrollable on mobile)
             ============================================================================ */}
+        {user.role === 'PATIENT' && (() => {
+          const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+          const todayStr = fmtDateIST.format(getISTNow());
+          const activeAppts = appointments.filter(a => a.status === 'CONFIRMED' && fmtDateIST.format(getAppointmentISTDate(a)) === todayStr);
+          if (activeAppts.length === 0) return null;
+
+          return (
+            <div className="mb-8 space-y-4 animate-in fade-in slide-in-from-top-4 duration-700">
+              {activeAppts.map(a => {
+                const info = patientTokenByAppt[a.id];
+                const cur = info?.currentToken || 0;
+                const mine = info?.myToken || 0;
+                const total = info?.total || 0;
+                const docLabel = getDoctorLabel(a.doctor as any) || `Doctor #${a.doctorId}`;
+                const isMyTurn = cur > 0 && cur === mine;
+                const hasPassed = cur > mine;
+
+                return (
+                  <div key={a.id} className={`relative overflow-hidden rounded-[2rem] shadow-2xl border-2 transition-all duration-500 ${
+                    isMyTurn ? 'bg-gradient-to-r from-emerald-600 to-teal-600 border-emerald-400 scale-[1.02]' : 
+                    hasPassed ? 'bg-gray-100 border-gray-200 opacity-75' :
+                    'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400'
+                  }`}>
+                    <div className="px-8 py-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                      <div className="flex items-center gap-5">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${isMyTurn ? 'bg-white text-emerald-600' : 'bg-white/20 text-white'}`}>
+                          <Clock className="w-8 h-8" />
+                        </div>
+                        <div>
+                          <h4 className="text-white text-xl font-black">{isMyTurn ? 'It\'s Your Turn!' : hasPassed ? 'Appointment Completed' : 'Live Token Tracking'}</h4>
+                          <p className="text-white/80 font-bold text-sm uppercase tracking-widest">{docLabel}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-8">
+                        <div className="text-center">
+                          <p className="text-white/60 text-[10px] font-black uppercase tracking-tighter mb-1">Now Serving</p>
+                          <p className="text-white text-4xl font-black">{cur || '--'}</p>
+                        </div>
+                        <div className="w-px h-12 bg-white/20 hidden md:block"></div>
+                        <div className="text-center">
+                          <p className="text-white/60 text-[10px] font-black uppercase tracking-tighter mb-1">Your Token</p>
+                          <p className={`text-4xl font-black ${isMyTurn ? 'text-white' : 'text-yellow-300'}`}>{mine || '--'}</p>
+                        </div>
+                      </div>
+
+                      {!hasPassed && (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="bg-white/20 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/30">
+                            <span className="text-white font-black text-sm">
+                              {isMyTurn ? 'Please proceed to cabin' : cur < mine ? `${mine - cur} people ahead` : 'Doctor is ready'}
+                            </span>
+                          </div>
+                          {total > 0 && (
+                            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(cur/total)*100}%` }}
+                                className="h-full bg-white"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* Background decoration */}
+                    <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         <div className="bg-white rounded-2xl shadow-xl mb-8 overflow-hidden -mx-4 sm:mx-0">
           <nav className="flex space-x-1 sm:space-x-2 p-1 sm:p-2 overflow-x-auto scrollbar-hide">
           {[
@@ -2763,15 +2912,34 @@ useEffect(() => {
                     <div className="flex items-center gap-2 bg-white/20 px-3 py-2 rounded-lg">
                       <span className="text-sm text-white/90">Token</span>
                       <span className="text-sm font-bold text-white">{doctorTokenToday.currentToken} / {doctorTokenToday.total}</span>
+                      
+                      {/* START TOKEN BUTTON */}
+                      {doctorTokenToday.currentToken === 0 && (
+                        <button
+                          className="ml-2 px-4 py-1 text-xs font-black bg-white text-blue-600 rounded-md hover:bg-blue-50 shadow-md transition-all active:scale-95 animate-pulse"
+                          onClick={async () => {
+                            try {
+                              const r = await apiClient.startDoctorToken(user.id);
+                              setDoctorTokenToday({ 
+                                currentToken: Number(r.currentToken || 0), 
+                                total: Array.isArray(r.tokens) ? r.tokens.length : doctorTokenToday.total 
+                              });
+                            } catch {}
+                          }}
+                        >
+                          Start
+                        </button>
+                      )}
+
                       <button
-                        className="ml-2 px-3 py-1 text-xs font-semibold bg-white text-blue-600 rounded-md hover:bg-blue-50"
+                        className="ml-2 px-3 py-1 text-xs font-semibold bg-white text-blue-600 rounded-md hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={async () => {
                           try {
                             const r = await apiClient.advanceDoctorToken(user.id);
                             setDoctorTokenToday(prev => ({ ...prev, currentToken: Number(r.currentToken || prev.currentToken) }));
                           } catch {}
                         }}
-                        disabled={doctorTokenToday.total === 0 || doctorTokenToday.currentToken >= doctorTokenToday.total}
+                        disabled={doctorTokenToday.currentToken === 0 || doctorTokenToday.currentToken >= doctorTokenToday.total}
                         aria-label="Advance Token"
                       >
                         Next
@@ -3494,230 +3662,61 @@ useEffect(() => {
                   <div className="space-y-8">
                     {appointmentViewMode === 'grouped' ? (
                       <>
-                        {/* Doctor-only controls */}
-                        {/* Pending Bookings (time has passed, today) */}
-                        {(() => {
-                          const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
-                          const todayStr = fmtDateIST.format(getISTNow());
-                          const nowTs = getISTNow().getTime();
-                          const pendingToday = appointments.filter((a) => {
-                            const d = getAppointmentISTDate(a);
-                            const isToday = fmtDateIST.format(d) === todayStr;
-                            return isToday && d.getTime() < nowTs && a.status === 'PENDING';
-                          });
-                          if (pendingToday.length === 0) return null;
-                          return (
-                            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-                              <div className="px-6 py-4 border-b border-yellow-200 flex items-center justify-between">
-                                <h4 className="text-md font-semibold text-gray-900">Pending Bookings</h4>
-                                <div className="text-xs text-gray-600">Time passed, awaiting action</div>
-                              </div>
-                              <div className="p-4 space-y-2">
-                                {pendingToday.map((appointment) => (
-                                  <div key={appointment.id} className="border rounded px-3 py-2">
-                                    <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
-                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || 'Patient'} • Status: {appointment.status}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* History of Bookings (previous days) toggle */}
-                        <div className="flex justify-end mt-2">
-                          <button
-                            onClick={() => setShowDoctorHistory((v) => !v)}
-                            className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
-                          >
-                            {showDoctorHistory ? 'Hide History' : 'Show History'}
-                          </button>
-                        </div>
-                        {showDoctorHistory && (() => {
-                          const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
-                          const todayStr = fmtDateIST.format(getISTNow());
-                          const history = appointments.filter((a) => fmtDateIST.format(getAppointmentISTDate(a)) < todayStr);
-                          if (history.length === 0) return <div className="text-sm text-gray-600">No previous bookings.</div>;
-                          return (
-                            <div className="bg-white shadow-lg rounded-lg overflow-hidden mt-2">
-                              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                                <h4 className="text-md font-semibold text-gray-900">History of Bookings</h4>
-                                <div className="text-xs text-gray-600">Previous days</div>
-                              </div>
-                              <div className="p-4 space-y-2">
-                                {history.map((appointment) => (
-                                  <div key={appointment.id} className="border rounded px-3 py-2">
-                                    <div className="text-sm font-medium text-gray-900">{formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</div>
-                                    <div className="text-xs text-gray-600">Patient: {((appointment.patient as any)?.name) || 'Patient'} • Status: {appointment.status}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Capacity-only Slot Boxes (Appointments) */}
+                        {/* ============================================================================
+                            📊 MODERN SLOT BOXES (FRESH VIEW)
+                            Visual capacity & appointment management for doctors
+                            ============================================================================ */}
                         {(() => {
                           const period = Number(doctorProfile?.slotPeriodMinutes ?? 15);
-                          const count = Math.max(1, Math.floor(60 / Math.max(1, period)));
+                          const countPerHour = Math.max(1, Math.floor(60 / Math.max(1, period)));
                           const fmtDateIST2 = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
-                          const dateWithAppointments = new Set(appointments.map((a) => fmtDateIST2.format(getAppointmentISTDate(a))));
+                          
+                          const now = getISTNow();
+                          const nowTime = now.getTime();
+
+                          // Separate active and expired appointments
+                          const activeAppointments = appointments.filter(a => getAppointmentISTDate(a).getTime() >= nowTime);
+                          const expiredAppointments = appointments.filter(a => getAppointmentISTDate(a).getTime() < nowTime);
+
+                          // Identify dates that have activity (active only)
+                          const dateWithAppointments = new Set(activeAppointments.map((a) => fmtDateIST2.format(getAppointmentISTDate(a))));
                           const capacitySlots = slots.filter((slot) => dateWithAppointments.has(slot.date));
                           const list = capacitySlots.length > 0 ? capacitySlots : slots;
+
+                          const todayStr = fmtDateIST2.format(now);
+                          
+                          // Determine which dates to show (exclude past dates from active view)
+                          let displayDates: string[] = [];
                           if (list.length === 0) {
-                            const today = getISTNow();
-                            const todayStr = fmtDateIST2.format(today);
-                            let dates = Array.from(dateWithAppointments).filter((d) => d >= todayStr).sort((a, b) => a.localeCompare(b));
-                            // Fallback: show capacity boxes for the next 7 days when there are no appointments or slots
-                            if (dates.length === 0) {
-                              dates = Array.from({ length: 7 }, (_, i) => {
-                                const d = new Date(today);
-                                d.setDate(today.getDate() + i);
+                            displayDates = Array.from(dateWithAppointments).filter((d) => d >= todayStr).sort((a, b) => a.localeCompare(b));
+                            if (displayDates.length === 0) {
+                              displayDates = Array.from({ length: 3 }, (_, i) => {
+                                const d = new Date(now);
+                                d.setDate(now.getDate() + i);
                                 return fmtDateIST2.format(d);
                               });
                             }
-                            return (
-                              <div className="space-y-4 mt-2" onDragEnterCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOverCapture={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
-                                <div className="flex items-center justify-between mb-6">
-                                  <div>
-                                    <h4 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Slot Boxes (Capacity)</h4>
-                                    <p className="text-sm text-gray-600 mt-1">Visual capacity management for appointment slots</p>
-                                  </div>
-                                  <div className="flex items-center space-x-3">
-                                    <label className="text-sm text-gray-700">Filter:</label>
-                                    <select
-                                      value={doctorStatusFilter}
-                                      onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
-                                      className="border rounded-md px-2 py-1 text-sm"
-                                    >
-                                      <option value="ALL">All</option>
-                                      <option value="CONFIRMED">Confirmed</option>
-                                      <option value="PENDING">Pending</option>
-                                      <option value="EMERGENCY">Emergency</option>
-                                      <option value="CANCELLED">Cancelled</option>
-                                    </select>
-                                  </div>
-                                </div>
-                                {dates.map((dateKey) => {
-                                  let avail = availabilityByDate[dateKey];
-                                  if (!avail || !Array.isArray(avail.hours) || avail.hours.length === 0) {
-                                    // Local fallback to show capacity instantly without waiting for network
-                                    const periodMinutes = Number(doctorProfile?.slotPeriodMinutes ?? 15);
-                                    const localCapacity = Math.max(1, Math.floor(60 / Math.max(1, periodMinutes)));
-                                    avail = {
-                                      periodMinutes,
-                                      hours: Array.from({ length: 24 }, (_, h) => ({
-                                        hour: String(h).padStart(2, '0') + ':00',
-                                        capacity: localCapacity,
-                                        bookedCount: 0,
-                                        isFull: false,
-                                        labelFrom: `${String(h).padStart(2, '0')}:00`,
-                                        labelTo: `${String((h + 1) % 24).padStart(2, '0')}:00`,
-                                      })),
-                                    };
-                                  }
-                                  return (
-                                    <div key={dateKey} className="border border-gray-200 rounded">
-                                      <div className="px-3 py-2">
-                                        <div className="text-sm font-medium text-gray-900">{formatIST(new Date(`${dateKey}T00:00:00`), { dateStyle: 'medium' })}</div>
-                                        <div className="text-xs text-gray-600">Period: {avail.periodMinutes} min</div>
-                                      </div>
-                                      <div className="px-3 pb-3">
-                                        <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                          {avail.hours.map((h, idx) => {
-                                            const start = new Date(`${dateKey}T${h.hour}:00`);
-                                            const end = new Date(start.getTime() + 60 * 60 * 1000);
-                                            const filteredBooked = appointments.filter((a) => {
-                                              const t = getAppointmentISTDate(a).getTime();
-                                              return (
-                                                t >= start.getTime() &&
-                                                t < end.getTime() &&
-                                                (doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
-                                              );
-                                            }).length;
-                                            const hourAppointments = appointments.filter((a) => {
-                                              const t = getAppointmentISTDate(a).getTime();
-                                              return (
-                                                t >= start.getTime() &&
-                                                t < end.getTime() &&
-                                                (doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
-                                              );
-                                            });
-                                            const isFull = hourAppointments.length >= h.capacity;
-                                            return (
-                                              <li key={`${dateKey}-${idx}`} className={`rounded px-3 py-2 ${getSlotBoxColors(hourAppointments.length, start, h.capacity)}`} data-hour-start={start.toISOString()} data-doctor-id={String(user.id)} onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {}; try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 120ms ease, background-color 120ms ease, outline 120ms ease'; el.style.transform = 'scale(1.02)'; el.style.outline = '2px solid #60a5fa'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#f0f7ff'; } catch {} }} onDragLeave={(ev) => { try { const el = ev.currentTarget as HTMLElement; el.style.transform = ''; el.style.outline = ''; el.style.outlineOffset = ''; el.style.backgroundColor = ''; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDrop={(ev) => { ev.preventDefault(); ev.stopPropagation(); try { const el = ev.currentTarget as HTMLElement; el.style.transition = 'transform 140ms ease, background-color 140ms ease, outline 140ms ease'; el.style.transform = 'scale(1.05)'; el.style.outline = '2px solid #22c55e'; el.style.outlineOffset = '2px'; el.style.backgroundColor = '#ecfdf5'; setTimeout(() => { el.style.transform = ''; el.style.outline=''; el.style.outlineOffset=''; el.style.backgroundColor=''; }, 180); } catch {}; dropHandledRef.current = true; const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain'); if (!data) { console.warn('[DND] hour-availability-drop: missing data'); return; } try { const appt = JSON.parse(data); console.log('[DND] hour-availability drop', { targetStart: start, doctorId: user.id, apptId: appt.id }); rescheduleDoctorAppointment(appt, start, user.id as number); } catch (err) { console.warn('[DND] hour-availability parse error', err); } }}>
-                                                <div className="text-xs font-medium text-gray-800">
-                                                  {h.labelFrom} → {h.labelTo}
-                                                </div>
-                                                <div className="text-xs text-gray-600 mt-1">Capacity: {h.capacity}</div>
-                                                <div className="text-xs text-gray-600">Booked: {hourAppointments.length}</div>
-                                                <div className="text-xs text-gray-600">Free: {Math.max(0, h.capacity - hourAppointments.length)}</div>
-                                                {hourAppointments.length > 0 && (
-                                                  <ul className="mt-2 space-y-2">
-                                                    {hourAppointments.map((appointment) => (
-                                                      <li key={appointment.id} className="flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, appointment)}>
-                                                        <div className="min-w-0">
-                                                          <p className="text-xs font-medium text-gray-900 truncate">
-                                                            {((appointment.patient as any)?.name) || 'Patient'}
-                                                          </p>
-                                                          {appointment.reason && (
-                                                            <p className="text-[11px] text-gray-600 truncate">
-                                                              {appointment.reason}
-                                                            </p>
-                                                          )}
-                                                        </div>
-                                                        <div className="flex items-center space-x-2">
-                                                          <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${
-                                                            appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                                                            appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                                                            appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                            'bg-gray-100 text-gray-800'
-                                                          }`}>
-                                                            {appointment.status}
-                                                          </span>
-                                                          <button
-                                                            className="text-blue-600 hover:text-blue-900 text-[11px]"
-                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, appointment.status === 'CONFIRMED' ? 'PENDING' : 'CONFIRMED')}
-                                                          >
-                                                            Update
-                                                          </button>
-                                                          <button
-                                                            className="text-red-600 hover:text-red-900 text-[11px]"
-                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, 'CANCELLED')}
-                                                          >
-                                                            Cancel
-                                                          </button>
-                                                        </div>
-                                                      </li>
-                                                    ))}
-                                                  </ul>
-                                                )}
-                                              </li>
-                                            );
-                                          })}
-                                        </ul>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
+                          } else {
+                            displayDates = Array.from(new Set(list.map(s => s.date))).filter(d => d >= todayStr).sort((a, b) => a.localeCompare(b));
                           }
+
                           return (
-                            <div className="space-y-4 mt-2" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
-                              <div className="flex items-center justify-between mb-6">
+                            <div className="space-y-10 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 backdrop-blur-md p-6 rounded-3xl border border-blue-100 shadow-sm">
                                 <div>
-                                  <h4 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Slot Boxes (Capacity)</h4>
-                                  <p className="text-sm text-gray-600 mt-1">Visual capacity management for appointment slots</p>
+                                  <h4 className="text-2xl font-black bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                                    Appointment Slots
+                                  </h4>
+                                  <p className="text-sm text-gray-500 font-medium mt-1">Manage your upcoming capacity and patient flow</p>
                                 </div>
-                                <div className="flex items-center space-x-3">
-                                  <label className="text-sm text-gray-700">Filter:</label>
+                                <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-2">Filter</span>
                                   <select
                                     value={doctorStatusFilter}
                                     onChange={(e) => setDoctorStatusFilter(e.target.value as any)}
-                                    className="border rounded-md px-2 py-1 text-sm"
+                                    className="bg-white border-2 border-gray-200 rounded-xl px-4 py-2 text-sm font-bold text-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
                                   >
-                                    <option value="ALL">All</option>
+                                    <option value="ALL">All Status</option>
                                     <option value="CONFIRMED">Confirmed</option>
                                     <option value="PENDING">Pending</option>
                                     <option value="EMERGENCY">Emergency</option>
@@ -3725,137 +3724,244 @@ useEffect(() => {
                                   </select>
                                 </div>
                               </div>
-                              <p className="text-xs text-gray-600">Each hour shows {count} user slots ({period} min each)</p>
-                              <ul className="space-y-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }} >
-                                {list
-                                  .sort((a, b) =>
-                                    new Date(`${a.date}T${String(a.time).slice(0, 5)}:00`).getTime() -
-                                    new Date(`${b.date}T${String(b.time).slice(0, 5)}:00`).getTime()
-                                  )
-                                  .map((slot) => {
-                                    const slotStart = new Date(`${slot.date}T${String(slot.time).slice(0, 5)}:00`);
-                                    const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
-                                    const slotAppointments = appointments.filter((a) => {
-                                      const t = getAppointmentISTDate(a).getTime();
-                                      return (
-                                        t >= slotStart.getTime() &&
-                                        t <= slotEnd.getTime() &&
-                                        (doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
-                                      );
-                                    });
-                                    const segments = Array.from({ length: count }, (_, idx) => {
-                                      const segStart = new Date(slotStart.getTime() + idx * period * 60 * 1000);
-                                      const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
-                                      const inSeg = slotAppointments.filter((a) => {
-                                        const t = getAppointmentISTDate(a).getTime();
-                                        return t >= segStart.getTime() && t < segEnd.getTime();
-                                      });
-                                      return { idx, segStart, segEnd, inSeg };
-                                    });
-                                    return (
-                                      <li
-                                        key={`appt-cap-${slot.id}`}
-                                        className="border border-gray-200 rounded hover:bg-blue-50"
-                                        data-hour-start={slotStart.toISOString()}
-                                        data-doctor-id={String(slot.doctorId)}
-                                         onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
-                                          onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
-                                         onDrop={(ev) => {
-                                           ev.preventDefault();
-                                           ev.stopPropagation();
-                                           const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain');
-                                           if (!data) { console.warn('[DND] drop: missing data'); return; }
-                                           try {
-                                             const appt = JSON.parse(data);
-                                             console.log('[DND] slot-level drop', { targetStart: slotStart, doctorId: slot.doctorId, apptId: appt.id });
-                                             rescheduleDoctorAppointment(appt, slotStart, slot.doctorId);
-                                           } catch (err) { console.warn('[DND] drop parse error', err); }
-                                         }}
-                                      >
-                                        <div className="px-3 py-2">
-                                          <div className="text-sm font-medium text-gray-900">
-                                            {formatIST(slotStart, { dateStyle: 'medium' })} •{' '}
-                                            {formatISTTime(slotStart)} →{' '}
-                                        {formatISTTime(slotEnd)}
-                                          </div>
-                                          <div className="text-xs text-gray-500">Slot #{slot.id} • Status: {slot.status || 'UNKNOWN'}</div>
-                                        </div>
-                                        <div className="px-3 pb-3" onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
-                                                  onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}>
-                                          <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                            {segments.map(({ idx, segStart, segEnd, inSeg }) => (
-                                              <li
-                                                key={idx}
-                                                className="border border-gray-200 rounded px-3 py-2 hover:bg-blue-50"
-                                                data-seg-start={segStart.toISOString()}
-                                                data-doctor-id={String(slot.doctorId)}
-                                                 onDragEnter={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
-                                                 onDragOver={(ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'move'; } catch {} }}
-                                                 onDrop={(ev) => {
-                                                   ev.preventDefault();
-                                                   ev.stopPropagation();
-                                                   const data = ev.dataTransfer.getData('appointment-json') || ev.dataTransfer.getData('text/plain');
-                                                   if (!data) { console.warn('[DND] seg-drop: missing data'); return; }
-                                                   try {
-                                                     const appt = JSON.parse(data);
-                                                     console.log('[DND] seg-level drop', { targetStart: segStart, doctorId: slot.doctorId, apptId: appt.id });
-                                                     rescheduleDoctorAppointment(appt, segStart, slot.doctorId);
-                                                   } catch (err) { console.warn('[DND] seg-drop parse error', err); }
-                                                 }}
-                                              >
-                                                <div className="text-xs font-medium text-gray-800">
-                                                  {formatISTTime(segStart)} →{' '}
-                                                  {formatISTTime(segEnd)}
+
+                              {displayDates.map((dateKey) => {
+                                const dayDate = new Date(`${dateKey}T00:00:00`);
+                                const isToday = dateKey === todayStr;
+                                
+                                // Get hours for this day
+                                const dayIdx = getISTDayIndex(dayDate);
+                                const wh = (hospitalHoursInputs as any)?.[dayIdx];
+                                const startHour = wh?.start ? parseInt(wh.start.split(':')[0]) : 8;
+                                const endHour = wh?.end ? parseInt(wh.end.split(':')[0]) : 20;
+                                const hoursList = Array.from({ length: Math.max(1, endHour - startHour + 1) }, (_, i) => startHour + i);
+
+                                return (
+                                  <div key={dateKey} className="relative">
+                                    <div className="flex items-center gap-4 mb-6">
+                                      <div className={`px-6 py-2.5 rounded-2xl font-black text-sm shadow-sm border-2 ${
+                                        isToday 
+                                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600' 
+                                          : 'bg-white text-gray-900 border-gray-200'
+                                      }`}>
+                                        {formatIST(dayDate, { dateStyle: 'full' })}
+                                        {isToday && <span className="ml-2 opacity-80"> (Today)</span>}
+                                      </div>
+                                      <div className="flex-1 h-px bg-gradient-to-r from-gray-200 to-transparent"></div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-8">
+                                      {hoursList.map((h) => {
+                                        const hourStart = new Date(`${dateKey}T${String(h).padStart(2, '0')}:00:00`);
+                                        const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
+                                        
+                                        // Only show appointments that are NOT in the past
+                                        const hourAppointments = activeAppointments.filter((a) => {
+                                          const t = getAppointmentISTDate(a).getTime();
+                                          return t >= hourStart.getTime() && t < hourEnd.getTime() && 
+                                                 (doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter);
+                                        });
+
+                                        const segments = Array.from({ length: countPerHour }, (_, idx) => {
+                                          const segStart = new Date(hourStart.getTime() + idx * period * 60 * 1000);
+                                          const segEnd = new Date(segStart.getTime() + period * 60 * 1000);
+                                          const inSeg = hourAppointments.filter((a) => {
+                                            const t = getAppointmentISTDate(a).getTime();
+                                            return t >= segStart.getTime() && t < segEnd.getTime();
+                                          });
+                                          return { idx, segStart, segEnd, inSeg };
+                                        });
+
+                                        if (hourAppointments.length === 0 && (h < 9 || h > 18)) return null;
+
+                                        return (
+                                          <div 
+                                            key={`${dateKey}-${h}`} 
+                                            className="bg-white rounded-[2rem] border-2 border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden group"
+                                            data-hour-start={hourStart.toISOString()}
+                                            data-doctor-id={String(user.id)}
+                                          >
+                                            <div className="px-8 py-5 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 flex items-center justify-between group-hover:from-blue-50/50 group-hover:to-white transition-colors duration-500">
+                                              <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-500">
+                                                  <Clock className="w-6 h-6 text-white" />
                                                 </div>
-                                                <div className="text-xs text-gray-600 mt-1">Users: {inSeg.length}</div>
-                                                {inSeg.length > 0 && (
-                                                  <ul className="mt-2 space-y-2">
-                                                    {inSeg.map((appointment) => (
-                                                      <li key={appointment.id} className="flex items-center justify-between cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, appointment)}>
-                                                        <div className="min-w-0">
-                                                          <p className="text-xs font-medium text-gray-900 truncate">
-                                                            {((appointment.patient as any)?.name) || 'Patient'}
-                                                          </p>
-                                                          {appointment.reason && (
-                                                            <p className="text-[11px] text-gray-600 truncate">
-                                                              {appointment.reason}
-                                                            </p>
-                                                          )}
+                                                <div>
+                                                  <div className="text-lg font-black text-gray-900">
+                                                    {formatISTTime(hourStart)} – {formatISTTime(hourEnd)}
+                                                  </div>
+                                                  <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                                    {hourAppointments.length} Bookings • {Math.max(0, countPerHour - hourAppointments.length)} Free
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                <div className={`px-4 py-2 rounded-xl text-xs font-black shadow-sm border-2 ${
+                                                  hourAppointments.length >= countPerHour 
+                                                    ? 'bg-red-50 text-red-700 border-red-100' 
+                                                    : hourAppointments.length > 0 
+                                                      ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                                      : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                }`}>
+                                                  {hourAppointments.length >= countPerHour ? 'FULL' : hourAppointments.length > 0 ? 'PARTIAL' : 'AVAILABLE'}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                              {segments.map(({ idx, segStart, segEnd, inSeg }) => {
+                                                const isFull = inSeg.length >= 1;
+                                                return (
+                                                  <div 
+                                                    key={idx} 
+                                                    className={`relative rounded-3xl border-2 transition-all duration-300 overflow-hidden ${
+                                                      isFull 
+                                                        ? 'bg-gradient-to-br from-indigo-50 to-white border-indigo-200 shadow-md' 
+                                                        : 'bg-white border-gray-100 hover:border-blue-300 hover:shadow-lg'
+                                                    }`}
+                                                    data-seg-start={segStart.toISOString()}
+                                                    onDragEnter={(ev) => { ev.preventDefault(); }}
+                                                    onDragOver={(ev) => { ev.preventDefault(); }}
+                                                    onDrop={(ev) => {
+                                                      ev.preventDefault();
+                                                      ev.stopPropagation();
+                                                      const data = ev.dataTransfer.getData('appointment-json');
+                                                      if (!data) return;
+                                                      try {
+                                                        const appt = JSON.parse(data);
+                                                        rescheduleDoctorAppointment(appt, segStart, user.id);
+                                                      } catch {}
+                                                    }}
+                                                  >
+                                                    <div className={`px-4 py-3 border-b flex items-center justify-between ${
+                                                      isFull ? 'bg-indigo-100/50 border-indigo-200' : 'bg-gray-50 border-gray-100'
+                                                    }`}>
+                                                      <span className="text-xs font-black text-gray-900">{formatISTTime(segStart)}</span>
+                                                      <div className={`w-2 h-2 rounded-full ${isFull ? 'bg-indigo-500 animate-pulse' : 'bg-emerald-400'}`}></div>
+                                                    </div>
+
+                                                    <div className="p-4 min-h-[100px] flex flex-col justify-center">
+                                                      {inSeg.length === 0 ? (
+                                                        <div className="text-center">
+                                                          <div className="text-xl mb-1 opacity-20">🕒</div>
+                                                          <div className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Available</div>
                                                         </div>
-                                                        <div className="flex items-center space-x-2">
-                                                          <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${
-                                                            appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                                                            appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                                                            appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                            'bg-gray-100 text-gray-800'
-                                                          }`}>
-                                                            {appointment.status}
-                                                          </span>
-                                                          <button
-                                                            className="text-blue-600 hover:text-blue-900 text-[11px]"
-                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, appointment.status === 'CONFIRMED' ? 'PENDING' : 'CONFIRMED')}
-                                                          >
-                                                            Update
-                                                          </button>
-                                                          <button
-                                                            className="text-red-600 hover:text-red-900 text-[11px]"
-                                                            onClick={() => updateDoctorAppointmentStatus(appointment.doctorId, appointment.id, 'CANCELLED')}
-                                                          >
-                                                            Cancel
-                                                          </button>
+                                                      ) : (
+                                                        <div className="space-y-3">
+                                                          {inSeg.map((a) => (
+                                                            <div 
+                                                              key={a.id} 
+                                                              className="bg-white rounded-2xl p-3 shadow-sm border border-indigo-100 hover:shadow-md transition-all cursor-move group/item"
+                                                              draggable
+                                                              onDragStart={(ev) => onDragStartAppointment(ev, a)}
+                                                            >
+                                                              <div className="flex items-center gap-2 mb-2">
+                                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px]">👤</div>
+                                                                <div className="text-xs font-black text-gray-900 truncate flex-1">
+                                                                  {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || 'Patient'}
+                                                                </div>
+                                                              </div>
+                                                              
+                                                              <div className="flex items-center justify-between gap-1 mt-2">
+                                                                <button 
+                                                                  onClick={() => updateDoctorAppointmentStatus(user.id, a.id, 'CONFIRMED')}
+                                                                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black py-1.5 rounded-lg transition-colors shadow-sm"
+                                                                  title="Confirm"
+                                                                >
+                                                                  ✓
+                                                                </button>
+                                                                <button 
+                                                                  onClick={() => updateDoctorAppointmentStatus(user.id, a.id, 'COMPLETED')}
+                                                                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black py-1.5 rounded-lg transition-colors shadow-sm"
+                                                                  title="Complete"
+                                                                >
+                                                                  ✓✓
+                                                                </button>
+                                                                <button 
+                                                                  onClick={() => updateDoctorAppointmentStatus(user.id, a.id, 'CANCELLED')}
+                                                                  className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black py-1.5 rounded-lg transition-colors shadow-sm"
+                                                                  title="Cancel"
+                                                                >
+                                                                  ✕
+                                                                </button>
+                                                              </div>
+                                                            </div>
+                                                          ))}
                                                         </div>
-                                                      </li>
-                                                    ))}
-                                                  </ul>
-                                                )}
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      </li>
-                                    );
-                                  })}
-                              </ul>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* ============================================================================
+                                  🕒 EXPIRED APPOINTMENTS - Collapsible history view
+                                  ============================================================================ */}
+                              {expiredAppointments.length > 0 && (
+                                <div className="mt-12 bg-gray-50/50 backdrop-blur-sm rounded-[2.5rem] border border-gray-200 shadow-sm overflow-hidden transition-all duration-500">
+                                  <button 
+                                    onClick={() => setShowExpiredSlots(!showExpiredSlots)}
+                                    className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-100/50 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-4">
+                                      <div className="w-10 h-10 rounded-2xl bg-gray-200 flex items-center justify-center">
+                                        <Clock className="w-5 h-5 text-gray-500" />
+                                      </div>
+                                      <div className="text-left">
+                                        <h4 className="text-xl font-black text-gray-800">Expired Slots</h4>
+                                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                          {expiredAppointments.length} Previous Appointment{expiredAppointments.length > 1 ? 's' : ''}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {showExpiredSlots ? (
+                                      <ChevronUp className="w-6 h-6 text-gray-400" />
+                                    ) : (
+                                      <ChevronDown className="w-6 h-6 text-gray-400" />
+                                    )}
+                                  </button>
+
+                                  <div className={`transition-all duration-500 ease-in-out ${showExpiredSlots ? 'max-h-[1000px] opacity-100 p-8' : 'max-h-0 opacity-0'}`}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                      {expiredAppointments
+                                        .sort((a, b) => getAppointmentISTDate(b).getTime() - getAppointmentISTDate(a).getTime())
+                                        .map((a) => (
+                                          <div key={a.id} className="bg-white border-2 border-gray-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all">
+                                            <div className="flex items-center justify-between mb-4">
+                                              <div className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-[10px] font-black">
+                                                {formatIST(getAppointmentISTDate(a), { dateStyle: 'medium' })}
+                                              </div>
+                                              <div className={`px-3 py-1 rounded-full text-[10px] font-black ${
+                                                a.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600' :
+                                                a.status === 'CANCELLED' ? 'bg-red-50 text-red-600' :
+                                                'bg-amber-50 text-amber-600'
+                                              }`}>
+                                                {a.status}
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 mb-3">
+                                              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-xs">👤</div>
+                                              <div className="text-sm font-black text-gray-800 truncate">
+                                                {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || 'Patient'}
+                                              </div>
+                                            </div>
+                                            <div className="text-xs font-bold text-gray-400">
+                                              Time: {formatISTTime(getAppointmentISTDate(a))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}

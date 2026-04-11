@@ -3947,19 +3947,60 @@ app.get('/api/doctors/:doctorId/tokens/today', async (req: Request, res: Respons
     );
     const existing = getQueue(doctorId, todayStr);
     let currentToken = existing?.currentToken ?? 0;
-    if (currentToken === 0 && tokens.length > 0) {
-      currentToken = 1;
-      setCurrentToken(doctorId, todayStr, currentToken);
-      try {
-        broadcastDoctorEvent(doctorId, 'token:updated', { doctorId, date: todayStr, currentToken });
-      } catch {}
-    }
     const state = { currentToken, tokens };
     setQueue(doctorId, todayStr, state);
     return res.status(200).json(state);
   } catch (error) {
     console.error('tokens today error', error);
     return res.status(500).json({ message: 'Failed to compute tokens' });
+  }
+});
+
+app.post('/api/doctors/:doctorId/tokens/start', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const doctorId = Number(req.params.doctorId);
+    if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+    const user = req.user!;
+    const allowed = ['ADMIN', 'HOSPITAL_ADMIN', 'SLOT_ADMIN', 'DOCTOR'];
+    if (!allowed.includes(user.role)) return res.status(403).json({ message: 'Forbidden' });
+    if (user.role === 'DOCTOR' && user.userId !== doctorId) return res.status(403).json({ message: 'Forbidden: doctor mismatch' });
+    
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const existing = getQueue(doctorId, todayStr);
+    
+    if (existing && existing.currentToken > 0) {
+      return res.status(400).json({ message: 'Queue already started for today' });
+    }
+
+    const { start: dayStart, end: dayEnd } = dayWindowUtc(todayStr);
+    const appts = await prisma.appointment.findMany({
+      where: { doctorId, status: { not: 'CANCELLED' }, date: { gte: dayStart, lte: dayEnd } },
+      select: { id: true, patientId: true, time: true },
+      orderBy: [{ time: 'asc' }, { id: 'asc' }]
+    });
+    const tokens = appts.map((a: any, idx: number) => ({
+      token: idx + 1,
+      appointmentId: a.id,
+      patientId: a.patientId,
+      time: a.time
+    }));
+
+    const newToken = 1; // Always start at 1 if not already started
+    setQueue(doctorId, todayStr, { currentToken: newToken, tokens });
+    setCurrentToken(doctorId, todayStr, newToken);
+
+    try {
+      broadcastDoctorEvent(doctorId, 'token:updated', { doctorId, date: todayStr, currentToken: newToken });
+      const patientIds = Array.from(new Set(tokens.map((t: any) => t.patientId))).filter(Number.isFinite) as number[];
+      for (const pid of patientIds) {
+        broadcastPatientEvent(pid, 'token:updated', { doctorId, date: todayStr, currentToken: newToken });
+      }
+    } catch {}
+
+    return res.status(200).json({ currentToken: newToken, tokens });
+  } catch (error) {
+    console.error('tokens start error', error);
+    return res.status(500).json({ message: 'Failed to start token queue' });
   }
 });
 

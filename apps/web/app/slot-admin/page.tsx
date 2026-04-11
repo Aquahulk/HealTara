@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { io } from "socket.io-client";
+import { getSocket, joinDoctorRoom, joinHospitalRoom, onAppointmentUpdates, onSlotUpdates } from "@/lib/realtime";
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 
 const API_URL = ""; // use relative URLs with Next.js dev rewrites
@@ -331,15 +331,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
     }
   };
 
-  // Live updates via WebSocket: prefer sockets when connected
+  // Live updates via WebSocket
   useEffect(() => {
     if (!token) return;
-    const socket = io(process.env.NEXT_PUBLIC_API_URL || undefined, { transports: ['websocket'] });
-
-    const joinRooms = () => {
-      if (hospitalId) socket.emit('join-hospital', hospitalId);
-      if (doctorId) socket.emit('join-doctor', doctorId);
-    };
+    
+    if (hospitalId) joinHospitalRoom(hospitalId);
+    if (doctorId) joinDoctorRoom(doctorId);
 
     const refresh = async () => {
       try {
@@ -349,69 +346,30 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
       } catch {}
     };
 
-    socket.on('connect', () => { setSocketReady(true); joinRooms(); });
-    socket.on('disconnect', () => setSocketReady(false));
-    socket.on('appointment-updated', refresh);
-    socket.on('appointment-updated-optimistic', refresh);
-    socket.on('appointment-cancelled', refresh);
-    socket.on('appointment-booked', refresh);
-    socket.on('slots:period-updated', async (payload: any) => {
+    const unbindAppt = onAppointmentUpdates(() => {
+      refresh();
+    });
+
+    const unbindSlot = onSlotUpdates(async (payload: any) => {
       try {
         if (!token) return;
         const did = Number(doctorId);
         if (payload && Number(payload.doctorId) === did) {
           await loadSlotPeriod(token, did);
         }
+        await refresh();
       } catch {}
     });
 
-    joinRooms();
+    refresh();
 
     return () => {
-      socket.off('appointment-updated', refresh);
-      socket.off('appointment-updated-optimistic', refresh);
-      socket.off('appointment-cancelled', refresh);
-      socket.off('appointment-booked', refresh);
-      socket.off('slots:period-updated', refresh as any);
-      socket.disconnect();
+      unbindAppt();
+      unbindSlot();
     };
   }, [token, doctorId, hospitalId]);
 
-  // Live updates via SSE: subscribe to doctor appointment events when sockets are not ready
-  useEffect(() => {
-    if (socketReady) return;
-    const did = doctorId ?? undefined;
-    if (!did) return;
-    const es = new EventSource(`/api/doctors/${did}/appointments/events`);
-
-    const refresh = async () => { try { if (token) { await Promise.all([loadAppointments(token), loadSlots(token)]); } } catch {} };
-
-    es.addEventListener('appointment-updated', () => refresh());
-    es.addEventListener('appointment-updated-optimistic', () => refresh());
-    es.addEventListener('appointment-cancelled', () => refresh());
-    es.addEventListener('appointment-booked', () => refresh());
-    es.onerror = () => {};
-
-    return () => { es.close(); };
-  }, [socketReady, doctorId, token]);
-
-  // Live updates via SSE: subscribe to hospital appointment events when sockets are not ready
-  useEffect(() => {
-    if (socketReady) return;
-    const hid = hospitalId ?? undefined;
-    if (!hid) return;
-    const es = new EventSource(`/api/hospitals/${hid}/appointments/events`);
-
-    const refresh = async () => { try { if (token) { await Promise.all([loadAppointments(token), loadSlots(token)]); } } catch {} };
-
-    es.addEventListener('appointment-updated', () => refresh());
-    es.addEventListener('appointment-updated-optimistic', () => refresh());
-    es.addEventListener('appointment-cancelled', () => refresh());
-    es.addEventListener('appointment-booked', () => refresh());
-    es.onerror = () => {};
-
-    return () => { es.close(); };
-  }, [socketReady, hospitalId, token]);
+  // SSE fallbacks are removed as sockets are preferred and centralized
 
   // Auto-update expired appointments to PENDING status
   useEffect(() => {

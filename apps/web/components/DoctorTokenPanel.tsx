@@ -51,6 +51,8 @@ export default function DoctorTokenPanel({ doctorId }: { doctorId: number }) {
     const refresh = async () => { try { await load(); } catch {} };
     s.on('token:updated', handler);
     s.on('appointment-booked', refresh);
+    s.on('appointment-updated', refresh);
+    s.on('appointment-cancelled', refresh);
     intervalId = setInterval(() => {
       refresh();
     }, 30000);
@@ -58,11 +60,28 @@ export default function DoctorTokenPanel({ doctorId }: { doctorId: number }) {
       mounted = false;
       s.off('token:updated', handler);
       s.off('appointment-booked', refresh);
+      s.off('appointment-updated', refresh);
+      s.off('appointment-cancelled', refresh);
       if (intervalId) {
         try { clearInterval(intervalId); } catch {}
       }
     };
   }, [doctorId]);
+
+  const start = async () => {
+    try {
+      setLoading(true);
+      const resp = await apiClient.startDoctorToken(doctorId);
+      setCurrentToken(Number(resp.currentToken || 0));
+      if (Array.isArray(resp.tokens)) {
+        setTotalTokens(resp.tokens.length);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to start token queue');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const next = async () => {
     try {
@@ -83,14 +102,25 @@ export default function DoctorTokenPanel({ doctorId }: { doctorId: number }) {
           <div className="text-sm text-gray-500">Today's Queue</div>
           <div className="text-2xl font-bold text-gray-900">Token {currentToken} / {totalTokens}</div>
         </div>
-        <button
-          className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300"
-          onClick={next}
-          disabled={loading || currentToken >= totalTokens}
-          aria-label="Next Token"
-        >
-          Next
-        </button>
+        <div className="flex gap-2">
+          {currentToken === 0 && totalTokens > 0 && (
+            <button
+              className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md transition-all active:scale-95"
+              onClick={start}
+              disabled={loading}
+            >
+              Start
+            </button>
+          )}
+          <button
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300"
+            onClick={next}
+            disabled={loading || currentToken === 0 || currentToken >= totalTokens}
+            aria-label="Next Token"
+          >
+            Next
+          </button>
+        </div>
       </div>
       {error && <div className="mt-2 text-sm text-red-600">{error}</div>}
       {loading && <div className="mt-2 text-sm text-gray-500">Loading…</div>}

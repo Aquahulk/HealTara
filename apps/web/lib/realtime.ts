@@ -55,6 +55,30 @@ export function onTokenUpdated(handler: (payload: any) => void) {
   };
 }
 
+export function onAppointmentUpdates(handler: (payload: any) => void) {
+  const s = getSocket();
+  s.on('appointment-booked', handler);
+  s.on('appointment-updated', handler);
+  s.on('appointment-cancelled', handler);
+  s.on('appointment-updated-optimistic', handler);
+  return () => {
+    s.off('appointment-booked', handler);
+    s.off('appointment-updated', handler);
+    s.off('appointment-cancelled', handler);
+    s.off('appointment-updated-optimistic', handler);
+  };
+}
+
+export function onSlotUpdates(handler: (payload: any) => void) {
+  const s = getSocket();
+  s.on('slots:updated', handler);
+  s.on('slots:period-updated', handler);
+  return () => {
+    s.off('slots:updated', handler);
+    s.off('slots:period-updated', handler);
+  };
+}
+
 export function disconnectSocket() {
   if (socket) {
     socket.disconnect();
