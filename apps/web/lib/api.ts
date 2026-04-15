@@ -18,7 +18,7 @@ const useLocalAPI = isDevelopment && isLocalhost;
 
 // PRODUCTION: Always use the Render URL if not explicitly overridden by NEXT_PUBLIC_API_URL
 // DEVELOPMENT: Use localhost:3001 as fallback
-const API_BASE_URL = useLocalAPI 
+export const API_BASE_URL = useLocalAPI 
   ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
   : (process.env.NEXT_PUBLIC_API_URL || 'https://api.healtara.com');
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { apiClient, Appointment, DoctorWorkingHours } from '@/lib/api';
+import { apiClient, Appointment, DoctorWorkingHours, API_BASE_URL } from '@/lib/api';
 import { io } from 'socket.io-client';
 
 interface Props {
@@ -97,7 +97,7 @@ export default function HospitalDoctorSection({ hospitalId, doctor }: Props) {
   // WebSocket: hospital Socket.IO subscription; prefer sockets, fallback to SSE when disconnected
   useEffect(() => {
     if (!hospitalId) return;
-    const s = io(process.env.NEXT_PUBLIC_API_URL || undefined, { transports: ['websocket'] });
+    const s = io(API_BASE_URL, { transports: ['websocket'] });
     const onUpdate = (updated: any) => {
       try {
         const id = Number(updated?.id);

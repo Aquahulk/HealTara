@@ -1700,6 +1700,9 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
       },
     });
 
+    // Clear availability cache for this doctor and date so next fetch is fresh
+    availabilityCache.delete(`${doctorId}:${date}`);
+
     // Broadcast booking event to relevant rooms for realtime updates
     try {
       // hospital rooms (all hospitals the doctor belongs to)
@@ -1709,9 +1712,11 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
       });
       for (const m of memberships) {
         broadcastHospitalEvent(m.hospitalId, 'appointment-booked', { doctorId: Number(doctorId), appointmentId: newAppointment.id });
+        broadcastHospitalEvent(m.hospitalId, 'slots:updated', { doctorId: Number(doctorId), date });
       }
       // doctor room
       broadcastDoctorEvent(Number(doctorId), 'appointment-booked', { doctorId: Number(doctorId), appointmentId: newAppointment.id });
+      broadcastDoctorEvent(Number(doctorId), 'slots:updated', { doctorId: Number(doctorId), date });
       // patient room
       broadcastPatientEvent(Number(patientId), 'appointment-booked', { doctorId: Number(doctorId), appointmentId: newAppointment.id });
     } catch (_) {}
@@ -3694,8 +3699,20 @@ app.patch('/api/slot-admin/appointments/:appointmentId/status', authMiddleware, 
       }
     });
 
+    // Clear availability cache for this doctor and date so next fetch is fresh
+    if (updatedAppointment.date) {
+      const dStr = updatedAppointment.date.toISOString().split('T')[0];
+      availabilityCache.delete(`${updatedAppointment.doctorId}:${dStr}`);
+    }
+
     // Broadcast real-time update
     broadcastDoctorEvent(doctorId, 'appointment-updated', { appointment: updatedAppointment });
+    if (updatedAppointment.date) {
+      const dStr = updatedAppointment.date.toISOString().split('T')[0];
+      broadcastDoctorEvent(doctorId, 'slots:updated', { doctorId, date: dStr });
+      const memberships = await prisma.hospitalDoctor.findMany({ where: { doctorId }, select: { hospitalId: true } });
+      for (const m of memberships) broadcastHospitalEvent(m.hospitalId, 'slots:updated', { doctorId, date: dStr });
+    }
     if (appointment.patientId) {
       broadcastPatientEvent(appointment.patientId, 'appointment-updated', { appointment: updatedAppointment });
     }
@@ -3754,8 +3771,20 @@ app.patch('/api/slot-admin/appointments/:appointmentId/cancel', authMiddleware, 
       }
     });
 
+    // Clear availability cache for this doctor and date so next fetch is fresh
+    if (updatedAppointment.date) {
+      const dStr = updatedAppointment.date.toISOString().split('T')[0];
+      availabilityCache.delete(`${updatedAppointment.doctorId}:${dStr}`);
+    }
+
     // Broadcast real-time update
     broadcastDoctorEvent(doctorId, 'appointment-cancelled', { appointment: updatedAppointment });
+    if (updatedAppointment.date) {
+      const dStr = updatedAppointment.date.toISOString().split('T')[0];
+      broadcastDoctorEvent(doctorId, 'slots:updated', { doctorId, date: dStr });
+      const memberships = await prisma.hospitalDoctor.findMany({ where: { doctorId }, select: { hospitalId: true } });
+      for (const m of memberships) broadcastHospitalEvent(m.hospitalId, 'slots:updated', { doctorId, date: dStr });
+    }
     if (appointment.patientId) {
       broadcastPatientEvent(appointment.patientId, 'appointment-cancelled', { appointment: updatedAppointment });
     }
@@ -3817,8 +3846,20 @@ app.patch('/api/slot-admin/appointments/:appointmentId', authMiddleware, slotAdm
       }
     });
 
+    // Clear availability cache for this doctor and date so next fetch is fresh
+    if (updatedAppointment.date) {
+      const dStr = updatedAppointment.date.toISOString().split('T')[0];
+      availabilityCache.delete(`${updatedAppointment.doctorId}:${dStr}`);
+    }
+
     // Broadcast real-time update
     broadcastDoctorEvent(doctorId, 'appointment-updated', { appointment: updatedAppointment });
+    if (updatedAppointment.date) {
+      const dStr = updatedAppointment.date.toISOString().split('T')[0];
+      broadcastDoctorEvent(doctorId, 'slots:updated', { doctorId, date: dStr });
+      const memberships = await prisma.hospitalDoctor.findMany({ where: { doctorId }, select: { hospitalId: true } });
+      for (const m of memberships) broadcastHospitalEvent(m.hospitalId, 'slots:updated', { doctorId, date: dStr });
+    }
     if (appointment.patientId) {
       broadcastPatientEvent(appointment.patientId, 'appointment-updated', { appointment: updatedAppointment });
     }

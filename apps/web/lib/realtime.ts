@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { API_BASE_URL } from './api';
 
 let socket: Socket | null = null;
 let connecting = false;
@@ -7,7 +8,10 @@ export function getSocket(): Socket {
   if (socket && socket.connected) return socket;
   if (connecting && socket) return socket;
   connecting = true;
-  const url = typeof window !== 'undefined' ? window.location.origin : '';
+  
+  // Connect directly to the API server for WebSockets
+  const url = API_BASE_URL;
+  
   socket = io(url, {
     transports: ['websocket'],
     autoConnect: true,
@@ -15,6 +19,7 @@ export function getSocket(): Socket {
     reconnectionAttempts: Infinity,
     reconnectionDelay: 500,
     reconnectionDelayMax: 5000,
+    withCredentials: true
   });
   socket.on('connect_error', () => {
     // silently ignore; UI will retry

@@ -14,7 +14,7 @@
 'use client';                                              // Enable React hooks and client-side features
 import { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';         // React hooks for state management, side effects, refs, memoization, and deferred updates
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
-import { apiClient, Appointment, Slot } from '@/lib/api';  // API client for making HTTP requests
+import { apiClient, Appointment, Slot, API_BASE_URL } from '@/lib/api';  // API client for making HTTP requests
 import Link from 'next/link';                              // Next.js Link component for navigation
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -1280,7 +1280,7 @@ const [socketReady, setSocketReady] = useState(false);
 useEffect(() => {
   if (!user) return;
 
-  const socket = io(process.env.NEXT_PUBLIC_API_URL || undefined, { transports: ['websocket'] });
+  const socket = io(API_BASE_URL, { transports: ['websocket'] });
 
   const onUpdate = (updated: any) => {
     try {
@@ -1340,9 +1340,21 @@ useEffect(() => {
   // On patient booking, refresh that doctor's appointments and slots
     const onBooked = async (msg: any) => {
       try {
-        const payload = msg?.payload || {};
+        const payload = msg?.payload || msg || {};
         const did = Number(payload?.doctorId);
         if (!did) return;
+
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
+
+        // Helper to refresh slots for a specific doctor
+        const refreshSlots = async (doctorIdToRefresh: number) => {
+          try {
+            const avail = await apiClient.getSlotsAndAvailability({ doctorId: doctorIdToRefresh, date: todayStr }).catch(() => null);
+            if (avail && (avail as any).slots) {
+              setHospitalDoctorSlotsMap((prev) => ({ ...prev, [doctorIdToRefresh]: (avail as any).slots }));
+            }
+          } catch {}
+        };
 
         if (user?.role === 'DOCTOR' && did === user.id) {
           try {
@@ -1352,11 +1364,7 @@ useEffect(() => {
               ...prev,
               [did]: Array.isArray(mine) ? (mine as any[]).filter(a => Number(a?.doctorId) === did) : (prev[did] || []),
             }));
-            const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
-            const avail = await apiClient.getSlotsAndAvailability({ doctorId: did, date: todayStr }).catch(() => null);
-            if (avail && (avail as any).slots) {
-              setHospitalDoctorSlotsMap((prev) => ({ ...prev, [did]: (avail as any).slots }));
-            }
+            await refreshSlots(did);
           } catch {}
         }
 
@@ -1367,6 +1375,7 @@ useEffect(() => {
               ...prev,
               [did]: Array.isArray(items) ? items : [],
             }));
+            await refreshSlots(did);
           } catch {}
         };
 
@@ -1380,7 +1389,27 @@ useEffect(() => {
       }
     } catch {}
   };
+
+  const onSlotsUpdated = async (msg: any) => {
+    try {
+      const payload = msg?.payload || msg || {};
+      const did = Number(payload?.doctorId);
+      if (!did) return;
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
+      const avail = await apiClient.getSlotsAndAvailability({ doctorId: did, date: todayStr }).catch(() => null);
+      if (avail && (avail as any).slots) {
+        setHospitalDoctorSlotsMap((prev) => ({ ...prev, [did]: (avail as any).slots }));
+      }
+    } catch {}
+  };
+
+  socket.on('connect', () => { setSocketReady(true); joinRooms(); });
+  socket.on('disconnect', () => setSocketReady(false));
+  socket.on('appointment-updated', onUpdate);
+  socket.on('appointment-updated-optimistic', onUpdate);
+  socket.on('appointment-cancelled', onCancel);
   socket.on('appointment-booked', onBooked);
+  socket.on('slots:updated', onSlotsUpdated);
 
   joinRooms();
 
@@ -1389,6 +1418,7 @@ useEffect(() => {
     socket.off('appointment-updated-optimistic', onUpdate);
     socket.off('appointment-cancelled', onCancel);
     socket.off('appointment-booked', onBooked);
+    socket.off('slots:updated', onSlotsUpdated);
     socket.disconnect();
   };
 }, [user?.id, user?.role, hospitalProfile?.id]);
@@ -1448,16 +1478,25 @@ useEffect(() => {
     const onBooked = async (ev: MessageEvent) => {
       try {
         const msg: any = JSON.parse(ev.data);
-        const payload = msg?.payload || {};
+        const payload = msg?.payload || msg || {};
         const did = Number(payload?.doctorId);
         if (!did) return;
+
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
+
         const refreshForHospital = async (hid2: number) => {
           try {
-            const items = await apiClient.getHospitalDoctorAppointments(hid2, did);
+            const [items, avail] = await Promise.all([
+              apiClient.getHospitalDoctorAppointments(hid2, did),
+              apiClient.getSlotsAndAvailability({ doctorId: did, date: todayStr }).catch(() => null)
+            ]);
             setDoctorAppointmentsMap((prev) => ({
               ...prev,
               [did]: Array.isArray(items) ? items : [],
             }));
+            if (avail && (avail as any).slots) {
+              setHospitalDoctorSlotsMap((prev) => ({ ...prev, [did]: (avail as any).slots }));
+            }
           } catch {}
         };
         await refreshForHospital(hid);
