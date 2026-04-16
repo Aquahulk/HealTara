@@ -520,14 +520,32 @@ const [socketReady, setSocketReady] = useState(false);
     if (!user) return;
     const s = getSocket();
     
-    const refreshData = async () => {
+    const refreshData = async (msg?: any) => {
       try {
         const appointmentsResult = await apiClient.getMyAppointments();
         setAppointments(appointmentsResult);
         
+        const payload = msg?.payload || msg || {};
+        const did = Number(payload?.doctorId);
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
+
+        // Helper to refresh slots for a specific doctor
+        const refreshSlots = async (doctorIdToRefresh: number) => {
+          try {
+            const avail = await apiClient.getSlotsAndAvailability({ doctorId: doctorIdToRefresh, date: todayStr }).catch(() => null);
+            if (avail && (avail as any).slots) {
+              setHospitalDoctorSlotsMap((prev) => ({ ...prev, [doctorIdToRefresh]: (avail as any).slots }));
+            }
+          } catch {}
+        };
+
         if (user.role === 'DOCTOR') {
-          const statsResult = await apiClient.getDoctorStats();
+          const [statsResult, mySlots] = await Promise.all([
+            apiClient.getDoctorStats(),
+            apiClient.getSlots({ doctorId: user.id }).catch(() => [])
+          ]);
           setStats(statsResult);
+          setSlots(Array.isArray(mySlots) ? mySlots : []);
           
           // Refresh Tokens
           const r = await apiClient.getDoctorTokensToday(user.id);
@@ -547,34 +565,107 @@ const [socketReady, setSocketReady] = useState(false);
             });
             setAvailabilityByDate(prev => ({ ...prev, ...next }));
           }
+
+          if (did === user.id) {
+            setDoctorAppointmentsMap((prev) => ({
+              ...prev,
+              [did]: appointmentsResult.filter(a => Number(a?.doctorId) === did),
+            }));
+            await refreshSlots(did);
+          }
+        }
+
+        if (did && (user.role === 'HOSPITAL_ADMIN' || user.role === 'ADMIN')) {
+          const hid = hospitalProfile?.id;
+          if (hid) {
+            const items = await apiClient.getHospitalDoctorAppointments(hid, did);
+            setDoctorAppointmentsMap((prev) => ({
+              ...prev,
+              [did]: Array.isArray(items) ? items : [],
+            }));
+            await refreshSlots(did);
+          }
         }
 
         if (user.role === 'PATIENT') {
           // Patient token refresh logic is already handled by the 'token:updated' listener
-          // but we might want to refresh appointment list to show changes in status
         }
       } catch (err) {
         console.warn('Real-time refresh failed:', err);
       }
     };
 
+    const onUpdate = (updated: any) => {
+      try {
+        const id = Number(updated?.id || updated?.appointment?.id);
+        const newDid = Number(updated?.doctor?.id ?? updated?.doctorId ?? updated?.appointment?.doctorId);
+        const nextStatus = updated?.status ?? updated?.appointment?.status;
+        const nextDate = updated?.date ?? updated?.appointment?.date;
+        const nextTime = updated?.time ?? updated?.appointment?.time;
+
+        setAppointments((prev) => prev.map((a) => (
+          a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time, doctorId: Number.isFinite(newDid) ? newDid : a.doctorId } : a
+        )));
+
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const didKey = Number(key);
+            next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
+          });
+          if (Number.isFinite(newDid)) {
+            const prevAppt = Object.values(prev).flat().find((a) => a.id === id);
+            const updatedAppt = prevAppt ? { ...prevAppt, status: nextStatus ?? prevAppt.status, date: nextDate ?? prevAppt.date, time: nextTime ?? prevAppt.time, doctorId: newDid } : ({ id, status: nextStatus, date: nextDate, time: nextTime, doctorId: newDid } as any);
+            next[newDid] = [...(next[newDid] || []), updatedAppt];
+          }
+          return next;
+        });
+        
+        // Also do a full refresh to be sure
+        refreshData(updated);
+      } catch {}
+    };
+
+    const onCancel = (msg: any) => {
+      try {
+        const id = Number(msg?.id || msg?.appointment?.id);
+        setAppointments((prev) => prev.filter((a) => a.id !== id));
+        setDoctorAppointmentsMap((prev) => {
+          const next: Record<number, Appointment[]> = { ...prev };
+          Object.keys(next).forEach((key) => {
+            const didKey = Number(key);
+            next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
+          });
+          return next;
+        });
+        refreshData(msg);
+      } catch {}
+    };
+
     // Join appropriate rooms
-    if (user.role === 'DOCTOR') joinDoctorRoom(user.id);
-    if (user.role === 'HOSPITAL_ADMIN' && hospitalProfile?.id) {
-      // Hospital admins might need to join multiple doctor rooms
-      // For now, refresh on general appointment events
-    }
+    const joinRooms = () => {
+      if (user.role === 'DOCTOR') joinDoctorRoom(user.id);
+      if (hospitalProfile?.id) s.emit('join-hospital', hospitalProfile.id);
+      if (user?.role === 'PATIENT' && user?.id) s.emit('join-patient', user.id);
+    };
+
+    s.on('connect', () => { setSocketReady(true); joinRooms(); });
+    s.on('disconnect', () => setSocketReady(false));
 
     // Listen for appointment-related events
     s.on('appointment-booked', refreshData);
-    s.on('appointment-updated', refreshData);
-    s.on('appointment-cancelled', refreshData);
+    s.on('appointment-updated', onUpdate);
+    s.on('appointment-updated-optimistic', onUpdate);
+    s.on('appointment-cancelled', onCancel);
     s.on('slots:updated', refreshData);
     
+    joinRooms();
+
     return () => {
       s.off('appointment-booked', refreshData);
-      s.off('appointment-updated', refreshData);
-      s.off('appointment-cancelled', refreshData);
+      s.off('appointment-updated', onUpdate);
+      s.off('appointment-updated-optimistic', onUpdate);
+      s.off('appointment-cancelled', onCancel);
       s.off('slots:updated', refreshData);
     };
   }, [user?.id, user?.role, hospitalProfile?.id]);
@@ -1276,152 +1367,6 @@ const [socketReady, setSocketReady] = useState(false);
     return () => channel.close();
   }, []);
 
-  // Live updates via WebSocket: prefer sockets when connected
-useEffect(() => {
-  if (!user) return;
-
-  const socket = io(API_BASE_URL, { transports: ['websocket'] });
-
-  const onUpdate = (updated: any) => {
-    try {
-      const id = Number(updated?.id);
-      const newDid = Number(updated?.doctor?.id ?? updated?.doctorId);
-      const nextStatus = updated?.status;
-      const nextDate = updated?.date;
-      const nextTime = updated?.time;
-
-      setAppointments((prev) => prev.map((a) => (
-        a.id === id ? { ...a, status: nextStatus ?? a.status, date: nextDate ?? a.date, time: nextTime ?? a.time, doctorId: Number.isFinite(newDid) ? newDid : a.doctorId } : a
-      )));
-
-      setDoctorAppointmentsMap((prev) => {
-        const next: Record<number, Appointment[]> = { ...prev };
-        Object.keys(next).forEach((key) => {
-          const didKey = Number(key);
-          next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
-        });
-        if (Number.isFinite(newDid)) {
-          const prevAppt = Object.values(prev).flat().find((a) => a.id === id);
-          const updatedAppt = prevAppt ? { ...prevAppt, status: nextStatus ?? prevAppt.status, date: nextDate ?? prevAppt.date, time: nextTime ?? prevAppt.time, doctorId: newDid } : ({ id, status: nextStatus, date: nextDate, time: nextTime, doctorId: newDid } as any);
-          next[newDid] = [...(next[newDid] || []), updatedAppt];
-        }
-        return next;
-      });
-    } catch {}
-  };
-
-  const onCancel = (msg: any) => {
-    try {
-      const id = Number(msg?.id);
-      setAppointments((prev) => prev.filter((a) => a.id !== id));
-      setDoctorAppointmentsMap((prev) => {
-        const next: Record<number, Appointment[]> = { ...prev };
-        Object.keys(next).forEach((key) => {
-          const didKey = Number(key);
-          next[didKey] = (next[didKey] || []).filter((a) => a.id !== id);
-        });
-        return next;
-      });
-    } catch {}
-  };
-
-  const joinRooms = () => {
-    if (hospitalProfile?.id) socket.emit('join-hospital', hospitalProfile.id);
-    if (user?.role === 'DOCTOR' && user?.id) socket.emit('join-doctor', user.id);
-    if (user?.role === 'PATIENT' && user?.id) socket.emit('join-patient', user.id);
-  };
-
-  socket.on('connect', () => { setSocketReady(true); joinRooms(); });
-  socket.on('disconnect', () => setSocketReady(false));
-  socket.on('appointment-updated', onUpdate);
-  socket.on('appointment-updated-optimistic', onUpdate);
-  socket.on('appointment-cancelled', onCancel);
-
-  // On patient booking, refresh that doctor's appointments and slots
-    const onBooked = async (msg: any) => {
-      try {
-        const payload = msg?.payload || msg || {};
-        const did = Number(payload?.doctorId);
-        if (!did) return;
-
-        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
-
-        // Helper to refresh slots for a specific doctor
-        const refreshSlots = async (doctorIdToRefresh: number) => {
-          try {
-            const avail = await apiClient.getSlotsAndAvailability({ doctorId: doctorIdToRefresh, date: todayStr }).catch(() => null);
-            if (avail && (avail as any).slots) {
-              setHospitalDoctorSlotsMap((prev) => ({ ...prev, [doctorIdToRefresh]: (avail as any).slots }));
-            }
-          } catch {}
-        };
-
-        if (user?.role === 'DOCTOR' && did === user.id) {
-          try {
-            const mine = await apiClient.getMyAppointments();
-            setAppointments(Array.isArray(mine) ? mine : []);
-            setDoctorAppointmentsMap((prev) => ({
-              ...prev,
-              [did]: Array.isArray(mine) ? (mine as any[]).filter(a => Number(a?.doctorId) === did) : (prev[did] || []),
-            }));
-            await refreshSlots(did);
-          } catch {}
-        }
-
-        const refreshForHospital = async (hid: number) => {
-          try {
-            const items = await apiClient.getHospitalDoctorAppointments(hid, did);
-            setDoctorAppointmentsMap((prev) => ({
-              ...prev,
-              [did]: Array.isArray(items) ? items : [],
-            }));
-            await refreshSlots(did);
-          } catch {}
-        };
-
-      if (hospitalProfile?.id) {
-        await refreshForHospital(hospitalProfile.id);
-      } else {
-        try {
-          const h = await apiClient.getMyHospital();
-          if (h?.id) await refreshForHospital(h.id);
-        } catch {}
-      }
-    } catch {}
-  };
-
-  const onSlotsUpdated = async (msg: any) => {
-    try {
-      const payload = msg?.payload || msg || {};
-      const did = Number(payload?.doctorId);
-      if (!did) return;
-      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
-      const avail = await apiClient.getSlotsAndAvailability({ doctorId: did, date: todayStr }).catch(() => null);
-      if (avail && (avail as any).slots) {
-        setHospitalDoctorSlotsMap((prev) => ({ ...prev, [did]: (avail as any).slots }));
-      }
-    } catch {}
-  };
-
-  socket.on('connect', () => { setSocketReady(true); joinRooms(); });
-  socket.on('disconnect', () => setSocketReady(false));
-  socket.on('appointment-updated', onUpdate);
-  socket.on('appointment-updated-optimistic', onUpdate);
-  socket.on('appointment-cancelled', onCancel);
-  socket.on('appointment-booked', onBooked);
-  socket.on('slots:updated', onSlotsUpdated);
-
-  joinRooms();
-
-  return () => {
-    socket.off('appointment-updated', onUpdate);
-    socket.off('appointment-updated-optimistic', onUpdate);
-    socket.off('appointment-cancelled', onCancel);
-    socket.off('appointment-booked', onBooked);
-    socket.off('slots:updated', onSlotsUpdated);
-    socket.disconnect();
-  };
-}, [user?.id, user?.role, hospitalProfile?.id]);
 
 // Live updates via SSE: subscribe to hospital appointment events
   useEffect(() => {
@@ -1577,7 +1522,7 @@ useEffect(() => {
 
         const refreshForHospital = async (hid2: number) => {
           try {
-            const [items, slots] = await Promise.all([
+            const [items, mySlots] = await Promise.all([
               apiClient.getHospitalDoctorAppointments(hid2, did),
               apiClient.getSlots({ doctorId: did }),
             ]);
@@ -1587,8 +1532,13 @@ useEffect(() => {
             }));
             setHospitalDoctorSlotsMap((prev) => ({
               ...prev,
-              [did]: Array.isArray(slots) ? slots : [],
+              [did]: Array.isArray(mySlots) ? mySlots : [],
             }));
+            if (user?.id === did) {
+              setSlots(Array.isArray(mySlots) ? mySlots : []);
+              const mine = await apiClient.getMyAppointments().catch(() => []);
+              setAppointments(mine);
+            }
           } catch {}
         };
 
