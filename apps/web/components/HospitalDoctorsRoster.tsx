@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import BookAppointmentModal from "@/components/BookAppointmentModal";
 import { shouldUseSubdomainNav } from "@/lib/subdomain";
 
@@ -29,7 +29,21 @@ export default function HospitalDoctorsRoster({ doctors, profileDoctors }: Hospi
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const hospitalId = params?.id as string | undefined;
+
+  // Auto-open if bookDoctorId matches one of the doctors in this roster
+  useEffect(() => {
+    const bookId = searchParams?.get('bookDoctorId');
+    if (bookId && doctors.some(d => String(d.doctor.id) === bookId)) {
+      setSelectedDoctorId(Number(bookId));
+      setShowModal(true);
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('bookDoctorId');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [doctors, searchParams]);
 
   const openBooking = (doctorId: number) => {
     setSelectedDoctorId(doctorId);

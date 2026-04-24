@@ -43,6 +43,22 @@ function DoctorsPageContent() {
   // Suggested specializations/phrases from backend
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
+  // Auto-open booking modal if bookDoctorId is in URL (post-login redirect)
+  useEffect(() => {
+    const bookDoctorId = searchParams?.get('bookDoctorId');
+    if (bookDoctorId && doctors.length > 0) {
+      const doc = doctors.find(d => String(d.id) === bookDoctorId);
+      if (doc) {
+        setSelectedDoctor(doc);
+        setShowBookingModal(true);
+        // Clean up URL to avoid re-opening on refresh
+        const url = new URL(window.location.href);
+        url.searchParams.delete('bookDoctorId');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+  }, [searchParams, doctors]);
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
     return () => clearTimeout(t);

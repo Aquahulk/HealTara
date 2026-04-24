@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, MapPin, Clock, DollarSign } from "lucide-react";
 import BookAppointmentModal from "./BookAppointmentModal";
 import { Doctor } from '@/lib/api';
+import { useSearchParams } from "next/navigation";
 
 interface HorizontalDoctorScrollProps {
   doctors: Doctor[];
@@ -15,6 +16,23 @@ export default function HorizontalDoctorScroll({ doctors, onBookAppointment }: H
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+
+  // Auto-open if bookDoctorId matches a doctor in this scroll
+  useEffect(() => {
+    const bookId = searchParams?.get('bookDoctorId');
+    if (bookId && doctors.length > 0) {
+      const doc = doctors.find(d => String(d.id) === bookId);
+      if (doc) {
+        setSelectedDoctor(doc);
+        setShowBookingModal(true);
+        // Clean up URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('bookDoctorId');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+  }, [doctors, searchParams]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {

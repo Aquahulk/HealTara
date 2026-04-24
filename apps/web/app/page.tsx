@@ -347,6 +347,24 @@ export default function HomePage() {
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [selectedSpecialization, setSelectedSpecialization] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
+  
+  // Auto-open booking modal if bookDoctorId is in URL (post-login redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bookId = params.get('bookDoctorId');
+    if (bookId && doctors.length > 0) {
+      const doc = doctors.find(d => String(d.id) === bookId);
+      if (doc) {
+        setSelectedDoctor(doc);
+        setShowAppointmentModal(true);
+        // Clean up URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('bookDoctorId');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+  }, [doctors]);
+
   const [selectedAvailability, setSelectedAvailability] = useState('');
   const [availabilityOnly, setAvailabilityOnly] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');

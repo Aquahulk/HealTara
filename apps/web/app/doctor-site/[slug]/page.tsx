@@ -5,6 +5,7 @@
 import React from 'react';
 import Script from 'next/script';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
+import DoctorBookingCTA from '@/components/DoctorBookingCTA';
 
 interface DoctorProfileResponse {
   id: number;
@@ -120,13 +121,14 @@ export default async function DoctorSitePage({ params }: { params: Promise<{ slu
               {addr && <p className="text-sm text-indigo-100">{addr}</p>}
             </div>
 
-            {/* Prominent booking button near top on mobile - minimum 44px touch target, compact text */}
-            <a 
-              href={`/book?doctorId=${data.id}`} 
-              className="inline-block bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold py-2 px-4 md:py-3 md:px-8 rounded-lg shadow-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation text-sm md:text-base"
-            >
-              Book Now
-            </a>
+            <div className="pt-2">
+              <DoctorBookingCTA 
+                doctorId={data.id} 
+                clinicName={name} 
+                label="Book Now"
+                className="inline-block bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold py-2 px-4 md:py-3 md:px-8 rounded-lg shadow-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation text-sm md:text-base"
+              />
+            </div>
           </div>
         </div>
       </header>
@@ -197,12 +199,12 @@ export default async function DoctorSitePage({ params }: { params: Promise<{ slu
 
         {/* Sticky booking button at bottom on mobile */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg z-10">
-          <a 
-            href={`/book?doctorId=${data.id}`} 
+          <DoctorBookingCTA 
+            doctorId={data.id} 
+            clinicName={name} 
+            label="Book Now"
             className="block w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold py-3 px-6 rounded-lg text-center transition-colors min-h-[44px] flex items-center justify-center touch-manipulation text-sm"
-          >
-            Book Now
-          </a>
+          />
         </div>
         
         {/* Add bottom padding on mobile to prevent content from being hidden by sticky button */}
