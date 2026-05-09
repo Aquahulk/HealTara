@@ -3918,7 +3918,7 @@ const [socketReady, setSocketReady] = useState(false);
                         {(() => {
                           const getCapacityForHour = (dateStr: string, hour: number) => {
                             let period = Number(doctorProfile?.slotPeriodMinutes ?? 15);
-                            if (doctorProfile?.slotPeriodUpdatedAt && doctorProfile?.previousSlotPeriodMinutes) {
+                            if (doctorProfile?.slotPeriodUpdatedAt && (doctorProfile as any)?.previousSlotPeriodMinutes) {
                               const updateDate = new Date(doctorProfile.slotPeriodUpdatedAt);
                               const transitionTime = new Date(updateDate.getTime());
                               transitionTime.setMinutes(0, 0, 0);
@@ -3928,7 +3928,7 @@ const [socketReady, setSocketReady] = useState(false);
                               // Construct targetTime in IST (UTC+5:30)
                               const targetTime = new Date(`${dateStr}T${String(hour).padStart(2, '0')}:00:00+05:30`);
                               if (targetTime.getTime() < transitionTime.getTime()) {
-                                period = Number(doctorProfile.previousSlotPeriodMinutes);
+                                period = Number((doctorProfile as any).previousSlotPeriodMinutes);
                               }
                             }
                             return {
