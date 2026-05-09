@@ -63,152 +63,49 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
   }, [doctor.id]);
 
   return (
-    <div ref={cardRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-4 relative">
-      <div className="absolute top-2 right-2 z-10">
+    <div ref={cardRef} className="bg-white rounded-lg border border-gray-200 shadow-sm p-2 md:p-3 relative max-w-4xl mx-auto">
+      <div className="absolute top-1 right-1 z-10 scale-90">
         <SaveButton entityType="doctor" entityId={doctor.id} />
       </div>
-      <div className="flex flex-col md:flex-row gap-3 md:gap-4">
+      <div className="flex flex-col md:flex-row gap-2 md:gap-3">
         {/* Image / avatar - Smaller on mobile */}
-        <div className="w-full h-32 md:w-44 md:h-28 rounded-lg bg-gray-100 flex items-center justify-center text-3xl md:text-4xl shrink-0">
+        <div className="w-full h-24 md:w-28 md:h-24 rounded-lg bg-gray-100 flex items-center justify-center text-2xl md:text-3xl shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <div>👨‍⚕️</div>
         </div>
 
         {/* Middle details */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2 flex-wrap">
-            <h3 className="text-base md:text-lg font-semibold text-gray-900">Dr. {displayName}</h3>
-            <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">Verified</span>
+          <div className="flex items-start gap-1.5 flex-wrap">
+            <h3 className="text-sm md:text-base font-bold text-gray-900">Dr. {displayName}</h3>
+            <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 font-bold">Verified</span>
           </div>
-          <div className="text-xs md:text-sm text-gray-700 mt-1">{clinicName}</div>
-          <div className="text-xs md:text-sm text-gray-600 mt-1">{specialization}</div>
-          {location && <div className="text-xs md:text-sm text-gray-500 mt-1">{location}</div>}
-          
-          {/* Price on mobile - show here */}
-          {typeof fee === "number" && (
-            <div className="md:hidden mt-2">
-              <span className="text-lg font-bold text-gray-900">₹{fee}</span>
-              <span className="text-xs text-gray-500 ml-1">per consultation</span>
-            </div>
-          )}
+          <div className="text-[10px] md:text-xs text-gray-700 mt-0.5 font-medium">{clinicName}</div>
+          <div className="text-[10px] md:text-xs text-blue-600 mt-0.5 font-bold">{specialization}</div>
+          {location && <div className="text-[10px] md:text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            {location}
+          </div>}
           
           {/* facilities / tags - Compact on mobile */}
-          <div className="mt-2 md:mt-3 flex flex-wrap gap-1.5 md:gap-2">
-            {specialization && (
-              <span className="inline-block text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md border border-gray-200">{specialization}</span>
-            )}
+          <div className="mt-1.5 md:mt-2 flex flex-wrap gap-1 md:gap-1.5">
             {city && (
-              <span className="inline-block text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md border border-gray-200">{city}</span>
+              <span className="inline-block text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold uppercase tracking-tight">{city}</span>
             )}
           </div>
         </div>
 
         {/* Right-side price and actions - Hidden on mobile, shown on desktop */}
-        <div className="hidden md:flex md:w-40 lg:w-48 flex-col justify-between">
+        <div className="hidden md:flex md:w-32 flex-col justify-between items-end border-l border-gray-100 pl-3">
           <div className="text-right">
             {typeof fee === "number" ? (
-              <div className="text-xl font-bold text-gray-900">₹{fee}</div>
+              <div className="text-base font-black text-gray-900">₹{fee}</div>
             ) : (
-              <div className="text-sm text-gray-500">Fee not set</div>
+              <div className="text-[10px] text-gray-500">Fee not set</div>
             )}
-            <div className="text-xs text-gray-500">per consultation</div>
+            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Consultation</div>
           </div>
-          <div className="mt-3 flex gap-2">
-            {slug ? (
-              <Link
-                href={`/doctor-site/${slug}`}
-                className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors text-sm"
-                onMouseEnter={() => {
-                  try {
-                    if (shouldUseSubdomainNav()) {
-                      const url = doctorMicrositeUrl(slug);
-                      import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
-                    } else {
-                      router.prefetch(`/doctor-site/${slug}`);
-                    }
-                  } catch {}
-                }}
-                onClick={(e) => {
-                  // Conditionally use name-only subdomain navigation
-                  if (shouldUseSubdomainNav()) {
-                    e.preventDefault();
-                  }
-                  import("@/lib/api").then(({ apiClient }) => {
-                    apiClient
-                      .getHospitalByDoctorId(doctor.id)
-                      .then((resp) => {
-                        // Track microsite click
-                        apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
-                        if (searchQuery) {
-                          apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
-                        }
-                        if (resp && resp.id) {
-                          const hId = resp.id;
-                          const sub = (resp as any)?.subdomain as string | undefined;
-                          if (shouldUseSubdomainNav()) {
-                            if (sub && sub.length > 1) {
-                              window.location.href = customSubdomainUrl(sub);
-                            } else {
-                              window.location.href = hospitalIdMicrositeUrl(hId);
-                            }
-                          } else {
-                            router.push(`/hospital-site/${String(hId)}`);
-                          }
-                        } else {
-                          if (shouldUseSubdomainNav()) {
-                            window.location.href = doctorMicrositeUrl(slug);
-                          } // otherwise let Link navigate to /doctor-site/[slug]
-                        }
-                      })
-                      .catch(() => {
-                        // Fallback to doctor microsite
-                        if (shouldUseSubdomainNav()) {
-                          window.location.href = doctorMicrositeUrl(slug);
-                        } else {
-                          router.push(`/doctor-site/${slug}`);
-                        }
-                        // Track microsite click (fallback)
-                        apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
-                        if (searchQuery) {
-                          apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
-                        }
-                      });
-                  });
-                }}
-              >
-                Visit
-              </Link>
-            ) : (
-              <button
-                className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors text-sm"
-                onClick={() => {
-                  import("@/lib/api").then(({ apiClient }) => {
-                apiClient
-                  .getHospitalByDoctorId(doctor.id)
-                  .then((resp) => {
-                        const hId = resp?.id;
-                        const sub = (resp as any)?.subdomain as string | undefined;
-                        if (hId != null) {
-                          if (shouldUseSubdomainNav()) {
-                            if (sub && sub.length > 1) {
-                              window.location.href = customSubdomainUrl(sub);
-                            } else {
-                              window.location.href = hospitalIdMicrositeUrl(hId);
-                            }
-                          } else {
-                            router.push(`/hospital-site/${String(hId)}`);
-                          }
-                        }
-                      })
-                      .catch(() => {
-                        // silently ignore if no hospital link
-                      });
-                  });
-                }}
-              >
-                Visit
-              </button>
-            )}
+          <div className="mt-2 flex flex-col gap-1.5 w-full">
             {onBookAppointment ? (
               <button
                 onMouseEnter={() => {
@@ -225,79 +122,70 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
                       }
                   });
                 }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors text-sm"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-1.5 rounded-lg transition-colors text-xs uppercase shadow-sm"
               >
                 Book
               </button>
             ) : (
-              <div className="flex-1 text-center bg-gray-100 text-gray-400 font-medium py-2 rounded-lg text-sm">Book</div>
+              <div className="w-full text-center bg-gray-100 text-gray-400 font-bold py-1.5 rounded-lg text-xs">Book</div>
             )}
+            {slug ? (
+              <Link
+                href={`/doctor-site/${slug}`}
+                className="w-full text-center bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold py-1.5 rounded-lg transition-colors text-[10px] uppercase border border-gray-200"
+                onClick={(e) => {
+                  if (shouldUseSubdomainNav()) { e.preventDefault(); }
+                  import("@/lib/api").then(({ apiClient }) => {
+                    if (shouldUseSubdomainNav()) { window.location.href = doctorMicrositeUrl(slug); }
+                    else { router.push(`/doctor-site/${slug}`); }
+                    apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
+                  });
+                }}
+              >
+                Profile
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>
       
-      {/* Mobile Actions - Full width buttons at bottom */}
-      <div className="md:hidden mt-3 flex gap-2">
-        {slug ? (
-          <Link
-            href={`/doctor-site/${slug}`}
-            className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2.5 rounded-lg transition-colors text-sm"
-            onMouseEnter={() => {
-              try {
-                if (shouldUseSubdomainNav()) {
-                  const url = doctorMicrositeUrl(slug);
-                  import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
-                } else {
-                  router.prefetch(`/doctor-site/${slug}`);
-                }
-              } catch {}
-            }}
-            onClick={(e) => {
-              if (shouldUseSubdomainNav()) {
-                e.preventDefault();
-              }
-              import("@/lib/api").then(({ apiClient }) => {
-                // Priority: Use the doctor's own slug for the website link
-                if (shouldUseSubdomainNav()) {
-                  window.location.href = doctorMicrositeUrl(slug);
-                } else {
-                  router.push(`/doctor-site/${slug}`);
-                }
-                
-                // Track the click
-                apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
-                if (searchQuery) {
-                  apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
-                }
-              });
-            }}
-          >
-            Visit Website
-          </Link>
-        ) : (
-          <button
-            className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2.5 rounded-lg transition-colors text-sm"
-            onClick={() => {
-              // Even if no slug, try to find the linked hospital as a backup
-              import("@/lib/api").then(({ apiClient }) => {
-                apiClient
-                  .getHospitalByDoctorId(doctor.id)
-                  .then((resp) => {
-                    const hId = resp?.id;
-                    const sub = (resp as any)?.subdomain as string | undefined;
-                    if (hId != null) {
-                      if (shouldUseSubdomainNav()) {
-                        if (sub && sub.length > 1) {
-                          window.location.href = customSubdomainUrl(sub);
-                        } else {
-                          window.location.href = hospitalIdMicrositeUrl(hId);
-                        }
-                      } else {
-                        router.push(`/hospital-site/${String(hId)}`);
-                      }
-                    }
-                  })
-                  .catch(() => {});
+      {/* Mobile Actions - Compact grid at bottom */}
+      <div className="md:hidden mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+        <div className="flex flex-col">
+          {typeof fee === "number" && (
+            <div className="flex items-baseline gap-1">
+              <span className="text-sm font-black text-gray-900">₹{fee}</span>
+              <span className="text-[8px] text-gray-400 font-bold uppercase">Fee</span>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-1.5 flex-1 justify-end">
+          {slug && (
+            <Link
+              href={`/doctor-site/${slug}`}
+              className="px-3 py-1.5 bg-gray-50 text-gray-700 font-bold rounded-lg text-[10px] uppercase border border-gray-200"
+              onClick={(e) => {
+                if (shouldUseSubdomainNav()) { e.preventDefault(); }
+                import("@/lib/api").then(({ apiClient }) => {
+                  if (shouldUseSubdomainNav()) { window.location.href = doctorMicrositeUrl(slug); }
+                  else { router.push(`/doctor-site/${slug}`); }
+                });
+              }}
+            >
+              Profile
+            </Link>
+          )}
+          {onBookAppointment && (
+            <button
+              onClick={onBookAppointment}
+              className="px-5 py-1.5 bg-blue-600 text-white font-black rounded-lg text-[10px] uppercase shadow-sm"
+            >
+              Book Now
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
               });
             }}
           >

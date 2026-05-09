@@ -2636,7 +2636,7 @@ const [socketReady, setSocketReady] = useState(false);
             {/* ==========================================================================
                 ⏳ APPROVAL STATUS - Show pending approval alerts on dashboard
                 ==========================================================================*/}
-            {user.role === 'DOCTOR' && doctorProfile && doctorProfile.micrositeEnabled === false && (
+            {user.role === 'DOCTOR' && (doctorProfile as any)?.micrositeEnabled === false && (
               <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4">
                 <p className="font-medium">Waiting for approval</p>
                 <p className="text-sm">Your profile is awaiting admin approval. Some features are disabled until approval.</p>
