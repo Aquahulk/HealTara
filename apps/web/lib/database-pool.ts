@@ -99,7 +99,11 @@ export async function executeQuery<T = any>(
     // Attempt to get client with timeout protection
     const clientPromise = pool.connect();
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('POOL_CONNECT_TIMEOUT')), 8000)
+      setTimeout(() => {
+        const timeoutErr: any = new Error('POOL_CONNECT_TIMEOUT');
+        timeoutErr.code = 'ETIMEDOUT'; // Map to a standard code
+        reject(timeoutErr);
+      }, 5000) // Reduced from 8s to 5s for faster failure handling
     );
 
     const client: any = await Promise.race([clientPromise, timeoutPromise]);
@@ -107,7 +111,7 @@ export async function executeQuery<T = any>(
     try {
       const result = await client.query(sql, params);
       const duration = Date.now() - startTime;
-      console.log(`⚡ Query executed in ${duration}ms: ${sql.substring(0, 50)}...`);
+      console.log(`⚡ Query executed in ${duration}ms: ${sql.substring(0, 50).replace(/\s+/g, ' ')}...`);
       return result.rows;
     } finally {
       client.release();
@@ -118,6 +122,8 @@ export async function executeQuery<T = any>(
     // Retry logic for transient/timeout errors
     const isTransient = 
       error?.code === 'ECONNRESET' || 
+      error?.code === 'ECONNREFUSED' ||
+      error?.code === 'ETIMEDOUT' ||
       error?.syscall === 'read' || 
       error?.message?.includes('timeout') ||
       error?.message?.includes('unexpectedly') ||

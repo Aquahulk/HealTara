@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import Link from "next/link";
-import { Doctor } from "@/lib/api";
+import { Doctor, API_BASE_URL } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import SaveButton from "@/components/SaveButton";
 // Subdomain helpers for name-only microsite URLs
@@ -27,11 +27,6 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
   const city = profile?.city;
   const state = profile?.state;
   const slug = profile?.slug;
-  const toSlug = (s: string) => s.toLowerCase()
-        .replace(/[^\w\s-]/g, '') // Keep alphanumeric, spaces, and hyphens
-        .replace(/\s+/g, '-') // Replace spaces with single hyphens
-        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
 
   // Prefer a human-friendly name derived from slug; fall back to email handle
   const toTitle = (s: string) => s.replace(/[-_]+/g, ' ')
@@ -184,37 +179,6 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
             </button>
           )}
         </div>
-      </div>
-    </div>
-              });
-            }}
-          >
-            Visit Website
-          </button>
-        )}
-        {onBookAppointment ? (
-          <button
-            onMouseEnter={() => {
-              try {
-                import('@/lib/slotsPrefetch').then(m => m.prefetchDoctorToday(doctor.id).catch(() => {}));
-              } catch {}
-            }}
-            onClick={() => {
-              onBookAppointment();
-              import("@/lib/api").then(({ apiClient }) => {
-                  apiClient.trackDoctorClick(doctor.id, 'book', searchQuery || undefined).catch(() => {});
-                  if (searchQuery) {
-                    apiClient.trackSearch(searchQuery, { topDoctorIds: [doctor.id] }).catch(() => {});
-                  }
-              });
-            }}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm"
-          >
-            Book Now
-          </button>
-        ) : (
-          <div className="flex-1 text-center bg-gray-100 text-gray-400 font-medium py-2.5 rounded-lg text-sm">Book Now</div>
-        )}
       </div>
     </div>
   );
