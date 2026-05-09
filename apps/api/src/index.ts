@@ -68,15 +68,15 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
       h.subdomain,
       h.profile,
       h.status,
-      h."createdAt",
-      h."updatedAt",
-      h."adminId",
-      (SELECT COUNT(*)::int FROM "Department" WHERE "hospitalId" = h.id) as dept_count,
-      (SELECT COUNT(*)::int FROM "HospitalDoctor" WHERE "hospitalId" = h.id) as doc_count,
-      (SELECT COUNT(*)::int FROM "Appointment" WHERE "doctorId" IN (SELECT "doctorId" FROM "HospitalDoctor" WHERE "hospitalId" = h.id)) as appt_count,
+      h."created_at",
+      h."updated_at",
+      h."admin_id",
+      (SELECT COUNT(*)::int FROM "departments" WHERE "hospital_id" = h.id) as dept_count,
+      (SELECT COUNT(*)::int FROM "hospital_doctors" WHERE "hospital_id" = h.id) as doc_count,
+      (SELECT COUNT(*)::int FROM "appointments" WHERE "doctor_id" IN (SELECT "doctor_id" FROM "hospital_doctors" WHERE "hospital_id" = h.id)) as appt_count,
       (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
       (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
-    FROM "Hospital" h
+    FROM "hospitals" h
     WHERE h.status = 'ACTIVE'
     ORDER BY h.id ASC
   `;
@@ -1040,29 +1040,29 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
         dp.specialization,
         dp.qualifications,
         dp.experience,
-        dp."clinicName" as clinic_name,
-        dp."clinicAddress" as clinic_address,
+        dp.clinic_name,
+        dp.clinic_address,
         dp.city,
         dp.state,
         dp.phone,
-        dp."consultationFee" as consultation_fee,
+        dp.consultation_fee,
         dp.slug,
-        dp."profileImage" as profile_image,
-        (SELECT COUNT(*)::int FROM "Appointment" WHERE "doctorId" = u.id) as appt_count,
+        dp.profile_image,
+        (SELECT COUNT(*)::int FROM "appointments" WHERE "doctor_id" = u.id) as appt_count,
         (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count,
         (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
-      FROM "User" u
-      JOIN "DoctorProfile" dp ON u.id = dp."userId"
+      FROM "users" u
+      JOIN "doctor_profiles" dp ON u.id = dp."user_id"
       WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' ${whereClause}
       ORDER BY 
         ${sort === 'trending' ? 'appt_count DESC,' : ''}
         ${sort === 'experience' ? 'dp.experience DESC,' : ''}
-        u."createdAt" DESC
+        u."created_at" DESC
       LIMIT $1 OFFSET $2
     `;
 
     const rows = await prisma.$queryRawUnsafe(doctorsSql, pageSize, skip);
-    const totalCountSql = `SELECT COUNT(*)::int as count FROM "User" u JOIN "DoctorProfile" dp ON u.id = dp."userId" WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' ${whereClause}`;
+    const totalCountSql = `SELECT COUNT(*)::int as count FROM "users" u JOIN "doctor_profiles" dp ON u.id = dp."user_id" WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' ${whereClause}`;
     const totalCountRow: any[] = await prisma.$queryRawUnsafe(totalCountSql);
     const totalCount = totalCountRow[0]?.count || 0;
 
@@ -2114,24 +2114,24 @@ app.get('/api/admin/metrics', authMiddleware, adminMiddleware, async (req: Reque
     const confirmedAppointments = await prisma.appointment.count({ where: { status: 'CONFIRMED' } });
     const cancelledAppointments = await prisma.appointment.count({ where: { status: 'CANCELLED' } });
     const revenueRows: any[] = await prisma.$queryRaw`
-      SELECT COALESCE(SUM(dp."consultationFee"), 0)::float AS revenue
-      FROM "Appointment" a
-      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      SELECT COALESCE(SUM(dp."consultation_fee"), 0)::float AS revenue
+      FROM "appointments" a
+      JOIN "doctor_profiles" dp ON dp."user_id" = a."doctor_id"
       WHERE a.status = 'CONFIRMED'
     `;
     const revenueByCity: any[] = await prisma.$queryRaw`
-      SELECT COALESCE(dp.city, 'Unknown') AS city, COALESCE(SUM(dp."consultationFee"),0)::float AS revenue, COUNT(*)::int AS count
-      FROM "Appointment" a
-      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      SELECT COALESCE(dp.city, 'Unknown') AS city, COALESCE(SUM(dp."consultation_fee"),0)::float AS revenue, COUNT(*)::int AS count
+      FROM "appointments" a
+      JOIN "doctor_profiles" dp ON dp."user_id" = a."doctor_id"
       WHERE a.status = 'CONFIRMED'
       GROUP BY city
       ORDER BY revenue DESC
       LIMIT 12
     `;
     const revenueBySpecialty: any[] = await prisma.$queryRaw`
-      SELECT COALESCE(dp.specialization, 'General') AS specialty, COALESCE(SUM(dp."consultationFee"),0)::float AS revenue, COUNT(*)::int AS count
-      FROM "Appointment" a
-      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      SELECT COALESCE(dp.specialization, 'General') AS specialty, COALESCE(SUM(dp."consultation_fee"),0)::float AS revenue, COUNT(*)::int AS count
+      FROM "appointments" a
+      JOIN "doctor_profiles" dp ON dp."user_id" = a."doctor_id"
       WHERE a.status = 'CONFIRMED'
       GROUP BY specialty
       ORDER BY revenue DESC
@@ -2140,56 +2140,56 @@ app.get('/api/admin/metrics', authMiddleware, adminMiddleware, async (req: Reque
     const revenueByTier: any[] = await prisma.$queryRaw`
       SELECT
         CASE
-          WHEN dp."consultationFee" < 300 THEN 'Tier 1'
-          WHEN dp."consultationFee" BETWEEN 300 AND 600 THEN 'Tier 2'
+          WHEN dp."consultation_fee" < 300 THEN 'Tier 1'
+          WHEN dp."consultation_fee" BETWEEN 300 AND 600 THEN 'Tier 2'
           ELSE 'Tier 3'
         END AS tier,
-        COALESCE(SUM(dp."consultationFee"),0)::float AS revenue,
+        COALESCE(SUM(dp."consultation_fee"),0)::float AS revenue,
         COUNT(*)::int AS count
-      FROM "Appointment" a
-      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      FROM "appointments" a
+      JOIN "doctor_profiles" dp ON dp."user_id" = a."doctor_id"
       WHERE a.status = 'CONFIRMED'
       GROUP BY tier
       ORDER BY revenue DESC
     `;
     const bookingsByState: any[] = await prisma.$queryRaw`
       SELECT COALESCE(dp.state, 'Unknown') AS state, COUNT(*)::int AS count
-      FROM "Appointment" a
-      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      FROM "appointments" a
+      JOIN "doctor_profiles" dp ON dp."user_id" = a."doctor_id"
       GROUP BY state
       ORDER BY count DESC
       LIMIT 20
     `;
     const topCities: any[] = await prisma.$queryRaw`
       SELECT COALESCE(dp.city, 'Unknown') AS city, COUNT(*)::int AS count
-      FROM "Appointment" a
-      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
+      FROM "appointments" a
+      JOIN "doctor_profiles" dp ON dp."user_id" = a."doctor_id"
       GROUP BY city
       ORDER BY count DESC
       LIMIT 10
     `;
     const doctorDensity: any[] = await prisma.$queryRaw`
       SELECT COALESCE(dp.state, 'Unknown') AS state, COUNT(*)::int AS doctors
-      FROM "DoctorProfile" dp
+      FROM "doctor_profiles" dp
       GROUP BY state
       ORDER BY doctors DESC
       LIMIT 20
     `;
     const revenueTodayRows: any[] = await prisma.$queryRaw`
-      SELECT COALESCE(SUM(dp."consultationFee"),0)::float AS revenue
-      FROM "Appointment" a
-      JOIN "DoctorProfile" dp ON dp."userId" = a."doctorId"
-      WHERE a.status = 'CONFIRMED' AND DATE(a."createdAt") = CURRENT_DATE
+      SELECT COALESCE(SUM(dp."consultation_fee"),0)::float AS revenue
+      FROM "appointments" a
+      JOIN "doctor_profiles" dp ON dp."user_id" = a."doctor_id"
+      WHERE a.status = 'CONFIRMED' AND DATE(a."created_at") = CURRENT_DATE
     `;
     const liveAppointmentsRows: any[] = await prisma.$queryRaw`
       SELECT COUNT(*)::int AS live
-      FROM "Appointment" a
-      WHERE a.status = 'CONFIRMED' AND a."createdAt" >= NOW() - INTERVAL '60 minute'
+      FROM "appointments" a
+      WHERE a.status = 'CONFIRMED' AND a."created_at" >= NOW() - INTERVAL '60 minute'
     `;
     const doctorsUpcomingRows: any[] = await prisma.$queryRaw`
-      SELECT COUNT(DISTINCT a."doctorId")::int AS count
-      FROM "Appointment" a
-      WHERE a."createdAt" >= NOW() - INTERVAL '120 minute'
+      SELECT COUNT(DISTINCT a."doctor_id")::int AS count
+      FROM "appointments" a
+      WHERE a."created_at" >= NOW() - INTERVAL '120 minute'
     `;
     const dauVal = dau[0]?.dau || 0;
     const mauVal = mau[0]?.mau || 0;
