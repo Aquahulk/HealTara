@@ -12,11 +12,11 @@ model User {
   email                  String             @unique
   password               String
   role                   String
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  managedDoctorProfileId Int?
-  managedHospitalId      Int?
-  canLogin               Boolean            @default(true)
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  managedDoctorProfileId Int?               @map("managed_doctor_profile_id")
+  managedHospitalId      Int?               @map("managed_hospital_id")
+  canLogin               Boolean            @default(true) @map("can_login")
   status                 String             @default("ACTIVE") // ACTIVE, SUSPENDED
   adminAuditLogs         AdminAuditLog[]
   doctorAppointments     Appointment[]      @relation("DoctorAppointments")
@@ -30,6 +30,8 @@ model User {
   managedDoctorProfile   DoctorProfile?     @relation("UserManagedDoctorProfile", fields: [managedDoctorProfileId], references: [id])
   managedHospital        Hospital?          @relation("UserManagedHospital", fields: [managedHospitalId], references: [id])
   savedItems             SavedItem[]
+
+  @@map("users")
 }
 
 model SavedItem {
@@ -46,31 +48,33 @@ model SavedItem {
 
 model DoctorProfile {
   id                Int                  @id @default(autoincrement())
-  userId            Int                  @unique
+  userId            Int                  @unique @map("user_id")
   specialization    String
   qualifications    String?
   experience        Int?
-  clinicName        String?
-  clinicAddress     String
+  clinicName        String?              @map("clinic_name")
+  clinicAddress     String               @map("clinic_address")
   city              String?
   state             String?
   phone             String
-  consultationFee   Int
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  consultationFee   Int                  @map("consultation_fee")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
   slug              String?              @unique
-  slotPeriodMinutes Int                  @default(15)
-  previousSlotPeriodMinutes Int?
-  slotPeriodUpdatedAt DateTime?
-  micrositeEnabled  Boolean              @default(true)
-  profileImage      String?
-  registrationNumber String?
-  verificationSubmitted Boolean          @default(false)
-  verificationStatus String              @default("PENDING") // PENDING, APPROVED, REJECTED
+  slotPeriodMinutes Int                  @default(15) @map("slot_period_minutes")
+  previousSlotPeriodMinutes Int?        @map("previous_slot_period_minutes")
+  slotPeriodUpdatedAt DateTime?          @map("slot_period_updated_at")
+  micrositeEnabled  Boolean              @default(true) @map("microsite_enabled")
+  profileImage      String?              @map("profile_image")
+  registrationNumber String?             @map("registration_number")
+  verificationSubmitted Boolean          @default(false) @map("verification_submitted")
+  verificationStatus String              @default("PENDING") @map("verification_status") // PENDING, APPROVED, REJECTED
   user              User                 @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
   timeOffs          DoctorTimeOff[]
   workingHours      DoctorWorkingHours[]
   slotAdmins        User[]               @relation("UserManagedDoctorProfile")
+
+  @@map("doctor_profiles")
 }
 
 model PatientProfile {
@@ -116,12 +120,12 @@ model DoctorWorkingHours {
 
 model Appointment {
   id        Int      @id @default(autoincrement())
-  date      DateTime
+  date      DateTime @map("appointment_date")
   status    String   @default("PENDING")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  doctorId  Int
-  patientId Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  doctorId  Int      @map("doctor_id")
+  patientId Int      @map("patient_id")
   notes     String?
   time      String
   doctor    User     @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
@@ -130,6 +134,7 @@ model Appointment {
   @@index([doctorId, date, status])
   @@index([patientId, date])
   @@index([date, time])
+  @@map("appointments")
 }
 
 model Hospital {
@@ -142,16 +147,18 @@ model Hospital {
   phone       String?
   profile     Json?
   status      String           @default("ACTIVE") // ACTIVE, SUSPENDED, PENDING
-  registrationNumberGov String?
-  verificationSubmitted Boolean @default(false)
-  verificationStatus    String  @default("PENDING") // PENDING, APPROVED, REJECTED
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  adminId     Int?
+  registrationNumberGov String? @map("registration_number_gov")
+  verificationSubmitted Boolean @default(false) @map("verification_submitted")
+  verificationStatus    String  @default("PENDING") @map("verification_status") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  adminId     Int?             @map("admin_id")
   departments Department[]
   admin       User?            @relation("UserAdminHospitals", fields: [adminId], references: [id])
   doctors     HospitalDoctor[]
   slotAdmins  User[]           @relation("UserManagedHospital")
+
+  @@map("hospitals")
 }
 
 model Department {
@@ -180,18 +187,19 @@ model HospitalDoctor {
 
 model Slot {
   id        Int      @id @default(autoincrement())
-  doctorId  Int
+  doctorId  Int      @map("doctor_id")
   date      DateTime
   time      String
   status    String   @default("AVAILABLE")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   doctor    User     @relation("UserDoctorSlots", fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, date, time])
   @@index([doctorId, date, status])
   @@index([date, status])
   @@index([status, time])
+  @@map("slots")
 }
 
 model AdminAuditLog {

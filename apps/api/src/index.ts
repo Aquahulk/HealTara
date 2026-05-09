@@ -1358,18 +1358,18 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
           dp.specialization,
           dp.qualifications,
           dp.experience,
-          dp."clinicName",
-          dp."clinicAddress",
+          dp.clinic_name,
+          dp.clinic_address,
           dp.city,
           dp.state,
           dp.phone,
-          dp."consultationFee",
+          dp.consultation_fee,
           dp.slug,
-          dp."profileImage",
+          dp.profile_image,
           -- Full-Text Search Rank
           ts_rank(
             setweight(to_tsvector('english', COALESCE(dp.specialization, '')), 'A') ||
-            setweight(to_tsvector('english', COALESCE(dp."clinicName", '')), 'B') ||
+            setweight(to_tsvector('english', COALESCE(dp.clinic_name, '')), 'B') ||
             setweight(to_tsvector('english', COALESCE(u.email, '')), 'C'),
             to_tsquery('english', $1)
           ) as text_rank,
@@ -1379,8 +1379,8 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
           (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as avg_rating,
           -- Reliability Score (Review count)
           (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count
-        FROM "User" u
-        JOIN "DoctorProfile" dp ON u.id = dp."userId"
+        FROM "users" u
+        JOIN "doctor_profiles" dp ON u.id = dp."user_id"
         WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE'
       )
       SELECT *,
@@ -1784,9 +1784,12 @@ app.get('/api/my-appointments', authMiddleware, async (req: Request, res: Respon
       },
     });
     res.status(200).json(appointments);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'An error occurred while fetching appointments.' });
+  } catch (error: any) {
+    console.error('❌ ERROR FETCHING MY APPOINTMENTS:', error);
+    res.status(500).json({ 
+      message: 'An error occurred while fetching appointments.',
+      error: error?.message || String(error)
+    });
   }
 });
 
@@ -2103,8 +2106,8 @@ app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, async (req: Req
 
 app.get('/api/admin/metrics', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
-    const dau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patientId")::int AS dau FROM "Appointment" WHERE "createdAt" >= NOW() - INTERVAL '1 day'`;
-    const mau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patientId")::int AS mau FROM "Appointment" WHERE "createdAt" >= NOW() - INTERVAL '30 day'`;
+    const dau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patient_id")::int AS dau FROM "appointments" WHERE "created_at" >= NOW() - INTERVAL '1 day'`;
+    const mau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patient_id")::int AS mau FROM "appointments" WHERE "created_at" >= NOW() - INTERVAL '30 day'`;
     const totalPatients = await prisma.user.count({ where: { role: 'PATIENT' } });
     const totalDoctors = await prisma.user.count({ where: { role: 'DOCTOR' } });
     const totalAppointments = await prisma.appointment.count();
