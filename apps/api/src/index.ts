@@ -218,7 +218,8 @@ const io = new SocketIOServer(server, {
       'http://localhost:3003',
       'https://healtara.com',
       'https://www.healtara.com',
-      'https://api.healtara.com'
+      'https://api.healtara.com',
+      'https://healtara.onrender.com'
     ],
     credentials: true
   } 
@@ -247,7 +248,8 @@ const corsOptions = {
       'http://localhost:3003',
       'https://healtara.com',
       'https://www.healtara.com',
-      'https://api.healtara.com'
+      'https://api.healtara.com',
+      'https://healtara.onrender.com'
     ];
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);

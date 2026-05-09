@@ -24,6 +24,10 @@ export const API_BASE_URL = (() => {
   
   // 2. Production check - Use the official production API
   if (!isDevelopment) {
+    // Check if we are on the onrender.com subdomain
+    if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+      return 'https://healtara.onrender.com';
+    }
     return 'https://api.healtara.com';
   }
 
