@@ -504,9 +504,12 @@ app.post('/api/register', async (req: Request, res: Response) => {
         message: 'User created successfully',
         user: { id: newUser.id, email: newUser.email, role: newUser.role } 
     });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'An error occurred while creating the user' });
+  } catch (error: any) {
+    console.error('❌ REGISTER ERROR:', error);
+    res.status(500).json({ 
+      message: 'An error occurred while creating the user',
+      error: error?.message || String(error)
+    });
   }
 });
 
