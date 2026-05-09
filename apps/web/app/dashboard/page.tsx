@@ -2633,15 +2633,6 @@ const [socketReady, setSocketReady] = useState(false);
 
         {activeTab === 'overview' && user.role !== 'DOCTOR' && (
           <div className="space-y-8">
-            {/* ==========================================================================
-                ⏳ APPROVAL STATUS - Show pending approval alerts on dashboard
-                ==========================================================================*/}
-            {user.role === 'DOCTOR' && (doctorProfile as any)?.micrositeEnabled === false && (
-              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4">
-                <p className="font-medium">Waiting for approval</p>
-                <p className="text-sm">Your profile is awaiting admin approval. Some features are disabled until approval.</p>
-              </div>
-            )}
             {user.role === 'HOSPITAL_ADMIN' && hospitalProfile && (hospitalProfile as any)?.profile?.serviceStatus === 'PENDING' && (
               <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4">
                 <p className="font-medium">Waiting for approval</p>
