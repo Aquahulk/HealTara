@@ -60,6 +60,8 @@ model DoctorProfile {
   updatedAt         DateTime             @updatedAt
   slug              String?              @unique
   slotPeriodMinutes Int                  @default(15)
+  previousSlotPeriodMinutes Int?
+  slotPeriodUpdatedAt DateTime?
   micrositeEnabled  Boolean              @default(true)
   profileImage      String?
   registrationNumber String?

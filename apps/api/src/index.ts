@@ -138,9 +138,34 @@ function dayWindowUtc(dateStr: string) {
   return { start, end };
 }
 
-async function resolveDoctorCapacity(prismaClient: PrismaClient, doctorId: number) {
-  const profile = await prismaClient.doctorProfile.findUnique({ where: { userId: doctorId }, select: { slotPeriodMinutes: true } });
-  const periodMinutes = profile?.slotPeriodMinutes ?? 15;
+async function resolveDoctorCapacity(prismaClient: PrismaClient, doctorId: number, targetDate?: Date | string, targetHour?: number) {
+  const profile = await prismaClient.doctorProfile.findUnique({ 
+    where: { userId: doctorId }, 
+    select: { slotPeriodMinutes: true, previousSlotPeriodMinutes: true, slotPeriodUpdatedAt: true } 
+  });
+  
+  let periodMinutes = profile?.slotPeriodMinutes ?? 15;
+  
+  if (targetDate && targetHour !== undefined && profile?.slotPeriodUpdatedAt && profile?.previousSlotPeriodMinutes !== null) {
+    // Apply changes from the next hour of the update
+    const updateDate = new Date(profile.slotPeriodUpdatedAt);
+    
+    // Transition hour is the next full hour after update
+    // We'll work with timestamps to avoid timezone issues
+    const transitionTime = new Date(updateDate.getTime());
+    transitionTime.setMinutes(0, 0, 0);
+    transitionTime.setMilliseconds(0);
+    transitionTime.setHours(transitionTime.getHours() + 1);
+    
+    // Construct targetTime in IST (UTC+5:30)
+    const dateStr = typeof targetDate === 'string' ? targetDate : targetDate.toISOString().split('T')[0];
+    const targetTime = new Date(`${dateStr}T${String(targetHour).padStart(2, '0')}:00:00+05:30`);
+    
+    if (targetTime.getTime() < transitionTime.getTime()) {
+      periodMinutes = profile.previousSlotPeriodMinutes!;
+    }
+  }
+  
   const capacity = Math.max(1, Math.floor(60 / periodMinutes));
   return { periodMinutes, capacity };
 }
@@ -1850,11 +1875,18 @@ app.patch('/api/doctor/slot-period', authMiddleware, async (req: Request, res: R
     return res.status(400).json({ message: 'Invalid minutes. Allowed: 10, 15, 20, 30, 60' });
   }
   try {
-    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true } });
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true, slotPeriodMinutes: true } });
     if (!profile) {
       return res.status(404).json({ message: 'Doctor profile not found.' });
     }
-    await prisma.doctorProfile.update({ where: { userId: user.userId }, data: { slotPeriodMinutes: value } });
+    await prisma.doctorProfile.update({ 
+      where: { userId: user.userId }, 
+      data: { 
+        previousSlotPeriodMinutes: profile.slotPeriodMinutes,
+        slotPeriodMinutes: value,
+        slotPeriodUpdatedAt: new Date()
+      } 
+    });
     try {
       broadcastDoctorEvent(user.userId, 'slots:period-updated', { doctorId: user.userId, minutes: value });
     } catch (_) {}
@@ -1878,7 +1910,7 @@ app.post('/api/doctor/walk-in/reserve', authMiddleware, async (req: Request, res
   try {
     const { start: dayStart, end: dayEnd } = dayWindowUtc(String(date));
     const hour = Number(String(time).slice(0, 2));
-    const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, user.userId);
+    const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, user.userId, date, hour);
     const existingCount = await prisma.appointment.count({
       where: {
         doctorId: user.userId,
@@ -4972,11 +5004,18 @@ app.patch('/api/hospitals/:hospitalId/doctors/:doctorId/slot-period', authMiddle
         return res.status(403).json({ message: 'Forbidden: You do not manage this hospital.' });
       }
     }
-    const profile = await prisma.doctorProfile.findUnique({ where: { userId: doctorId }, select: { id: true } });
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: doctorId }, select: { id: true, slotPeriodMinutes: true } });
     if (!profile) {
       return res.status(404).json({ message: 'Doctor profile not found' });
     }
-    await prisma.doctorProfile.update({ where: { userId: doctorId }, data: { slotPeriodMinutes: value } });
+    await prisma.doctorProfile.update({ 
+      where: { userId: doctorId }, 
+      data: { 
+        previousSlotPeriodMinutes: profile.slotPeriodMinutes,
+        slotPeriodMinutes: value,
+        slotPeriodUpdatedAt: new Date()
+      } 
+    });
     try {
       broadcastDoctorEvent(doctorId, 'slots:period-updated', { doctorId, minutes: value });
       broadcastHospitalEvent(hospitalId, 'slots:period-updated', { hospitalId, doctorId, minutes: value });
@@ -5413,7 +5452,6 @@ app.get('/api/slots/availability', async (req: Request, res: Response) => {
     if (cached && (now - cached.ts) < AVAIL_CACHE_MS) {
       return res.status(200).json({ slots: [], availability: { periodMinutes: cached.periodMinutes, hours: cached.hours } });
     }
-    const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId);
     const { start: dayStart, end: dayEnd } = dayWindowUtc(dateStr);
     const counts = await countBookedPerHour(prisma, doctorId, dayStart, dayEnd);
 
@@ -5430,7 +5468,11 @@ app.get('/api/slots/availability', async (req: Request, res: Response) => {
       isFull: boolean;
     }[] = [];
 
+    let overallPeriodMinutes = 15;
+
     for (let h = startHour; h < endHour; h++) {
+      const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId, dateStr, h);
+      overallPeriodMinutes = periodMinutes; // Use the latest one for the overall period
       const bookedCount = counts[h] || 0;
       hours.push({
         hour: String(h).padStart(2, '0'),
@@ -5441,8 +5483,8 @@ app.get('/api/slots/availability', async (req: Request, res: Response) => {
         isFull: bookedCount >= capacity,
       });
     }
-    availabilityCache.set(cacheKey, { ts: now, periodMinutes, hours });
-    return res.status(200).json({ slots: [], availability: { periodMinutes, hours } });
+    availabilityCache.set(cacheKey, { ts: now, periodMinutes: overallPeriodMinutes, hours });
+    return res.status(200).json({ slots: [], availability: { periodMinutes: overallPeriodMinutes, hours } });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'An error occurred while fetching availability.' });
@@ -5463,14 +5505,16 @@ app.get('/api/slots/insights', async (req: Request, res: Response) => {
     if (cached && (now - cached.ts) < AVAIL_CACHE_MS) {
       return res.status(200).json({ availability: { periodMinutes: cached.periodMinutes, hours: cached.hours } });
     }
-    const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId);
     const { start: dayStart, end: dayEnd } = dayWindowUtc(dateStr);
     const counts = await countBookedPerHour(prisma, doctorId, dayStart, dayEnd);
 
     const startHour = 10;
     const endHour = 18;
     const hours: any[] = [];
+    let overallPeriodMinutes = 15;
     for (let h = startHour; h < endHour; h++) {
+      const { periodMinutes, capacity } = await resolveDoctorCapacity(prisma, doctorId, dateStr, h);
+      overallPeriodMinutes = periodMinutes;
       const bookedCount = counts[h] || 0;
       hours.push({
         hour: String(h).padStart(2, '0'),
@@ -5481,8 +5525,8 @@ app.get('/api/slots/insights', async (req: Request, res: Response) => {
         isFull: bookedCount >= capacity,
       });
     }
-    availabilityCache.set(cacheKey, { ts: now, periodMinutes, hours });
-    return res.status(200).json({ availability: { periodMinutes, hours } });
+    availabilityCache.set(cacheKey, { ts: now, periodMinutes: overallPeriodMinutes, hours });
+    return res.status(200).json({ availability: { periodMinutes: overallPeriodMinutes, hours } });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'An error occurred while fetching insights.' });

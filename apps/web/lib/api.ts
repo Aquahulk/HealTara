@@ -52,6 +52,8 @@ export interface DoctorProfile {
   phone: string;                                           // Contact phone number
   consultationFee: number;                                 // Cost of consultation
   slotPeriodMinutes?: number;                              // Preferred slot period in minutes
+  previousSlotPeriodMinutes?: number | null;               // Previous slot period before update
+  slotPeriodUpdatedAt?: string | null;                     // When the slot period was last updated
   profileImage?: string;                                   // URL to doctor's profile image
   createdAt: string;                                       // When profile was created
   updatedAt: string;                                       // When profile was last updated
