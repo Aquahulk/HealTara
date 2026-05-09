@@ -79,7 +79,7 @@ model DoctorProfile {
 
 model PatientProfile {
   id          Int      @id @default(autoincrement())
-  userId      Int      @unique
+  userId      Int      @unique @map("user_id")
   name        String?
   age         Int?
   gender      String?
@@ -87,35 +87,40 @@ model PatientProfile {
   address     String?
   city        String?
   state       String?
-  bloodGroup  String?
+  bloodGroup  String?  @map("blood_group")
   allergies   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("patient_profiles")
 }
 
 model DoctorTimeOff {
   id              Int           @id @default(autoincrement())
-  doctorProfileId Int
+  doctorProfileId Int           @map("doctor_profile_id")
   start           DateTime
   end             DateTime
   reason          String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
   doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
+
+  @@map("doctor_time_offs")
 }
 
 model DoctorWorkingHours {
   id              Int           @id @default(autoincrement())
-  doctorProfileId Int
-  dayOfWeek       Int
-  startTime       String
-  endTime         String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  doctorProfileId Int           @map("doctor_profile_id")
+  dayOfWeek       Int           @map("day_of_week")
+  startTime       String        @map("start_time")
+  endTime         String        @map("end_time")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
   doctorProfile   DoctorProfile @relation(fields: [doctorProfileId], references: [id], onDelete: Cascade)
 
   @@unique([doctorProfileId, dayOfWeek])
+  @@map("doctor_working_hours")
 }
 
 model Appointment {
@@ -163,26 +168,29 @@ model Hospital {
 
 model Department {
   id          Int              @id @default(autoincrement())
-  hospitalId  Int
+  hospitalId  Int              @map("hospital_id")
   name        String
   description String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
   hospital    Hospital         @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
   doctors     HospitalDoctor[]
+
+  @@map("departments")
 }
 
 model HospitalDoctor {
   id           Int         @id @default(autoincrement())
-  hospitalId   Int
-  doctorId     Int
-  departmentId Int?
-  createdAt    DateTime    @default(now())
+  hospitalId   Int         @map("hospital_id")
+  doctorId     Int         @map("doctor_id")
+  departmentId Int?        @map("department_id")
+  createdAt    DateTime    @default(now()) @map("created_at")
   department   Department? @relation(fields: [departmentId], references: [id])
   doctor       User        @relation("UserHospitalDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
   hospital     Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
 
   @@unique([hospitalId, doctorId])
+  @@map("hospital_doctors")
 }
 
 model Slot {
@@ -204,42 +212,46 @@ model Slot {
 
 model AdminAuditLog {
   id         Int      @id @default(autoincrement())
-  adminId    Int
+  adminId    Int      @map("admin_id")
   action     String
-  entityType String
-  entityId   Int?
+  entityType String   @map("entity_type")
+  entityId   Int?     @map("entity_id")
   details    String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @map("created_at")
   admin      User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@map("admin_audit_logs")
 }
 
 model DoctorEngagement {
   id         Int      @id @default(autoincrement())
-  doctorId   Int
+  doctorId   Int      @map("doctor_id")
   date       DateTime @default(now())
-  cardViews  Int      @default(0)
-  siteClicks Int      @default(0)
-  bookClicks Int      @default(0)
+  cardViews  Int      @default(0) @map("card_views")
+  siteClicks Int      @default(0) @map("site_clicks")
+  bookClicks Int      @default(0) @map("book_clicks")
   doctor     User     @relation("UserDoctorEngagements", fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, date])
+  @@map("doctor_engagements")
 }
 
 model SearchAnalytics {
   id                 Int      @id @default(autoincrement())
   query              String
-  normalizedQuery    String
-  matchedConditions  String[]
-  matchedSpecialties String[]
-  topRankedDoctorId  Int?
-  clickedDoctorId    Int?
+  normalizedQuery    String   @map("normalized_query")
+  matchedConditions  String[] @map("matched_conditions")
+  matchedSpecialties String[] @map("matched_specialties")
+  topRankedDoctorId  Int?     @map("top_ranked_doctor_id")
+  clickedDoctorId    Int?     @map("clicked_doctor_id")
   meta               Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@index([normalizedQuery])
   @@index([topRankedDoctorId])
   @@index([clickedDoctorId])
+  @@map("search_analytics")
 }
 
 model Comment {
