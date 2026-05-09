@@ -6,19 +6,24 @@ import Header from "@/components/Header";
 import LiveStatusBar from "@/components/LiveStatusBar";
 import { prefetchData } from "@/lib/performance";
 import { dnsPrefetch, preconnect } from "@/lib/navWarmup";
+import { API_BASE_URL } from "@/lib/api";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hideHeader = pathname?.startsWith("/slot-admin") || pathname === "/dashboard";
 
   useEffect(() => {
-    // Warm up the app on mount
-    prefetchData();
-    
-    // Warm up backend connection
-    const apiURL = process.env.NEXT_PUBLIC_API_URL || 'https://healtara.onrender.com';
-    dnsPrefetch(apiURL);
-    preconnect(apiURL);
+    // Optimized prefetching and performance warming
+    try {
+      prefetchData();
+      
+      // Warm up backend connection
+      const apiURL = API_BASE_URL;
+      dnsPrefetch(apiURL);
+      preconnect(apiURL);
+    } catch (error) {
+      console.error("Performance warmup failed:", error);
+    }
   }, []);
 
   return (

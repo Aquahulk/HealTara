@@ -17,10 +17,27 @@ const isLocalhost = typeof window !== 'undefined' && (window.location.hostname =
 const useLocalAPI = isDevelopment && isLocalhost;
 
 // PRODUCTION: Always use the Render URL if not explicitly overridden by NEXT_PUBLIC_API_URL
-// DEVELOPMENT: Use localhost:3001 as fallback
-export const API_BASE_URL = useLocalAPI 
-  ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
-  : (process.env.NEXT_PUBLIC_API_URL || 'https://api.healtara.com');
+// DEVELOPMENT: Use localhost:3001 or current host:3001 as fallback
+export const API_BASE_URL = (() => {
+  // 1. Explicit environment variable takes precedence (useful for Vercel/Render env vars)
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  
+  // 2. Production check - Use the official production API
+  if (!isDevelopment) {
+    return 'https://api.healtara.com';
+  }
+
+  // 3. Development/Local logic
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    // If we're on a local network IP (like 192.168.x.x), try to use that for the API too
+    if (host !== 'localhost' && host !== '127.0.0.1' && !host.includes('.com') && !host.includes('.onrender.com')) {
+      return `http://${host}:3001`;
+    }
+  }
+  
+  return 'http://localhost:3001';
+})();
 
 // Debug: Show which API URL is being used
 console.log('🌐 API URL Selection:');
