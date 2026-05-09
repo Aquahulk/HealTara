@@ -272,6 +272,8 @@ interface DoctorProfile {
   micrositeEnabled?: boolean;
   // Period length in minutes for booking slot subdivisions
   slotPeriodMinutes?: number;
+  slotPeriodUpdatedAt?: string | null;
+  previousSlotPeriodMinutes?: number | null;
 }
 
 interface DashboardStats {
@@ -350,6 +352,21 @@ export default function DashboardPage() {
   // 🎯 STATE MANAGEMENT - Variables that control component behavior
   // ============================================================================
   const { user, logout } = useAuth();                      // Get user info and logout function
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+          </div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">Authenticating</h2>
+          <p className="text-gray-500 font-medium">Please wait while we verify your session...</p>
+        </div>
+      </div>
+    );
+  }
+
   const [appointments, setAppointments] = useState<Appointment[]>([]); // List of appointments
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null); // Doctor profile data
   const [stats, setStats] = useState<DashboardStats | null>(null); // Dashboard statistics
@@ -2643,7 +2660,7 @@ const [socketReady, setSocketReady] = useState(false);
                 📈 STATISTICS CARDS - Key metrics display (role-based)
                 ============================================================================ */}
             {stats && (
-              <div className={`grid grid-cols-1 md:grid-cols-2 ${user.role === 'DOCTOR' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 sm:gap-6`}>
+              <div className={`grid grid-cols-1 md:grid-cols-2 ${(user.role as string) === 'DOCTOR' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 sm:gap-6`}>
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
                   <div className="p-3 sm:p-6">
                     <div className="flex items-center justify-between">
@@ -2686,16 +2703,16 @@ const [socketReady, setSocketReady] = useState(false);
                       </div>
                       <div className="text-right">
                         <dt className="text-sm font-medium text-green-100 truncate">
-                          {user.role === 'DOCTOR'
+                          {(user.role as string) === 'DOCTOR'
                             ? 'Total Patients'
-                            : user.role === 'HOSPITAL_ADMIN'
+                            : (user.role as string) === 'HOSPITAL_ADMIN'
                               ? 'Total Doctors'
                               : 'Doctors Visited'}
                         </dt>
                         <dd className="text-3xl font-black text-white mt-1">
-                          {user.role === 'DOCTOR'
+                          {(user.role as string) === 'DOCTOR'
                             ? stats.totalPatients
-                            : user.role === 'HOSPITAL_ADMIN'
+                            : (user.role as string) === 'HOSPITAL_ADMIN'
                               ? hospitalDoctors.length
                               : (new Set(appointments.map((a: any) => a?.doctorId)).size)}
                         </dd>
@@ -2704,12 +2721,12 @@ const [socketReady, setSocketReady] = useState(false);
                   </div>
                   <div className="bg-white/10 px-6 py-2">
                     <div className="text-xs text-green-100">
-                      {user.role === 'DOCTOR' ? 'Unique patients' : user.role === 'HOSPITAL_ADMIN' ? 'Active doctors' : 'Unique doctors'}
+                      {(user.role as string) === 'DOCTOR' ? 'Unique patients' : (user.role as string) === 'HOSPITAL_ADMIN' ? 'Active doctors' : 'Unique doctors'}
                     </div>
                   </div>
                 </div>
 
-                {user.role === 'DOCTOR' && (
+                {(user.role as string) === 'DOCTOR' && (
                   <div className="bg-gradient-to-br from-purple-500 to-pink-600 overflow-hidden shadow-xl rounded-2xl transform hover:-translate-y-1 transition-all duration-300">
                     <div className="p-6">
                       <div className="flex items-center justify-between">
@@ -2730,7 +2747,7 @@ const [socketReady, setSocketReady] = useState(false);
               </div>
             )}
 
-            {user.role === 'PATIENT' && (() => {
+            {(user.role as string) === 'PATIENT' && (() => {
               const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
               const todayStr = fmtDateIST.format(getISTNow());
               const todays = appointments.filter(a => fmtDateIST.format(getAppointmentISTDate(a)) === todayStr);
@@ -2954,7 +2971,7 @@ const [socketReady, setSocketReady] = useState(false);
                         </div>
                         <div className="flex items-center text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
                           <EnvelopeIcon className="h-5 w-5 mr-3 text-blue-600 flex-shrink-0" />
-                          <span className="text-sm">{user.role === 'HOSPITAL_ADMIN' ? ((hospitalProfile as any)?.general?.name || (user.email?.split('@')[0])) : (user.role === 'DOCTOR' ? (doctorProfile?.slug || (user.email?.split('@')[0])) : (user.email?.split('@')[0]))}</span>
+                          <span className="text-sm">{(user.role as string) === 'HOSPITAL_ADMIN' ? ((hospitalProfile as any)?.general?.name || (user.email?.split('@')[0])) : ((user.role as string) === 'DOCTOR' ? (doctorProfile?.slug || (user.email?.split('@')[0])) : (user.email?.split('@')[0]))}</span>
                         </div>
                       </div>
                     </div>
@@ -2987,7 +3004,7 @@ const [socketReady, setSocketReady] = useState(false);
                 <h3 className="text-lg font-semibold text-gray-900">Recent Appointments</h3>
               </div>
               <div className="p-6">
-                {(() => { const recents = user.role === 'HOSPITAL_ADMIN' ? recentHospitalAppointments : appointments.slice(0, 5); return recents.length > 0 ? (
+                {(() => { const recents = (user.role as string) === 'HOSPITAL_ADMIN' ? recentHospitalAppointments : appointments.slice(0, 5); return recents.length > 0 ? (
                   <div className="space-y-4">
                     {recents.map((appointment) => (
                       <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -2996,7 +3013,7 @@ const [socketReady, setSocketReady] = useState(false);
                             {formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium' })} at {formatISTTime(getAppointmentISTDate(appointment))}
                           </p>
                                                        <p className="text-gray-600">
-                            {user.role === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || 'Patient')}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || 'Doctor')}`}
+                            {(user.role as string) === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || 'Patient')}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || 'Doctor')}`}
                           </p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${

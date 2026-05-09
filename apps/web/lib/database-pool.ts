@@ -418,12 +418,13 @@ export async function getHospitalsByLocation(
 // ============================================================================
 
 export function getPoolStats() {
+  if (!pool) return null;
   return {
     totalCount: pool.totalCount,
     idleCount: pool.idleCount,
     waitingCount: pool.waitingCount,
-    max: pool.options.max,
-    min: pool.options.min,
+    max: (pool as any).options?.max,
+    min: (pool as any).options?.min,
   };
 }
 
@@ -443,6 +444,7 @@ export async function testConnection(): Promise<boolean> {
 // ============================================================================
 
 export async function shutdownPool(): Promise<void> {
+  if (!pool) return;
   console.log('🔄 Shutting down database connection pool...');
   await pool.end();
   console.log('✅ Database connection pool shutdown complete');
