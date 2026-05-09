@@ -125,7 +125,7 @@ model Appointment {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   doctorId  Int      @map("doctor_id")
-  patientId Int      @map("patient_id")
+  patientId Int      @map("user_id")
   notes     String?
   time      String
   doctor    User     @relation("DoctorAppointments", fields: [doctorId], references: [id], onDelete: Cascade)
