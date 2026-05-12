@@ -77,7 +77,7 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
       (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
       (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
     FROM "hospitals" h
-    WHERE h.status = 'ACTIVE'
+    WHERE h.status IN ('ACTIVE', 'PENDING')
     ORDER BY h.id ASC
   `;
 
@@ -1058,17 +1058,17 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
         (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count,
         (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
       FROM "users" u
-      JOIN "doctor_profiles" dp ON u.id = dp."user_id"
-      WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' ${whereClause}
-      ORDER BY 
-        ${sort === 'trending' ? 'appt_count DESC,' : ''}
-        ${sort === 'experience' ? 'dp.experience DESC,' : ''}
-        u."created_at" DESC
-      LIMIT $1 OFFSET $2
-    `;
-
-    const rows = await prisma.$queryRawUnsafe(doctorsSql, pageSize, skip);
-    const totalCountSql = `SELECT COUNT(*)::int as count FROM "users" u JOIN "doctor_profiles" dp ON u.id = dp."user_id" WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' ${whereClause}`;
+        JOIN "doctor_profiles" dp ON u.id = dp."user_id"
+        WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING') ${whereClause}
+        ORDER BY 
+          ${sort === 'trending' ? 'appt_count DESC,' : ''}
+          ${sort === 'experience' ? 'dp.experience DESC,' : ''}
+          u."created_at" DESC
+        LIMIT $1 OFFSET $2
+      `;
+  
+      const rows = await prisma.$queryRawUnsafe(doctorsSql, pageSize, skip);
+      const totalCountSql = `SELECT COUNT(*)::int as count FROM "users" u JOIN "doctor_profiles" dp ON u.id = dp."user_id" WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING') ${whereClause}`;
     const totalCountRow: any[] = await prisma.$queryRawUnsafe(totalCountSql);
     const totalCount = totalCountRow[0]?.count || 0;
 
@@ -1387,7 +1387,7 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
           (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count
         FROM "users" u
         JOIN "doctor_profiles" dp ON u.id = dp."user_id"
-        WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE'
+        WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING')
       )
       SELECT *,
         -- Final Hybrid Rank Calculation
