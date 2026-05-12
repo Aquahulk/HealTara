@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
           h.subdomain,
           h.city,
           h.state
-        FROM "Hospital" h
+        FROM "hospitals" h
         WHERE h.subdomain IS NOT NULL AND h.subdomain != ''
         ORDER BY h.name ASC
       `;

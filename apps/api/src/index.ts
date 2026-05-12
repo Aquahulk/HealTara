@@ -74,8 +74,8 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
       (SELECT COUNT(*)::int FROM "departments" WHERE "hospital_id" = h.id) as dept_count,
       (SELECT COUNT(*)::int FROM "hospital_doctors" WHERE "hospital_id" = h.id) as doc_count,
       (SELECT COUNT(*)::int FROM "appointments" WHERE "doctor_id" IN (SELECT "doctor_id" FROM "hospital_doctors" WHERE "hospital_id" = h.id)) as appt_count,
-      (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
-      (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
+      (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
+      (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
     FROM "hospitals" h
     WHERE h.status IN ('ACTIVE', 'PENDING')
     ORDER BY h.id ASC
@@ -266,8 +266,17 @@ app.use(express.urlencoded({ limit: '50mb', extended: true })); // Parse URL-enc
 // ============================================================================
 // 🩺 HEALTH CHECK - Keep the server alive
 // ============================================================================
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+app.get('/api/debug/tables', async (req: Request, res: Response) => {
+  try {
+    const tables: any[] = await prisma.$queryRaw`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    res.json(tables);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Static file serving for uploads (logos, photos)
@@ -1055,8 +1064,8 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
         dp.slug,
         dp.profile_image,
         (SELECT COUNT(*)::int FROM "appointments" WHERE "doctor_id" = u.id) as appt_count,
-        (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count,
-        (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
+        (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count,
+        (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
       FROM "users" u
         JOIN "doctor_profiles" dp ON u.id = dp."user_id"
         WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING') ${whereClause}
@@ -1382,9 +1391,9 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
           -- Medical Intent Match (1.0 bonus if in mapped specialties)
           CASE WHEN dp.specialization IN (${specialtyList}) THEN 1.0 ELSE 0.0 END as intent_match,
           -- Quality Score (Avg Rating)
-          (SELECT COALESCE(AVG(rating), 0)::float FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as avg_rating,
+          (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as avg_rating,
           -- Reliability Score (Review count)
-          (SELECT COUNT(*)::int FROM comments WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count
+          (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count
         FROM "users" u
         JOIN "doctor_profiles" dp ON u.id = dp."user_id"
         WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING')
@@ -2112,8 +2121,8 @@ app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, async (req: Req
 
 app.get('/api/admin/metrics', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
-    const dau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patient_id")::int AS dau FROM "appointments" WHERE "created_at" >= NOW() - INTERVAL '1 day'`;
-    const mau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "patient_id")::int AS mau FROM "appointments" WHERE "created_at" >= NOW() - INTERVAL '30 day'`;
+    const dau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "user_id")::int AS dau FROM "appointments" WHERE "created_at" >= NOW() - INTERVAL '1 day'`;
+    const mau: any[] = await prisma.$queryRaw`SELECT COUNT(DISTINCT "user_id")::int AS mau FROM "appointments" WHERE "created_at" >= NOW() - INTERVAL '30 day'`;
     const totalPatients = await prisma.user.count({ where: { role: 'PATIENT' } });
     const totalDoctors = await prisma.user.count({ where: { role: 'DOCTOR' } });
     const totalAppointments = await prisma.appointment.count();
