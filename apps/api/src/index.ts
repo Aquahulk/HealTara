@@ -1810,6 +1810,21 @@ app.get('/api/my-appointments', authMiddleware, async (req: Request, res: Respon
     res.status(200).json(appointments);
   } catch (error: any) {
     console.error('❌ ERROR FETCHING MY APPOINTMENTS:', error);
+    
+    // Check if it's a database connectivity issue
+    const isDbUnavailable =
+      (typeof error?.code === 'string' && error.code === 'P1001') ||
+      error?.name === 'PrismaClientInitializationError' ||
+      error?.name === 'PrismaClientRustPanicError' ||
+      error?.name === 'RustPanic';
+
+    if (isDbUnavailable) {
+      return res.status(503).json({ 
+        message: 'Database unavailable. Please check DATABASE_URL and connectivity.',
+        error: error?.message || String(error)
+      });
+    }
+
     res.status(500).json({ 
       message: 'An error occurred while fetching appointments.',
       error: error?.message || String(error)
@@ -1898,10 +1913,9 @@ app.patch('/api/doctor/slot-period', authMiddleware, async (req: Request, res: R
     return res.status(403).json({ message: 'Forbidden: Only doctors can update slot period.' });
   }
   const { minutes } = req.body as { minutes?: number };
-  const allowed = [10, 15, 20, 30, 60];
-  const value = Number(minutes);
-  if (!Number.isFinite(value) || !allowed.includes(value)) {
-    return res.status(400).json({ message: 'Invalid minutes. Allowed: 10, 15, 20, 30, 60' });
+  const value = Math.floor(Number(minutes));
+  if (!Number.isFinite(value) || value < 1 || value > 60) {
+    return res.status(400).json({ message: 'Invalid minutes. Must be between 1 and 60.' });
   }
   try {
     const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true, slotPeriodMinutes: true } });

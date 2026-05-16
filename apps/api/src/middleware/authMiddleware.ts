@@ -59,10 +59,33 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     // 🗄️ USER VERIFICATION - Check if user still exists in database
     // ============================================================================
     // This prevents issues if a user was deleted after getting a token
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: { id: true, email: true, role: true }
-    });
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { id: true, email: true, role: true }
+      });
+    } catch (dbError: any) {
+      // If database is unavailable but token is valid, we allow the request to proceed
+      // to route handlers, which should handle database failures themselves.
+      // This prevents the entire app from crashing during transient DB downtime.
+      const isDbUnavailable =
+        (typeof dbError?.code === 'string' && dbError.code === 'P1001') ||
+        dbError?.name === 'PrismaClientInitializationError' ||
+        dbError?.name === 'PrismaClientRustPanicError' ||
+        dbError?.name === 'RustPanic';
+
+      if (isDbUnavailable) {
+        console.warn('⚠️ Database unavailable during auth check, trusting valid JWT payload:', decoded.email);
+        req.user = {
+          userId: decoded.userId,
+          email: decoded.email,
+          role: decoded.role as any
+        };
+        return next();
+      }
+      throw dbError; // Re-throw other types of database errors
+    }
     
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
@@ -101,18 +124,6 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return res.status(401).json({ message: 'Token has expired' });
     }
 
-    // Database connectivity issues (e.g., Neon unreachable) should return 503 to avoid confusing auth failures
-    const errAny = error as any;
-    const isDbUnavailable =
-      (typeof errAny?.code === 'string' && errAny.code === 'P1001') ||
-      errAny?.name === 'PrismaClientInitializationError' ||
-      errAny?.name === 'PrismaClientRustPanicError' ||
-      errAny?.name === 'RustPanic';
-    if (isDbUnavailable) {
-      console.error('Database connectivity error during authentication:', error);
-      return res.status(503).json({ message: 'Database unavailable. Please check DATABASE_URL and connectivity.' });
-    }
-    
     // ============================================================================
     // 🐛 UNEXPECTED ERRORS - Log and return generic error for security
     // ============================================================================
