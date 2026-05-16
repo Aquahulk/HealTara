@@ -75,43 +75,22 @@ export async function GET(request: NextRequest) {
         }
       });
     } catch (dbErr: any) {
-      const msg = String(dbErr?.message || '');
       const code = String((dbErr as any)?.code || '');
-      const noDb = code === 'NO_DB_CONFIG' || msg.includes('NO_DB_CONFIG');
+      const isCircuitOpen = code === 'CIRCUIT_OPEN';
       
-      if (noDb) {
-        try {
-          const apiHost = process.env.NEXT_PUBLIC_API_URL;
-          if (!apiHost) throw new Error('NO_API_HOST');
-          
-          console.warn('⚠️ No DB config, falling back to API proxy for fetching comments');
-          
-          const qs = `?entityType=${entityType}&entityId=${entityId}&page=${page}&limit=${limit}`;
-          const resp = await fetch(`${apiHost}/api/comments${qs}`, {
-            headers: { 'Content-Type': 'application/json' },
-            cache: 'no-store'
-          });
-
-          if (!resp.ok) {
-            const t = await resp.text().catch(() => '');
-            throw new Error(`Upstream error: ${t || resp.status}`);
-          }
-
-          const data = await resp.json().catch(() => ({} as any));
-          return NextResponse.json(data);
-        } catch (proxyErr: any) {
-          console.error('❌ Comments GET Fallback Error:', proxyErr);
-          return NextResponse.json(
-            { success: false, error: 'Failed to fetch comments (no DB and upstream failed)' },
-            { status: 500 }
-          );
-        }
+      if (!isCircuitOpen) {
+        console.error('❌ Comments GET Error:', dbErr);
       }
-      throw dbErr;
+      
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch comments' },
+        { status: 500 }
+      );
     }
-
   } catch (error: any) {
-    console.error('❌ Comments GET Error:', error);
+    if (String((error as any)?.code) !== 'CIRCUIT_OPEN') {
+      console.error('❌ Comments GET Error:', error);
+    }
     return NextResponse.json(
       { success: false, error: 'Failed to fetch comments' },
       { status: 500 }
@@ -197,52 +176,22 @@ export async function POST(request: NextRequest) {
         }
       });
     } catch (dbErr: any) {
-      const msg = String(dbErr?.message || '');
       const code = String((dbErr as any)?.code || '');
-      const noDb = code === 'NO_DB_CONFIG' || msg.includes('NO_DB_CONFIG');
+      const isCircuitOpen = code === 'CIRCUIT_OPEN';
       
-      if (noDb) {
-        try {
-          const apiHost = process.env.NEXT_PUBLIC_API_URL;
-          if (!apiHost) throw new Error('NO_API_HOST');
-          
-          console.warn('⚠️ No DB config, falling back to API proxy for comment');
-          
-          const resp = await fetch(`${apiHost}/api/comments`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-
-          if (!resp.ok) {
-            const t = await resp.text().catch(() => '');
-            throw new Error(`Upstream error: ${t || resp.status}`);
-          }
-
-          const data = await resp.json().catch(() => ({} as any));
-          return NextResponse.json({
-            success: true,
-            data: data?.data || null,
-            message: data?.message || 'Comment stored via API fallback',
-          });
-        } catch (proxyErr: any) {
-          console.error('❌ Comments POST Fallback Error:', proxyErr);
-          return NextResponse.json(
-            { success: false, error: 'Failed to store comment (no DB and upstream failed)' },
-            { status: 500 }
-          );
-        }
+      if (!isCircuitOpen) {
+        console.error('❌ Comments POST Error:', dbErr);
       }
-      throw dbErr;
+      
+      return NextResponse.json(
+        { success: false, error: 'Failed to store comment' },
+        { status: 500 }
+      );
     }
-
   } catch (error: any) {
-    console.error('❌ Comments POST Error:', error);
-    // Log the full error for debugging
-    if (error.code) console.error('Error Code:', error.code);
-    if (error.message) console.error('Error Message:', error.message);
-    if (error.stack) console.error('Error Stack:', error.stack);
-    
+    if (String((error as any)?.code) !== 'CIRCUIT_OPEN') {
+      console.error('❌ Comments POST Error:', error);
+    }
     return NextResponse.json(
       { success: false, error: 'Failed to store comment', detail: error.message },
       { status: 500 }

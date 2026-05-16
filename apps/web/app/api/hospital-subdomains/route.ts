@@ -60,8 +60,10 @@ export async function GET(request: NextRequest) {
       });
 
     } catch (dbError: any) {
-      console.error('❌ Database error in subdomains API:', dbError.message);
-      console.error('❌ Full error details:', dbError);
+      if (dbError?.code !== 'CIRCUIT_OPEN') {
+        console.error('❌ Database error in subdomains API:', dbError.message);
+        console.error('❌ Full error details:', dbError);
+      }
       
       // Return sample data on database error
       return NextResponse.json({

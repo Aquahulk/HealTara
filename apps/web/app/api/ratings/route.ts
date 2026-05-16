@@ -93,10 +93,14 @@ export async function GET(request: NextRequest) {
       });
 
     } catch (dbError: any) {
-      console.error('❌ Database rating error:', dbError);
+      const code = String((dbError as any)?.code || '');
+      const isCircuitOpen = code === 'CIRCUIT_OPEN';
+
+      if (!isCircuitOpen) {
+        console.error('❌ Database rating error:', dbError);
+      }
       
       const msg = String(dbError?.message || '');
-      const code = String((dbError as any)?.code || '');
       const noDb = code === 'NO_DB_CONFIG' || msg.includes('NO_DB_CONFIG');
 
       if (noDb) {

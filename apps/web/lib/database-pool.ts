@@ -105,7 +105,6 @@ export async function executeQuery<T = any>(
     if (consecutiveFailures >= FAILURE_THRESHOLD) {
       const timeSinceLastFailure = Date.now() - lastFailureTime;
       if (timeSinceLastFailure < COOLDOWN_MS) {
-        console.warn(`🛑 Circuit open: Skipping DB query to avoid hanging. Cooldown: ${Math.round((COOLDOWN_MS - timeSinceLastFailure)/1000)}s`);
         const err: any = new Error('CIRCUIT_OPEN');
         err.code = 'CIRCUIT_OPEN';
         throw err;
