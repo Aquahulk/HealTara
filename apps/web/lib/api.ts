@@ -603,6 +603,10 @@ class ApiClient {
     });
   }
 
+  async getPublicDoctorWorkingHours(doctorId: number): Promise<Array<{ dayOfWeek: number; startTime: string; endTime: string }>> {
+    return this.request(`/api/doctors/${doctorId}/working-hours`);
+  }
+
   async getHospitalDoctorSlotPeriod(hospitalId: number, doctorId: number): Promise<{ slotPeriodMinutes: number }> {
     return this.request(`/api/hospitals/${hospitalId}/doctors/${doctorId}/slot-period`);
   }

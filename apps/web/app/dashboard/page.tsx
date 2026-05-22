@@ -691,11 +691,14 @@ const [socketReady, setSocketReady] = useState(false);
     };
 
     s.on('connect', () => { setSocketReady(true); joinRooms(); });
+    s.on('reconnect', () => { joinRooms(); });
     s.on('disconnect', () => setSocketReady(false));
 
     // Listen for appointment-related events
     s.on('appointment-booked', refreshData);
+    s.on('appointment:new', refreshData);
     s.on('appointment-updated', onUpdate);
+    s.on('appointment:updated', onUpdate);
     s.on('appointment-updated-optimistic', onUpdate);
     s.on('appointment-cancelled', onCancel);
     s.on('slots:updated', refreshData);
@@ -704,7 +707,9 @@ const [socketReady, setSocketReady] = useState(false);
 
     return () => {
       s.off('appointment-booked', refreshData);
+      s.off('appointment:new', refreshData);
       s.off('appointment-updated', onUpdate);
+      s.off('appointment:updated', onUpdate);
       s.off('appointment-updated-optimistic', onUpdate);
       s.off('appointment-cancelled', onCancel);
       s.off('slots:updated', refreshData);

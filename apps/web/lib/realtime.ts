@@ -39,8 +39,9 @@ export function joinHospitalRoom(hospitalId: number) {
 
 export function joinDoctorRoom(doctorId: number) {
   const s = getSocket();
-  if (Number.isFinite(doctorId)) {
-    s.emit('join-doctor', doctorId);
+  const id = Number(doctorId);
+  if (Number.isFinite(id) && id > 0) {
+    s.emit('join-doctor', id);
   }
 }
 

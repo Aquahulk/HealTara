@@ -508,7 +508,7 @@ export default function BookAppointmentModal({
                 const dayIdx = new Date(dateOnly).getDay();
                 let whForDay: { start: string; end: string } | null = null;
                 try {
-                    const whList = await apiClient.getSlotAdminWorkingHours({ doctorId: effectiveDoctorId });
+                    const whList = await apiClient.getPublicDoctorWorkingHours(effectiveDoctorId);
                     const found = Array.isArray(whList) ? whList.find((wh: any) => wh.dayOfWeek === dayIdx) : null;
                     if (found && found.startTime && found.endTime) {
                         whForDay = { start: String(found.startTime).slice(0,5), end: String(found.endTime).slice(0,5) };

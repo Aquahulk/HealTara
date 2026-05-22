@@ -37,13 +37,28 @@ async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
   if (cachedDoctors.length && (now - lastDoctorsFetch) < DOCTORS_CACHE_MS) {
     return cachedDoctors;
   }
-  const doctors = await prismaClient.user.findMany({
-    where: { role: 'DOCTOR' },
-    include: { doctorProfile: { include: { workingHours: true } } },
-  });
-  cachedDoctors = doctors.filter((d: any) => !!d.doctorProfile);
-  lastDoctorsFetch = now;
-  return cachedDoctors;
+  try {
+    const doctors = await prismaClient.user.findMany({
+      where: { role: 'DOCTOR' },
+      include: { doctorProfile: { include: { workingHours: true } } },
+    });
+    cachedDoctors = doctors.filter((d: any) => !!d.doctorProfile);
+    lastDoctorsFetch = now;
+    return cachedDoctors;
+  } catch (error: any) {
+    const isDbUnavailable =
+      (typeof error?.code === 'string' && error.code === 'P1001') ||
+      error?.name === 'PrismaClientInitializationError' ||
+      error?.name === 'PrismaClientRustPanicError' ||
+      error?.name === 'RustPanic';
+
+    if (isDbUnavailable) {
+      console.warn(`⚠️ Database unreachable during doctor fetch. Serving ${cachedDoctors.length} cached items.`);
+    } else {
+      console.error('❌ Error fetching doctors from DB:', error);
+    }
+    return cachedDoctors;
+  }
 }
 
 // Hospital caching for better performance
@@ -55,51 +70,69 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
   if (cachedHospitals.length && (now - lastHospitalsFetch) < HOSPITALS_CACHE_MS) {
     return cachedHospitals;
   }
-  console.log(`🔄 Fetching fresh hospitals from database...`);
   
-  // Use raw query for efficiency with complex counts and ratings
-  const hospitals = await prismaClient.$queryRaw`
-    SELECT 
-      h.id,
-      h.name,
-      h.address,
-      h.city,
-      h.state,
-      h.phone,
-      h.subdomain,
-      h.profile,
-      h.status,
-      h.created_at,
-      h.updated_at,
-      h.admin_id,
-      (SELECT COUNT(*)::int FROM "departments" WHERE "hospital_id" = h.id) as dept_count,
-      (SELECT COUNT(*)::int FROM "hospital_doctors" WHERE "hospital_id" = h.id) as doc_count,
-      (SELECT COUNT(*)::int FROM "appointments" WHERE "doctor_id" IN (SELECT "doctor_id" FROM "hospital_doctors" WHERE "hospital_id" = h.id)) as appt_count,
-      (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
-      (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
-    FROM "hospitals" h
-    WHERE h.status IN ('ACTIVE', 'PENDING')
-    ORDER BY h.id ASC
-  `;
+  try {
+    console.log(`🔄 Fetching fresh hospitals from database...`);
+    
+    // Use raw query for efficiency with complex counts and ratings
+    const hospitals = await prismaClient.$queryRaw`
+      SELECT 
+        h.id,
+        h.name,
+        h.address,
+        h.city,
+        h.state,
+        h.phone,
+        h.subdomain,
+        h.profile,
+        h.status,
+        h.created_at,
+        h.updated_at,
+        h.admin_id,
+        (SELECT COUNT(*)::int FROM "departments" WHERE "hospital_id" = h.id) as dept_count,
+        (SELECT COUNT(*)::int FROM "hospital_doctors" WHERE "hospital_id" = h.id) as doc_count,
+        (SELECT COUNT(*)::int FROM "appointments" WHERE "doctor_id" IN (SELECT "doctor_id" FROM "hospital_doctors" WHERE "hospital_id" = h.id)) as appt_count,
+        (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
+        (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
+      FROM "hospitals" h
+      WHERE h.status IN ('ACTIVE', 'PENDING')
+      ORDER BY h.id ASC
+    `;
 
-  // Format to match expected frontend structure
-  const formattedHospitals = (hospitals as any[]).map(h => ({
-    ...h,
-    _count: {
-      departments: h.dept_count || 0,
-      doctors: h.doc_count || 0,
-      appointments: h.appt_count || 0,
-      reviews: h.review_count || 0
-    },
-    rating: h.avg_rating || 0,
-    totalReviews: h.review_count || 0,
-    profile: h.profile || { general: { logoUrl: null, description: "Healthcare facility" } }
-  }));
+    // Format to match expected frontend structure
+    const formattedHospitals = (hospitals as any[]).map(h => ({
+      ...h,
+      _count: {
+        departments: h.dept_count || 0,
+        doctors: h.doc_count || 0,
+        appointments: h.appt_count || 0,
+        reviews: h.review_count || 0
+      },
+      rating: h.avg_rating || 0,
+      totalReviews: h.review_count || 0,
+      profile: h.profile || { general: { logoUrl: null, description: "Healthcare facility" } }
+    }));
 
-  cachedHospitals = formattedHospitals;
-  lastHospitalsFetch = now;
-  console.log(`✅ Cached ${formattedHospitals.length} hospitals: ${formattedHospitals.map(h => h.name).join(', ')}`);
-  return cachedHospitals;
+    cachedHospitals = formattedHospitals;
+    lastHospitalsFetch = now;
+    console.log(`✅ Cached ${formattedHospitals.length} hospitals: ${formattedHospitals.map(h => h.name).join(', ')}`);
+    return cachedHospitals;
+  } catch (error: any) {
+    const isDbUnavailable =
+      (typeof error?.code === 'string' && error.code === 'P1001') ||
+      error?.name === 'PrismaClientInitializationError' ||
+      error?.name === 'PrismaClientRustPanicError' ||
+      error?.name === 'RustPanic';
+
+    if (isDbUnavailable) {
+      console.warn(`⚠️ Database unreachable during hospital fetch. Serving ${cachedHospitals.length} cached items.`);
+    } else {
+      console.error('❌ Error fetching hospitals from DB:', error);
+    }
+    
+    // Return stale cache if available, or empty list
+    return cachedHospitals;
+  }
 }
 
 const SEARCH_CACHE_MS = 30 * 1000;
@@ -226,16 +259,25 @@ const io = new SocketIOServer(server, {
   } 
 });
 io.on('connection', (socket) => {
-  socket.on('join-hospital', (hospitalId: number) => {
-    if (Number.isFinite(hospitalId)) socket.join(`hospital:${hospitalId}`);
+  socket.on('join-hospital', (hospitalId: any) => {
+    const id = Number(hospitalId);
+    if (Number.isFinite(id) && id > 0) socket.join(`hospital:${id}`);
   });
-  socket.on('join-doctor', (doctorId: number) => {
-    if (Number.isFinite(doctorId)) socket.join(`doctor:${doctorId}`);
+  socket.on('join-doctor', (doctorId: any) => {
+    const id = Number(doctorId);
+    if (Number.isFinite(id) && id > 0) {
+      socket.join(`doctor:${id}`);
+      console.log(`[socket] doctor ${id} joined room doctor:${id}`);
+    }
   });
-  socket.on('join-patient', (patientId: number) => {
-    if (Number.isFinite(patientId)) socket.join(`patient:${patientId}`);
+  socket.on('join-patient', (patientId: any) => {
+    const id = Number(patientId);
+    if (Number.isFinite(id) && id > 0) socket.join(`patient:${id}`);
   });
 });
+
+// Make io accessible to route handlers via req.app.get('io')
+app.set('io', io);
 
 // ============================================================================
 // ⚙️ MIDDLEWARE SETUP - Functions that run before your routes
@@ -325,8 +367,9 @@ function broadcastPatientEvent(patientId: number | undefined | null, event: stri
 }
 
 function broadcastDoctorEvent(doctorId: number | undefined | null, event: string, payload: any) {
-  if (!doctorId) return;
-  const set = doctorSseClients.get(doctorId);
+  const id = Number(doctorId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  const set = doctorSseClients.get(id);
   const data = JSON.stringify(payload);
   if (set) {
     for (const client of set) {
@@ -336,7 +379,10 @@ function broadcastDoctorEvent(doctorId: number | undefined | null, event: string
       } catch (_) {}
     }
   }
-  try { io.to(`doctor:${doctorId}`).emit(event, payload); } catch (_) {}
+  try { 
+    console.log(`[broadcast] doctor:${id} <- ${event}`);
+    io.to(`doctor:${id}`).emit(event, payload); 
+  } catch (_) {}
 }
 
 // Subscribe to hospital appointment events
@@ -4023,6 +4069,25 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * c;
 }
 
+// --- Public: Get doctor working hours by doctorId (no auth required) ---
+app.get('/api/doctors/:doctorId/working-hours', async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: doctorId }, select: { id: true } });
+    if (!profile) return res.status(404).json({ message: 'Doctor not found' });
+    const hours = await prisma.doctorWorkingHours.findMany({
+      where: { doctorProfileId: profile.id },
+      orderBy: { dayOfWeek: 'asc' },
+      select: { dayOfWeek: true, startTime: true, endTime: true },
+    });
+    return res.status(200).json(hours);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Failed to load working hours' });
+  }
+});
+
 // --- Doctors near lat/lon (km) with lazy geocoding of clinic address ---
 app.get('/api/doctors/near', async (req: Request, res: Response) => {
   const lat = Number(req.query.lat);
@@ -4596,8 +4661,20 @@ app.get('/api/hospitals', async (req: Request, res: Response) => {
       count: filtered.length
     });
   } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'An error occurred while fetching hospitals.' });
+    const isDbUnavailable =
+      (typeof err?.code === 'string' && err.code === 'P1001') ||
+      err?.name === 'PrismaClientInitializationError' ||
+      err?.name === 'PrismaClientRustPanicError' ||
+      err?.name === 'RustPanic';
+
+    if (!isDbUnavailable) {
+      console.error('❌ Hospital fetch error:', err);
+    }
+    
+    res.status(isDbUnavailable ? 503 : 500).json({ 
+      success: false, 
+      message: isDbUnavailable ? 'Database unavailable' : 'An error occurred while fetching hospitals.' 
+    });
   }
 });
 
@@ -4638,8 +4715,18 @@ app.get('/api/hospitals/slug/:slug/profile', async (req: Request, res: Response)
     if (!match) return res.status(404).json({ message: 'Hospital not found' });
     return res.status(200).json({ hospitalId: match.id, name: match.name, profile: match.profile ?? null });
   } catch (err: any) {
-    console.error(err);
-    return res.status(500).json({ message: 'An error occurred while resolving hospital by slug.' });
+    const isDbUnavailable =
+      (typeof err?.code === 'string' && err.code === 'P1001') ||
+      err?.name === 'PrismaClientInitializationError' ||
+      err?.name === 'PrismaClientRustPanicError' ||
+      err?.name === 'RustPanic';
+
+    if (!isDbUnavailable) {
+      console.error('❌ Hospital slug resolution error:', err);
+    }
+    return res.status(isDbUnavailable ? 503 : 500).json({ 
+      message: isDbUnavailable ? 'Database unavailable' : 'An error occurred while resolving hospital by slug.' 
+    });
   }
 });
 

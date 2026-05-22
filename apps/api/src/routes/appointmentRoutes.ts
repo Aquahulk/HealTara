@@ -47,6 +47,26 @@ router.post('/', async (req: Request, res: Response) => {
     const newAppointment = await prisma.appointment.create({
       data: { date: appointmentDate, time, notes: reason, doctorId, patientId },
     });
+
+    // Real-time broadcast using helper functions defined in index.ts (accessible via req.app)
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        // Emit to doctor's room
+        io.to(`doctor:${doctorId}`).emit('appointment-booked', { appointment: newAppointment });
+        console.log(`[broadcast] doctor:${doctorId} <- appointment-booked (via router)`);
+        
+        // Emit to patient's room
+        io.to(`patient:${patientId}`).emit('appointment-booked', { appointment: newAppointment });
+        
+        // Emit slots:updated to refresh availability views
+        const dStr = appointmentDate.toISOString().split('T')[0];
+        io.to(`doctor:${doctorId}`).emit('slots:updated', { doctorId, date: dStr });
+      }
+    } catch (err) {
+      console.warn('Real-time broadcast failed in appointment router:', err);
+    }
+
     res.status(201).json({ message: 'Appointment booked successfully', appointment: newAppointment });
   } catch (error) {
     console.error(error);
@@ -85,6 +105,23 @@ router.patch('/:id', async (req: Request, res: Response) => {
       where: { id: parseInt(id) },
       data: { status, updatedAt: new Date() },
     });
+
+    // Real-time broadcast
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const doctorId = updatedAppointment.doctorId;
+        const patientId = updatedAppointment.patientId;
+        const dStr = updatedAppointment.date.toISOString().split('T')[0];
+
+        io.to(`doctor:${doctorId}`).emit('appointment-updated', { appointment: updatedAppointment });
+        io.to(`patient:${patientId}`).emit('appointment-updated', { appointment: updatedAppointment });
+        io.to(`doctor:${doctorId}`).emit('slots:updated', { doctorId, date: dStr });
+      }
+    } catch (err) {
+      console.warn('Real-time broadcast failed in appointment update router:', err);
+    }
+
     res.status(200).json({ message: 'Appointment status updated', appointment: updatedAppointment });
   } catch (error) {
     console.error(error);
