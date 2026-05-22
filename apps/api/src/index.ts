@@ -1940,6 +1940,46 @@ app.patch('/api/doctor/slot-period', authMiddleware, async (req: Request, res: R
   }
 });
 
+// --- Doctor: Get own working hours (Protected, Doctor role) ---
+app.get('/api/doctor/working-hours', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found' });
+    const hours = await prisma.doctorWorkingHours.findMany({ where: { doctorProfileId: profile.id }, orderBy: { dayOfWeek: 'asc' } });
+    return res.status(200).json(hours);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Failed to load working hours' });
+  }
+});
+
+// --- Doctor: Save own working hours (Protected, Doctor role) ---
+app.put('/api/doctor/working-hours', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') return res.status(403).json({ message: 'Forbidden' });
+  const hours = req.body as Array<{ dayOfWeek: number; startTime: string; endTime: string }>;
+  if (!Array.isArray(hours)) return res.status(400).json({ message: 'hours must be an array' });
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found' });
+    const results = await Promise.all(
+      hours.map((h) =>
+        prisma.doctorWorkingHours.upsert({
+          where: { doctorProfileId_dayOfWeek: { doctorProfileId: profile.id, dayOfWeek: h.dayOfWeek } },
+          update: { startTime: h.startTime, endTime: h.endTime },
+          create: { doctorProfileId: profile.id, dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime },
+        })
+      )
+    );
+    return res.status(200).json(results);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Failed to save working hours' });
+  }
+});
+
 // --- Doctor: Reserve a walk-in slot (Protected, Doctor role) ---
 app.post('/api/doctor/walk-in/reserve', authMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;

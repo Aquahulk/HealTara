@@ -592,6 +592,17 @@ class ApiClient {
     });
   }
 
+  async getDoctorWorkingHours(): Promise<Array<{ id: number; dayOfWeek: number; startTime: string; endTime: string }>> {
+    return this.request('/api/doctor/working-hours');
+  }
+
+  async setDoctorWorkingHours(hours: Array<{ dayOfWeek: number; startTime: string; endTime: string }>): Promise<any> {
+    return this.request('/api/doctor/working-hours', {
+      method: 'PUT',
+      body: JSON.stringify(hours),
+    });
+  }
+
   async getHospitalDoctorSlotPeriod(hospitalId: number, doctorId: number): Promise<{ slotPeriodMinutes: number }> {
     return this.request(`/api/hospitals/${hospitalId}/doctors/${doctorId}/slot-period`);
   }

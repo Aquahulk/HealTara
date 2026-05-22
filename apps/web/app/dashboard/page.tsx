@@ -463,6 +463,16 @@ export default function DashboardPage() {
   const [showDoctorHistory, setShowDoctorHistory] = useState(false);
   const [historyVisibleDoctor, setHistoryVisibleDoctor] = useState<Record<number, boolean>>({});
   const [hospitalWorkingHours, setHospitalWorkingHours] = useState<Array<{ dayOfWeek: number; start: string | null; end: string | null }>>([]);
+  // Doctor's own working hours — used in appointments day view
+  const [doctorWorkingHours, setDoctorWorkingHours] = useState<Record<number, { start: string; end: string }>>({
+    0: { start: '09:00', end: '17:00' },
+    1: { start: '09:00', end: '17:00' },
+    2: { start: '09:00', end: '17:00' },
+    3: { start: '09:00', end: '17:00' },
+    4: { start: '09:00', end: '17:00' },
+    5: { start: '10:00', end: '14:00' },
+    6: { start: '', end: '' },
+  });
   const [hospitalHoursInputs, setHospitalHoursInputs] = useState<Record<number, { start: string; end: string }>>({
     0: { start: "09:00", end: "17:00" },
     1: { start: "09:00", end: "17:00" },
@@ -575,6 +585,8 @@ const [socketReady, setSocketReady] = useState(false);
           ]);
           setStats(statsResult);
           setSlots(Array.isArray(mySlots) ? mySlots : []);
+          // Also update doctorAppointmentsMap so the day view refreshes
+          setDoctorAppointmentsMap((prev) => ({ ...prev, [user.id]: appointmentsResult }));
           
           // Refresh Tokens
           const r = await apiClient.getDoctorTokensToday(user.id);
@@ -745,6 +757,20 @@ const [socketReady, setSocketReady] = useState(false);
             setDoctorProfile(null);
             console.warn('⚠️ Failed to fetch doctor profile');
           }
+
+          // Load doctor's own working hours for appointments day view
+          try {
+            const wh = await apiClient.getDoctorWorkingHours();
+            if (Array.isArray(wh) && wh.length > 0) {
+              const next: Record<number, { start: string; end: string }> = {};
+              wh.forEach((h: any) => {
+                if (typeof h.dayOfWeek === 'number') {
+                  next[h.dayOfWeek] = { start: h.startTime?.slice(0,5) || '', end: h.endTime?.slice(0,5) || '' };
+                }
+              });
+              setDoctorWorkingHours(prev => ({ ...prev, ...next }));
+            }
+          } catch { /* keep defaults */ }
           
           // Stats: optional – default to zeros on failure
           if (statsResult.status === 'fulfilled') {
@@ -915,26 +941,42 @@ const [socketReady, setSocketReady] = useState(false);
     };
     const onBooked = async (msg: any) => {
       try {
-        const did = Number(msg?.payload?.doctorId);
+        const did = Number(msg?.payload?.doctorId ?? msg?.doctorId);
         if (!Number.isFinite(did) || did !== user.id) return;
+        // Refresh token count
         const r = await apiClient.getDoctorTokensToday(user.id);
         if (!mounted) return;
         setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : 0 });
+        // Refresh appointments immediately
+        const [appts, mySlots] = await Promise.all([
+          apiClient.getMyAppointments().catch(() => null),
+          apiClient.getSlots({ doctorId: user.id }).catch(() => null),
+        ]);
+        if (!mounted) return;
+        if (appts) { setAppointments(appts); setDoctorAppointmentsMap(prev => ({ ...prev, [user.id]: appts })); }
+        if (mySlots) setSlots(Array.isArray(mySlots) ? mySlots : []);
       } catch {}
     };
     s.on('token:updated', handler);
     s.on('appointment-booked', onBooked);
+    s.on('slots:updated', onBooked);
+    // Poll every 8s while appointments tab is open — catches any missed socket events
     intervalId = setInterval(async () => {
       try {
-        const r = await apiClient.getDoctorTokensToday(user.id);
+        const [r, appts] = await Promise.all([
+          apiClient.getDoctorTokensToday(user.id),
+          apiClient.getMyAppointments().catch(() => null),
+        ]);
         if (!mounted) return;
         setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : 0 });
+        if (appts) { setAppointments(appts); setDoctorAppointmentsMap(prev => ({ ...prev, [user.id]: appts })); }
       } catch {}
-    }, 30000);
+    }, 8000);
     return () => {
       mounted = false;
       s.off('token:updated', handler);
       s.off('appointment-booked', onBooked);
+      s.off('slots:updated', onBooked);
       if (intervalId) {
         try { clearInterval(intervalId); } catch {}
       }
@@ -1563,34 +1605,20 @@ const [socketReady, setSocketReady] = useState(false);
         const bookedDid = Number(payload?.doctorId);
         if (!bookedDid || bookedDid !== did) return;
 
-        const refreshForHospital = async (hid2: number) => {
-          try {
-            const [items, mySlots] = await Promise.all([
-              apiClient.getHospitalDoctorAppointments(hid2, did),
-              apiClient.getSlots({ doctorId: did }),
-            ]);
-            setDoctorAppointmentsMap((prev) => ({
-              ...prev,
-              [did]: Array.isArray(items) ? items : [],
-            }));
-            setHospitalDoctorSlotsMap((prev) => ({
-              ...prev,
-              [did]: Array.isArray(mySlots) ? mySlots : [],
-            }));
-            if (user?.id === did) {
-              setSlots(Array.isArray(mySlots) ? mySlots : []);
-              const mine = await apiClient.getMyAppointments().catch(() => []);
-              setAppointments(mine);
-            }
-          } catch {}
-        };
+        // Fetch fresh appointments and slots directly for this doctor
+        const [mine, mySlots] = await Promise.all([
+          apiClient.getMyAppointments().catch(() => []),
+          apiClient.getSlots({ doctorId: did }).catch(() => []),
+        ]);
+        setAppointments(mine);
+        setSlots(Array.isArray(mySlots) ? mySlots : []);
+        setDoctorAppointmentsMap((prev) => ({ ...prev, [did]: mine }));
 
+        // Also refresh hospital view if applicable
         if (hospitalProfile?.id) {
-          await refreshForHospital(hospitalProfile.id);
-        } else {
           try {
-            const h = await apiClient.getMyHospital();
-            if (h?.id) await refreshForHospital(h.id);
+            const items = await apiClient.getHospitalDoctorAppointments(hospitalProfile.id, did);
+            setDoctorAppointmentsMap((prev) => ({ ...prev, [did]: Array.isArray(items) ? items : mine }));
           } catch {}
         }
       } catch {}
@@ -2982,6 +3010,7 @@ const [socketReady, setSocketReady] = useState(false);
               onPeriodUpdated={(minutes) => {
                 setDoctorProfile(prev => prev ? { ...prev, slotPeriodMinutes: minutes } : null);
               }}
+              onWorkingHoursUpdated={(hours) => setDoctorWorkingHours(hours)}
             />
           ) : (
             <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
@@ -3863,12 +3892,15 @@ const [socketReady, setSocketReady] = useState(false);
                                 const isToday = dateKey === todayStr;
                                 const isExpanded = isToday || expandedUpcomingDates[dateKey];
                                 
-                                // Get hours for this day
+                                // Get hours for this day from doctor's own working hours
                                 const dayIdx = getISTDayIndex(dayDate);
-                                const wh = (hospitalHoursInputs as any)?.[dayIdx];
-                                const startHour = wh?.start ? parseInt(wh.start.split(':')[0]) : 8;
-                                const endHour = wh?.end ? parseInt(wh.end.split(':')[0]) : 20;
-                                const hoursList = Array.from({ length: Math.max(1, endHour - startHour + 1) }, (_, i) => startHour + i);
+                                const wh = doctorWorkingHours?.[dayIdx];
+                                // If no working hours set for this day, skip (day off)
+                                const isDayOff = !wh?.start || !wh?.end;
+                                const startHour = wh?.start ? parseInt(wh.start.split(':')[0]) : 9;
+                                const endHour = wh?.end ? parseInt(wh.end.split(':')[0]) : 17;
+                                // Include the end hour slot so e.g. 09:00–17:00 shows 09–17
+                                const hoursList = isDayOff ? [] : Array.from({ length: Math.max(1, endHour - startHour) }, (_, i) => startHour + i);
 
                                 return (
                                   <div key={dateKey} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -3886,7 +3918,13 @@ const [socketReady, setSocketReady] = useState(false);
 
                                     {isExpanded && (
                                       <div className="divide-y divide-gray-50">
-                                        {hoursList.map((h) => {
+                                        {isDayOff ? (
+                                          <div className="px-4 py-4 flex items-center gap-2 text-gray-400">
+                                            <span className="text-sm">🚫</span>
+                                            <span className="text-xs font-medium">Day off — no working hours set for this day</span>
+                                            <button onClick={() => setActiveTab('slots')} className="ml-auto text-[10px] text-blue-500 hover:text-blue-700 font-semibold underline">Set hours</button>
+                                          </div>
+                                        ) : hoursList.map((h) => {
                                           const hourStart = new Date(`${dateKey}T${String(h).padStart(2, '0')}:00:00`);
                                           const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
                                           const { period, countPerHour } = getCapacityForHour(dateKey, h);
@@ -3998,8 +4036,6 @@ const [socketReady, setSocketReady] = useState(false);
                                   </div>
                                 );
                               })}
-
-                              {/* Expired appointments */}
                               {expiredAppointments.length > 0 && (
                                 <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
                                   <button onClick={() => setShowExpiredSlots(!showExpiredSlots)}
@@ -4796,16 +4832,61 @@ function DoctorSettings() {
 // ============================================================================
 // ⏱️ SLOT SETTINGS COMPONENT - Manage Patients per Hour
 // ============================================================================
-function SlotSettingsTab({ doctorProfile, onPeriodUpdated }: { doctorProfile: any, onPeriodUpdated: (minutes: number) => void }) {
+function SlotSettingsTab({ doctorProfile, onPeriodUpdated, onWorkingHoursUpdated }: { doctorProfile: any, onPeriodUpdated: (minutes: number) => void, onWorkingHoursUpdated?: (hours: Record<number, { start: string; end: string }>) => void }) {
   const [patientsPerHour, setPatientsPerHour] = useState<number>(4);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Working hours state — start empty, filled from DB
+  const [hoursInputs, setHoursInputs] = useState<Record<number, { start: string; end: string }>>({
+    0: { start: '', end: '' },
+    1: { start: '', end: '' },
+    2: { start: '', end: '' },
+    3: { start: '', end: '' },
+    4: { start: '', end: '' },
+    5: { start: '', end: '' },
+    6: { start: '', end: '' },
+  });
+  const [hoursLoading, setHoursLoading] = useState(false);
+  const [hoursMessage, setHoursMessage] = useState<string | null>(null);
+  const [hoursLoaded, setHoursLoaded] = useState(false);
 
   useEffect(() => {
     if (doctorProfile?.slotPeriodMinutes) {
       setPatientsPerHour(Math.round(60 / doctorProfile.slotPeriodMinutes));
     }
   }, [doctorProfile]);
+
+  // Load working hours on mount — always from DB, never from local state
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const list = await apiClient.getDoctorWorkingHours();
+        // Build a clean map from DB data only
+        const next: Record<number, { start: string; end: string }> = {
+          0: { start: '', end: '' }, 1: { start: '', end: '' }, 2: { start: '', end: '' },
+          3: { start: '', end: '' }, 4: { start: '', end: '' }, 5: { start: '', end: '' },
+          6: { start: '', end: '' },
+        };
+        if (Array.isArray(list)) {
+          list.forEach((wh: any) => {
+            if (typeof wh.dayOfWeek === 'number') {
+              next[wh.dayOfWeek] = {
+                start: wh.startTime ? wh.startTime.slice(0, 5) : '',
+                end: wh.endTime ? wh.endTime.slice(0, 5) : '',
+              };
+            }
+          });
+        }
+        setHoursInputs(next);
+        // Notify appointments tab of loaded hours
+        if (onWorkingHoursUpdated) onWorkingHoursUpdated(next);
+      } catch { /* keep empty */ }
+      finally { setHoursLoaded(true); }
+    };
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSave = async () => {
     setLoading(true);
@@ -4822,7 +4903,31 @@ function SlotSettingsTab({ doctorProfile, onPeriodUpdated }: { doctorProfile: an
     }
   };
 
+  const handleSaveHours = async () => {
+    setHoursLoading(true);
+    setHoursMessage(null);
+    try {
+      const payload = Object.keys(hoursInputs)
+        .map((k) => {
+          const day = Number(k);
+          const { start, end } = hoursInputs[day];
+          if (start && end) return { dayOfWeek: day, startTime: `${start}:00`, endTime: `${end}:00` };
+          return null;
+        })
+        .filter((v): v is { dayOfWeek: number; startTime: string; endTime: string } => v !== null);
+      await apiClient.setDoctorWorkingHours(payload);
+      setHoursMessage('✅ Working hours saved');
+      // Notify appointments tab so it adjusts immediately
+      if (onWorkingHoursUpdated) onWorkingHoursUpdated(hoursInputs);
+    } catch (err: any) {
+      setHoursMessage('❌ ' + (err.message || 'Failed to save working hours'));
+    } finally {
+      setHoursLoading(false);
+    }
+  };
+
   const period = Math.max(1, Math.round(60 / Math.max(1, patientsPerHour)));
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   return (
     <div>
@@ -4922,80 +5027,101 @@ function SlotSettingsTab({ doctorProfile, onPeriodUpdated }: { doctorProfile: an
           </div>
         </div>
 
-        {/* Right Column: Preview */}
+        {/* Right Column: Working Hours */}
         <div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm h-full flex flex-col">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-0.5">Preview Schedule</h3>
-                <p className="text-xs text-gray-400">This is how your schedule will look.</p>
+                <h3 className="text-sm font-bold text-gray-900 mb-0.5">Working Hours</h3>
+                <p className="text-xs text-gray-400">Set your available hours for each day</p>
               </div>
-              <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide">
-                {patientsPerHour} Patients/Hour
-              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const list = await apiClient.getDoctorWorkingHours();
+                    const next: Record<number, { start: string; end: string }> = {
+                      0: { start: '', end: '' }, 1: { start: '', end: '' }, 2: { start: '', end: '' },
+                      3: { start: '', end: '' }, 4: { start: '', end: '' }, 5: { start: '', end: '' },
+                      6: { start: '', end: '' },
+                    };
+                    if (Array.isArray(list)) {
+                      list.forEach((wh: any) => {
+                        if (typeof wh.dayOfWeek === 'number') {
+                          next[wh.dayOfWeek] = { start: wh.startTime?.slice(0,5) || '', end: wh.endTime?.slice(0,5) || '' };
+                        }
+                      });
+                    }
+                    setHoursInputs(next);
+                    if (onWorkingHoursUpdated) onWorkingHoursUpdated(next);
+                  } catch {}
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-semibold border border-blue-200 px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-all"
+              >
+                Refresh
+              </button>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-3 space-y-2 flex-1 border border-gray-100">
-               <div className="flex items-center justify-between px-1 mb-3">
-                 <button className="w-6 h-6 flex items-center justify-center hover:bg-gray-200 rounded-lg text-gray-400 transition-colors text-sm">‹</button>
-                 <div className="flex items-center gap-2">
-                   <CalendarIcon className="w-3.5 h-3.5 text-blue-500" />
-                   <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wide">20 May, 2026 (Wednesday)</span>
-                   <ChevronDown className="w-3 h-3 text-gray-400" />
-                 </div>
-                 <button className="w-6 h-6 flex items-center justify-center hover:bg-gray-200 rounded-lg text-gray-400 transition-colors text-sm">›</button>
-               </div>
-
-               <div className="space-y-1.5">
-                 {Array.from({ length: Math.min(8, patientsPerHour) }).map((_, i) => {
-                   const startMins = i * period;
-                   const endMins = (i + 1) * period;
-                   const formatTime = (m: number) => {
-                     const hTotal = 9 * 60 + m;
-                     const h = Math.floor(hTotal / 60);
-                     const mm = hTotal % 60;
-                     const ampm = h >= 12 ? 'PM' : 'AM';
-                     const displayH = h > 12 ? h - 12 : h;
-                     return `${String(displayH).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${ampm}`;
-                   };
-                   return (
-                     <div key={i} className="bg-white border border-gray-100 rounded-lg px-3 py-2 flex items-center justify-between shadow-sm hover:border-blue-100 transition-all">
-                       <div className="flex items-center gap-4">
-                         <span className="text-[10px] font-bold text-gray-300 w-14">{formatTime(startMins)}</span>
-                         <span className="text-xs font-semibold text-gray-700">{formatTime(startMins)} – {formatTime(endMins)}</span>
-                       </div>
-                       <div className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[9px] font-bold uppercase">Slot {i + 1}</div>
-                     </div>
-                   );
-                 })}
-                 
-                 {patientsPerHour > 8 && (
-                   <div className="text-center py-2">
-                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                       + {patientsPerHour - 8} more slots per hour
-                     </span>
-                   </div>
-                 )}
-                 
-                 <div className="bg-gray-100/50 border border-dashed border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between opacity-60">
-                    <div className="flex items-center gap-4">
-                      <span className="text-[10px] font-bold text-gray-400 w-14">10:00 AM</span>
-                      <div className="flex items-center gap-1.5">
-                        <ClockIcon className="w-3 h-3 text-gray-400" />
-                        <span className="text-xs font-semibold text-gray-400 italic">Break Time (Buffer)</span>
+            <div className="grid grid-cols-1 gap-2">
+              {DAYS.map((day, idx) => {
+                const val = hoursInputs[idx] || { start: '', end: '' };
+                const isOff = !val.start && !val.end;
+                return (
+                  <div key={idx} className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${isOff ? 'bg-gray-50 border-gray-100' : 'bg-white border-gray-200'}`}>
+                    {/* Day toggle */}
+                    <button
+                      onClick={() => {
+                        if (isOff) {
+                          setHoursInputs(prev => ({ ...prev, [idx]: { start: '09:00', end: '17:00' } }));
+                        } else {
+                          setHoursInputs(prev => ({ ...prev, [idx]: { start: '', end: '' } }));
+                        }
+                      }}
+                      className={`w-8 h-4 rounded-full transition-all flex-shrink-0 relative ${isOff ? 'bg-gray-200' : 'bg-blue-500'}`}
+                    >
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${isOff ? 'left-0.5' : 'left-4'}`} />
+                    </button>
+                    <span className={`text-xs font-semibold w-20 flex-shrink-0 ${isOff ? 'text-gray-400' : 'text-gray-700'}`}>{day}</span>
+                    {isOff ? (
+                      <span className="text-[11px] text-gray-400 italic">Day off</span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-1">
+                        <input
+                          type="time"
+                          value={val.start}
+                          onChange={(e) => setHoursInputs(prev => ({ ...prev, [idx]: { ...prev[idx], start: e.target.value } }))}
+                          className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <span className="text-[10px] text-gray-400 font-medium">to</span>
+                        <input
+                          type="time"
+                          value={val.end}
+                          onChange={(e) => setHoursInputs(prev => ({ ...prev, [idx]: { ...prev[idx], end: e.target.value } }))}
+                          className="flex-1 border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
-                    </div>
-                    <span className="text-[10px] font-bold text-gray-400">10:00 – 10:15 AM</span>
-                 </div>
-               </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            
-            <div className="mt-3 flex items-center gap-2 p-3 bg-blue-50/50 rounded-lg border border-blue-100/50">
-               <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-[9px] font-bold flex-shrink-0">?</div>
-               <p className="text-[10px] font-semibold text-blue-400 leading-relaxed">
-                 New settings will apply to future slots only.
-               </p>
-            </div>
+
+            <button
+              onClick={handleSaveHours}
+              disabled={hoursLoading}
+              className="w-full mt-3 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold py-2.5 rounded-lg shadow transition-all disabled:opacity-50 text-sm"
+            >
+              {hoursLoading ? 'Saving...' : 'Save Working Hours'}
+            </button>
+
+            {hoursMessage && (
+              <div className={`mt-2 p-2.5 rounded-lg text-center text-xs font-bold ${
+                hoursMessage.includes('✅') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'
+              }`}>
+                {hoursMessage}
+              </div>
+            )}
+
+            <p className="text-[10px] text-gray-400 mt-2">These hours define when patients can book appointments with you.</p>
           </div>
         </div>
       </div>
