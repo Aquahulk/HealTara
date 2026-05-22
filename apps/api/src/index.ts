@@ -306,6 +306,14 @@ app.use(cors(corsOptions));                                           // Allow c
 app.use(express.json({ limit: '50mb' }));                   // Parse JSON request bodies with increased limit
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Parse URL-encoded bodies with increased limit
 
+// Disable caching on all API responses — ensures fresh data on every request
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // ============================================================================
 // 🩺 HEALTH CHECK - Keep the server alive
 // ============================================================================
@@ -1818,21 +1826,20 @@ app.post('/api/appointments', authMiddleware, async (req: Request, res: Response
       broadcastPatientEvent(Number(patientId), 'appointment-booked', { doctorId: Number(doctorId), appointmentId: newAppointment.id });
     } catch (_) {}
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.status(201).json({ message: 'Appointment booked successfully', appointment: newAppointment });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while booking the appointment.' });
   }
 });
-
-
-// =================================================================
-// --- NEWLY ADDED ENDPOINTS ---
 // =================================================================
 
 // --- Get Appointments for the Logged-In User (Patient or Doctor) ---
 app.get('/api/my-appointments', authMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
   try {
     const appointments = await prisma.appointment.findMany({
       where: {

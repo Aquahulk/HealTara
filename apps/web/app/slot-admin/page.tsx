@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { getSocket, joinDoctorRoom, joinHospitalRoom, onAppointmentUpdates, onSlotUpdates } from "@/lib/realtime";
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
+import PatientDetailPopup from '@/components/PatientDetailPopup';
 
 const API_URL = ""; // use relative URLs with Next.js dev rewrites
 
@@ -193,6 +195,7 @@ export default function SlotAdminPanelPage() {
   });
   const [slotPeriodMinutes, setSlotPeriodMinutes] = useState<number>(15);
 const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   useEffect(() => {
     const t = localStorage.getItem("slotAdminToken");
@@ -947,7 +950,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 lg:ml-64">
+      <div className={`flex-1 transition-all duration-500 ease-in-out ${selectedAppointment ? 'lg:mr-[24rem]' : ''} lg:ml-64`}>
       <header className="bg-white shadow-md sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -1235,7 +1238,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                                       ) : (
                                         <ul className="space-y-2">
                                           {seg.inSeg.map((a) => (
-                                            <li key={a.id} className="bg-white rounded-lg p-3 shadow-md border border-gray-200 hover:shadow-lg hover:scale-102 transition-all duration-200 cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                            <li key={a.id} className="bg-white rounded-lg p-3 shadow-md border border-gray-200 hover:shadow-lg hover:scale-102 transition-all duration-200 cursor-pointer" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)} onClick={() => setSelectedAppointment(a)}>
                                               <div className="flex items-start justify-between mb-2">
                                                 <div className="flex items-center gap-2 flex-1 mr-2">
                                                   <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
@@ -1250,21 +1253,21 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                                               <div className="text-[10px] text-gray-500 mb-2 font-medium">ID: #{a.id}</div>
                                               <div className="grid grid-cols-3 gap-1">
                                                 <button 
-                                                  onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} 
+                                                  onClick={(e) => { e.stopPropagation(); updateAppointmentStatus(a.id, 'CONFIRMED'); }} 
                                                   className="text-[10px] bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-2 py-1.5 rounded-lg font-bold transition-all duration-200 shadow-sm hover:shadow-md"
                                                   title="Confirm"
                                                 >
                                                   ✓
                                                 </button>
                                                 <button 
-                                                  onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} 
+                                                  onClick={(e) => { e.stopPropagation(); updateAppointmentStatus(a.id, 'COMPLETED'); }} 
                                                   className="text-[10px] bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-2 py-1.5 rounded-lg font-bold transition-all duration-200 shadow-sm hover:shadow-md"
                                                   title="Complete"
                                                 >
                                                   ✓✓
                                                 </button>
                                                 <button 
-                                                  onClick={() => cancelAppointment(a.id)} 
+                                                  onClick={(e) => { e.stopPropagation(); cancelAppointment(a.id); }} 
                                                   className="text-[10px] bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-2 py-1.5 rounded-lg font-bold transition-all duration-200 shadow-sm hover:shadow-md"
                                                   title="Cancel"
                                                 >
@@ -1408,7 +1411,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                                             ) : (
                                               <ul className="space-y-3">
                                                 {inSeg.map((a) => (
-                                                  <li key={a.id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-move" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)}>
+                                                  <li key={a.id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)} onClick={() => setSelectedAppointment(a)}>
                                                     <div className="flex items-start justify-between mb-2">
                                                       <div className="text-xs font-bold text-gray-900 truncate flex-1 mr-2">
                                                         {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}
@@ -1418,21 +1421,21 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                                                     <div className="text-[10px] text-gray-500 mb-2">ID: #{a.id}</div>
                                                     <div className="grid grid-cols-3 gap-1">
                                                       <button 
-                                                        onClick={() => updateAppointmentStatus(a.id, 'CONFIRMED')} 
+                                                        onClick={(e) => { e.stopPropagation(); updateAppointmentStatus(a.id, 'CONFIRMED'); }} 
                                                         className="text-[10px] bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
                                                         title="Confirm"
                                                       >
                                                         ✓
                                                       </button>
                                                       <button 
-                                                        onClick={() => updateAppointmentStatus(a.id, 'COMPLETED')} 
+                                                        onClick={(e) => { e.stopPropagation(); updateAppointmentStatus(a.id, 'COMPLETED'); }} 
                                                         className="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
                                                         title="Complete"
                                                       >
                                                         ✓✓
                                                       </button>
                                                       <button 
-                                                        onClick={() => cancelAppointment(a.id)} 
+                                                        onClick={(e) => { e.stopPropagation(); cancelAppointment(a.id); }} 
                                                         className="text-[10px] bg-red-600 hover:bg-red-700 text-white px-2 py-1.5 rounded font-bold transition-colors"
                                                         title="Cancel"
                                                       >
@@ -2055,6 +2058,18 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
       <div className="lg:hidden">
         <MobileBottomNavigation />
       </div>
+
+      {/* Patient Detail Popup */}
+      <PatientDetailPopup 
+        appointment={selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+        onStatusUpdate={(id, status) => {
+          updateAppointmentStatus(id, status);
+          if (selectedAppointment && selectedAppointment.id === id) {
+            setSelectedAppointment({ ...selectedAppointment, status });
+          }
+        }}
+      />
     </div>
   );
 }

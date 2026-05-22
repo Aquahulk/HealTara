@@ -337,6 +337,7 @@ class ApiClient {
         response = await fetch(primaryUrl, {
           ...options,
           headers,
+          cache: 'no-store',
         });
       } catch (networkErr: any) {
         // Network failure (CORS redirect, DNS, etc.). Try relative URL as fallback.
@@ -344,6 +345,7 @@ class ApiClient {
           response = await fetch(fallbackUrl, {
             ...options,
             headers,
+            cache: 'no-store',
           });
         } else {
           throw networkErr;

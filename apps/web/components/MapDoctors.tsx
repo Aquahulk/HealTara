@@ -55,7 +55,7 @@ export default function MapDoctors({
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [center.lat, center.lon, JSON.stringify(pins)]);
+  }, [center.lat, center.lon, JSON.stringify(pins), height]);
 
   return <div ref={ref} style={{ height }} />;
 }

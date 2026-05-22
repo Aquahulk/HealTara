@@ -58,6 +58,8 @@ import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shoul
 import MapDoctors from '@/components/MapDoctors';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import SaveButton from '@/components/SaveButton';
+import EntityInfoPopup from '@/components/EntityInfoPopup';
+import MiniSearch from '@/components/MiniSearch';
 import { onAppointmentUpdates, onSlotUpdates } from '@/lib/realtime';
 
 // Icon mapping
@@ -266,6 +268,8 @@ export default function HomePage() {
   const [selectedAvailability, setSelectedAvailability] = useState('');
   const [availabilityOnly, setAvailabilityOnly] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
+  const [selectedEntity, setSelectedEntity] = useState<any>(null);
+  const [selectedEntityType, setSelectedEntityType] = useState<'doctor' | 'hospital' | null>(null);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [activeGrid, setActiveGrid] = useState<'doctors' | 'hospitals'>('hospitals');
   const [isMobile, setIsMobile] = useState(false);
@@ -284,6 +288,11 @@ export default function HomePage() {
   const testimonialsSection = useSectionOverlapsMap();
   const healthTipsSection = useSectionOverlapsMap();
   const ctaSection = useSectionOverlapsMap();
+
+  const isPopupOpen = !!selectedEntity;
+  const mapHeight = isPopupOpen ? 280 : 360;
+  const innerMapHeight = isPopupOpen ? 160 : 240;
+  const popupTop = 48 + mapHeight;
 
   // Auto-open booking modal if bookDoctorId is in URL
   useEffect(() => {
@@ -672,7 +681,7 @@ export default function HomePage() {
         </section>
 
         {/* ── FIXED MAP PANEL — right side, fixed height, like sidebar ── */}
-        <div className="hidden lg:flex fixed right-0 top-[48px] w-[22rem] z-30 flex-col bg-gradient-to-br from-emerald-50 to-teal-50 border-l border-gray-200 shadow-lg rounded-bl-2xl overflow-hidden" style={{ height: '360px' }}>
+        <div className="hidden lg:flex fixed right-0 top-[48px] w-[22rem] z-30 flex-col bg-gradient-to-br from-emerald-50 to-teal-50 border-l border-gray-200 shadow-lg rounded-bl-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
           {/* Header */}
           <div className="px-4 pt-3 pb-2 border-b border-gray-200/60 flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -696,7 +705,7 @@ export default function HomePage() {
             {mapError && <div className="text-xs text-red-500 mb-1 px-1">{mapError}</div>}
             {mapCenter ? (
               <div className="h-full rounded-xl overflow-hidden shadow-sm">
-                <MapDoctors center={mapCenter} pins={mapPins} height={240} />
+                <MapDoctors center={mapCenter} pins={mapPins} height={innerMapHeight} />
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center bg-white/70 rounded-xl border border-dashed border-emerald-200 text-center px-4">
@@ -803,7 +812,18 @@ export default function HomePage() {
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                 <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all duration-500 ease-in-out ${discoverySection.overlaps ? 'lg:grid-cols-2' : 'lg:grid-cols-3'}`}>
                   {filteredDoctors.map((doctor, index) => (
-                    <motion.div key={doctor.id} initial={{ opacity: 0, scale: 0.97 }} whileInView={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.04 }} whileHover={{ y: -4 }} className="group">
+                    <motion.div 
+                      key={doctor.id} 
+                      initial={{ opacity: 0, scale: 0.97 }} 
+                      whileInView={{ opacity: 1, scale: 1 }} 
+                      transition={{ delay: index * 0.04 }} 
+                      whileHover={{ y: -4 }} 
+                      className="group cursor-pointer"
+                      onClick={() => {
+                        setSelectedEntity(doctor);
+                        setSelectedEntityType('doctor');
+                      }}
+                    >
                       <div className="relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
                         <div className="absolute top-2.5 right-2.5 z-20"><SaveButton entityType="doctor" entityId={doctor.id} /></div>
                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -861,6 +881,7 @@ export default function HomePage() {
                                 className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold py-2 px-3 rounded-lg transition-all text-center text-xs flex items-center justify-center border border-gray-200"
                                 onMouseEnter={() => router.prefetch(`/doctor-site/${doctor.doctorProfile.slug}`)}
                                 onClick={(e) => {
+                                  e.stopPropagation();
                                   if (shouldUseSubdomainNav()) { e.preventDefault(); window.location.href = doctorMicrositeUrl(doctor.doctorProfile.slug); }
                                   import('@/lib/api').then(({ apiClient }) => apiClient.trackDoctorClick(doctor.id, 'site').catch(() => {}));
                                 }}>
@@ -868,7 +889,8 @@ export default function HomePage() {
                               </Link>
                             ) : (
                               <button className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold py-2 px-3 rounded-lg transition-all text-xs flex items-center justify-center border border-gray-200"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   import('@/lib/api').then(({ apiClient }) => {
                                     apiClient.getHospitalByDoctorId(doctor.id).then((resp) => {
                                       const hId = (resp as any)?.id ?? (resp as any)?.hospitalId;
@@ -879,7 +901,7 @@ export default function HomePage() {
                                 <Building2 className="w-3 h-3 mr-1" />Hospital
                               </button>
                             )}
-                            <button onClick={() => handleBookAppointment(doctor)}
+                            <button onClick={(e) => { e.stopPropagation(); handleBookAppointment(doctor); }}
                               onMouseEnter={() => { try { import('@/lib/slotsPrefetch').then((m) => m.prefetchDoctorToday(doctor.id).catch(() => {})); } catch {} }}
                               className="flex-1 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white font-semibold py-2 px-3 rounded-lg transition-all text-xs flex items-center justify-center shadow">
                               <Calendar className="w-3 h-3 mr-1" />Book Now
@@ -901,7 +923,18 @@ export default function HomePage() {
                     const name = hospital.name || '';
                     const location = [hospital.city, hospital.state].filter(Boolean).join(', ') || 'Location';
                     return (
-                      <motion.div key={hospital.id} initial={{ opacity: 0, scale: 0.97 }} whileInView={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.04 }} whileHover={{ y: -4 }} className="group">
+                      <motion.div 
+                        key={hospital.id} 
+                        initial={{ opacity: 0, scale: 0.97 }} 
+                        whileInView={{ opacity: 1, scale: 1 }} 
+                        transition={{ delay: index * 0.04 }} 
+                        whileHover={{ y: -4 }} 
+                        className="group cursor-pointer"
+                        onClick={() => {
+                          setSelectedEntity(hospital);
+                          setSelectedEntityType('hospital');
+                        }}
+                      >
                         <div className="relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
                           <div className="absolute top-2.5 right-2.5 z-20"><SaveButton entityType="hospital" entityId={hospital.id} /></div>
                           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -962,6 +995,7 @@ export default function HomePage() {
                             <a href={`/hospital-site/${hospital.id}`}
                               className="block w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all text-center text-xs flex items-center justify-center shadow"
                               onClick={(e) => {
+                                e.stopPropagation();
                                 try {
                                   if (shouldUseSubdomainNav()) {
                                     e.preventDefault();
@@ -1189,6 +1223,28 @@ export default function HomePage() {
 
       </main>
       <MobileBottomNavigation />
+
+      {/* Entity Info Popup */}
+      <EntityInfoPopup 
+        entity={selectedEntity}
+        type={selectedEntityType}
+        top={popupTop}
+        onClose={() => {
+          setSelectedEntity(null);
+          setSelectedEntityType(null);
+        }}
+        onBook={(doctor) => {
+          setSelectedDoctor(doctor);
+          setShowAppointmentModal(true);
+        }}
+      />
+
+      {/* Mini Search - Appears when hero is off-screen and no entity is selected */}
+      <AnimatePresence>
+        {!heroSection.overlaps && !selectedEntity && (
+          <MiniSearch initialQuery={searchQuery} />
+        )}
+      </AnimatePresence>
 
       {/* ── FOOTER ────────────────────────────────────────────────────── */}
       <footer className="bg-gray-900 text-white py-8 px-4 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">

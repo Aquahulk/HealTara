@@ -372,6 +372,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');  // Currently selected tab
   const [appointmentViewMode, setAppointmentViewMode] = useState<'list' | 'grouped'>('grouped'); // Doctor appointments view mode
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'|'EMERGENCY'>('ALL'); // Doctor-only filter
+  const [apptRefreshing, setApptRefreshing] = useState(false); // Appointments section refresh indicator
+  const [apptLastRefreshed, setApptLastRefreshed] = useState<Date | null>(null);
   const [collapsedHourKeys, setCollapsedHourKeys] = useState<Record<string, boolean>>({}); // Collapse per hour box
   const [showExpiredSlots, setShowExpiredSlots] = useState(false); // Collapsible for expired slots
   const [calYear, setCalYear] = useState(() => new Date().getFullYear()); // Mini calendar year
@@ -488,12 +490,6 @@ const [socketReady, setSocketReady] = useState(false);
   const [patientTokenByAppt, setPatientTokenByAppt] = useState<Record<number, { currentToken: number; myToken: number; total: number }>>({});
   const [doctorTokenToday, setDoctorTokenToday] = useState<{ currentToken: number; total: number }>({ currentToken: 0, total: 0 });
 
-  const recentHospitalAppointments = useMemo(() => {
-    const list = Object.values(doctorAppointmentsMap).flat();
-    const sorted = list.slice().sort((a, b) => getAppointmentISTDate(b).getTime() - getAppointmentISTDate(a).getTime());
-    return sorted.slice(0, 5);
-  }, [doctorAppointmentsMap]);
-
   // IST date/time helpers for consistent display
   const formatIST = (date: Date, opts?: Intl.DateTimeFormatOptions) => {
     return new Intl.DateTimeFormat('en-IN', {
@@ -515,8 +511,7 @@ const [socketReady, setSocketReady] = useState(false);
     const [hh, mm] = timeStr.split(':').map((x) => parseInt(x));
     return new Date(Date.UTC(y, (m - 1), d, (hh - 5), (mm - 30), 0, 0));
   };
-  const getAppointmentISTDate = (a: Appointment) => {
-    try {
+  const getAppointmentISTDate = (a: Appointment) => {    try {
       if (a.time && /^\d{2}:\d{2}$/.test(a.time)) {
         const datePart = a.date.slice(0, 10);
         if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
@@ -536,6 +531,13 @@ const [socketReady, setSocketReady] = useState(false);
     const timePart = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
     return istDateTimeFromDateAndTime(datePart, timePart);
   };
+
+  // Defined after helpers — safe to use getAppointmentISTDate here
+  const recentHospitalAppointments = useMemo(() => {
+    const list = Object.values(doctorAppointmentsMap).flat();
+    const sorted = list.slice().sort((a, b) => getAppointmentISTDate(b).getTime() - getAppointmentISTDate(a).getTime());
+    return sorted.slice(0, 5);
+  }, [doctorAppointmentsMap]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!selectedHospitalDate) {
       const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -607,12 +609,12 @@ const [socketReady, setSocketReady] = useState(false);
             setAvailabilityByDate(prev => ({ ...prev, ...next }));
           }
 
-          if (did === user.id) {
+          if (Number(did) === Number(user.id)) {
             setDoctorAppointmentsMap((prev) => ({
               ...prev,
-              [did]: appointmentsResult.filter(a => Number(a?.doctorId) === did),
+              [user.id]: appointmentsResult,
             }));
-            await refreshSlots(did);
+            await refreshSlots(Number(user.id));
           }
         }
 
@@ -927,7 +929,6 @@ const [socketReady, setSocketReady] = useState(false);
     if (!user || user.role !== 'DOCTOR') return;
     if (activeTab !== 'appointments') return;
     let mounted = true;
-    let intervalId: any = null;
     (async () => {
       try {
         const r = await apiClient.getDoctorTokensToday(user.id);
@@ -946,27 +947,42 @@ const [socketReady, setSocketReady] = useState(false);
     };
     const onBooked = async (msg: any) => {
       try {
-        const did = Number(msg?.payload?.doctorId ?? msg?.doctorId);
-        if (!Number.isFinite(did) || did !== user.id) return;
-        // Refresh token count
-        const r = await apiClient.getDoctorTokensToday(user.id);
-        if (!mounted) return;
-        setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : 0 });
-        // Refresh appointments immediately
+        setApptRefreshing(true);
+        // Server already sends only to this doctor's room — no need to filter by doctorId
         const [appts, mySlots] = await Promise.all([
           apiClient.getMyAppointments().catch(() => null),
           apiClient.getSlots({ doctorId: user.id }).catch(() => null),
         ]);
         if (!mounted) return;
-        if (appts) { setAppointments(appts); setDoctorAppointmentsMap(prev => ({ ...prev, [user.id]: appts })); }
+        if (appts) {
+          setAppointments(appts);
+          setDoctorAppointmentsMap(prev => ({ ...prev, [user.id]: appts }));
+        }
         if (mySlots) setSlots(Array.isArray(mySlots) ? mySlots : []);
-      } catch {}
+        setApptLastRefreshed(new Date());
+        try {
+          const r = await apiClient.getDoctorTokensToday(user.id);
+          if (!mounted) return;
+          setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : 0 });
+        } catch {}
+      } catch {} finally { if (mounted) setApptRefreshing(false); }
     };
     s.on('token:updated', handler);
     s.on('appointment-booked', onBooked);
     s.on('slots:updated', onBooked);
-    // Poll every 8s while appointments tab is open — catches any missed socket events
-    intervalId = setInterval(async () => {
+    return () => {
+      mounted = false;
+      s.off('token:updated', handler);
+      s.off('appointment-booked', onBooked);
+      s.off('slots:updated', onBooked);
+    };
+  }, [user?.id, user?.role, activeTab]);
+
+  // ── Separate polling interval — isolated so socket re-registrations don't reset it ──
+  useEffect(() => {
+    if (!user || user.role !== 'DOCTOR' || activeTab !== 'appointments') return;
+    let mounted = true;
+    const tick = async () => {
       try {
         const [r, appts] = await Promise.all([
           apiClient.getDoctorTokensToday(user.id),
@@ -975,18 +991,12 @@ const [socketReady, setSocketReady] = useState(false);
         if (!mounted) return;
         setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : 0 });
         if (appts) { setAppointments(appts); setDoctorAppointmentsMap(prev => ({ ...prev, [user.id]: appts })); }
+        setApptLastRefreshed(new Date());
       } catch {}
-    }, 8000);
-    return () => {
-      mounted = false;
-      s.off('token:updated', handler);
-      s.off('appointment-booked', onBooked);
-      s.off('slots:updated', onBooked);
-      if (intervalId) {
-        try { clearInterval(intervalId); } catch {}
-      }
     };
-  }, [user?.id, user?.role, activeTab]);
+    const id = setInterval(tick, 10000);
+    return () => { mounted = false; clearInterval(id); };
+  }, [user?.id, user?.role, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch hour-level availability for appointment dates (doctor)
   useEffect(() => {
@@ -3047,9 +3057,49 @@ const [socketReady, setSocketReady] = useState(false);
                 <h3 className="text-base font-bold text-gray-900">
                   {user.role === 'DOCTOR' ? 'Appointments' : user.role === 'HOSPITAL_ADMIN' ? 'Hospital Bookings' : 'My Appointments'}
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">View and manage your appointments</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-gray-400">View and manage your appointments</p>
+                  {apptLastRefreshed && (
+                    <span className="text-[10px] text-gray-300">
+                      · updated {apptLastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  )}
+                  {apptRefreshing && (
+                    <span className="flex items-center gap-1 text-[10px] text-blue-400">
+                      <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                      </svg>
+                      refreshing…
+                    </span>
+                  )}
+                </div>
               </div>
-              {user.role === 'DOCTOR' && (
+              <div className="flex items-center gap-2">
+                {/* Manual refresh button */}
+                <button
+                  onClick={async () => {
+                    try {
+                      setApptRefreshing(true);
+                      const [appts, mySlots] = await Promise.all([
+                        apiClient.getMyAppointments().catch(() => null),
+                        user.role === 'DOCTOR' ? apiClient.getSlots({ doctorId: user.id }).catch(() => null) : Promise.resolve(null),
+                      ]);
+                      if (appts) { setAppointments(appts); if (user.role === 'DOCTOR') setDoctorAppointmentsMap(prev => ({ ...prev, [user.id]: appts })); }
+                      if (mySlots) setSlots(Array.isArray(mySlots) ? mySlots : []);
+                      setApptLastRefreshed(new Date());
+                    } catch {} finally { setApptRefreshing(false); }
+                  }}
+                  disabled={apptRefreshing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-all disabled:opacity-50"
+                  title="Refresh appointments"
+                >
+                  <svg className={`w-3.5 h-3.5 ${apptRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {apptRefreshing ? 'Refreshing…' : 'Refresh'}
+                </button>
+                {user.role === 'DOCTOR' && (
                 <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg">
                   <span className="text-xs text-blue-600 font-medium">Token</span>
                   <span className="text-sm font-bold text-blue-700">{doctorTokenToday.currentToken} / {doctorTokenToday.total}</span>
@@ -3073,7 +3123,8 @@ const [socketReady, setSocketReady] = useState(false);
                     Next →
                   </button>
                 </div>
-              )}
+                )}
+              </div>
             </div>
             <div id="walk-in-reservation-section" className="p-4 bg-gray-50/50">
               {user.role === 'DOCTOR' && (
