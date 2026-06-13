@@ -210,6 +210,13 @@ export default function SecureAdminPanel() {
   const [adminDoctors, setAdminDoctors] = useState<any[]>([]); // Admin view of doctors with status
   const [adminHospitals, setAdminHospitals] = useState<any[]>([]); // Admin view of hospitals with status
   const [adminMetrics, setAdminMetrics] = useState<any | null>(null); // Admin metrics data
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [loadingHospitals, setLoadingHospitals] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
   const [pendingDoctors, setPendingDoctors] = useState<any[]>([]); // Pending doctor verifications
   const [pendingHospitals, setPendingHospitals] = useState<any[]>([]); // Pending hospital verifications
 
@@ -229,30 +236,74 @@ export default function SecureAdminPanel() {
   const [doctorDetails, setDoctorDetails] = useState<Record<number, any>>({});
   const [decidingDoctorId, setDecidingDoctorId] = useState<number | null>(null);
   const [decidingHospitalId, setDecidingHospitalId] = useState<number | null>(null);
+  // Feature flags state
+  const [entityFeatures, setEntityFeatures] = useState<Record<string, any>>({}); // key: 'doctor_ID' or 'hospital_ID'
+  const [savingFeatures, setSavingFeatures] = useState<Record<string, boolean>>({});
+
+  const loadFeatures = async (type: 'doctor' | 'hospital', id: number) => {
+    const key = `${type}_${id}`;
+    try {
+      const feats = type === 'doctor'
+        ? await apiClient.adminGetDoctorFeatures(id)
+        : await apiClient.adminGetHospitalFeatures(id);
+      setEntityFeatures(prev => ({ ...prev, [key]: feats }));
+    } catch {}
+  };
+
+  const toggleFeature = async (type: 'doctor' | 'hospital', id: number, feature: string, value: boolean) => {
+    const key = `${type}_${id}`;
+    // Optimistic update
+    setEntityFeatures(prev => ({ ...prev, [key]: { ...(prev[key] || {}), [feature]: value } }));
+    setSavingFeatures(prev => ({ ...prev, [key]: true }));
+    try {
+      const feats = type === 'doctor'
+        ? await apiClient.adminSetDoctorFeatures(id, { [feature]: value })
+        : await apiClient.adminSetHospitalFeatures(id, { [feature]: value });
+      setEntityFeatures(prev => ({ ...prev, [key]: feats }));
+    } catch {
+      // Revert on error
+      setEntityFeatures(prev => ({ ...prev, [key]: { ...(prev[key] || {}), [feature]: !value } }));
+    } finally {
+      setSavingFeatures(prev => ({ ...prev, [key]: false }));
+    }
+  };
 
   // Function to load hospital details
   const loadHospitalDetails = async (hospitalId: number) => {
+    setExpandedHospitalId(hospitalId);
+    loadFeatures('hospital', hospitalId);
+    if (selectedHospitalDetails?.id === hospitalId) return;
     setLoadingDetails(true);
     try {
       const details = await apiClient.adminGetHospitalFullDetails(hospitalId);
       setSelectedHospitalDetails(details);
-      setExpandedHospitalId(hospitalId);
     } catch (error) {
       console.error('Error loading hospital details:', error);
-      alert('Failed to load hospital details');
+      // Gracefully degrade: use data from list
+      const existing = adminHospitals.find((h: any) => h.id === hospitalId);
+      if (existing) setSelectedHospitalDetails({ ...existing, departments: [], doctors: [] });
     } finally {
       setLoadingDetails(false);
     }
   };
 
   const loadDoctorDetails = async (doctorId: number) => {
+    setExpandedDoctorId(doctorId);
+    loadFeatures('doctor', doctorId);
+    if (doctorDetails[doctorId]) return;
     try {
       const details = await apiClient.adminGetDoctorDetails(doctorId);
       setDoctorDetails((prev) => ({ ...prev, [doctorId]: details }));
-      setExpandedDoctorId(doctorId);
     } catch (error) {
       console.error('Error loading doctor details:', error);
-      alert('Failed to load doctor details');
+      // Gracefully degrade: use data already loaded from list
+      const existing = adminDoctors.find((d: any) => d.id === doctorId);
+      if (existing) {
+        setDoctorDetails((prev) => ({
+          ...prev,
+          [doctorId]: { doctor: existing, totalAppointments: 0, recentAppointments: [] }
+        }));
+      }
     }
   };
 
@@ -327,20 +378,35 @@ export default function SecureAdminPanel() {
         loadWithCache('admin_appointments', () => apiClient.getAdminAppointments()).then(data => {
           setAppointments(data || []);
         }),
-        loadWithCache('admin_doctors', () => apiClient.adminListDoctors({ page: 1, limit: 200 })).then(data => {
-          const items = (data as any).items || [];
-          setAdminDoctors(items);
-        }).catch((e) => {
-          console.warn('Failed to load admin doctors list', e);
-          setAdminDoctors([]);
-        }),
-        loadWithCache('admin_hospitals', () => apiClient.adminListHospitals({ page: 1, limit: 10 })).then(data => {
-          const items = (data as any).items || [];
-          setAdminHospitals(items);
-        }).catch((e) => {
-          console.warn('Failed to load admin hospitals list', e);
-          setAdminHospitals([]);
-        }),
+        // Always fetch fresh – bypass cache so list is never stale/empty
+        (() => {
+          setLoadingDoctors(true);
+          return apiClient.adminListDoctors({ page: 1, limit: 500 }).then((data: any) => {
+            console.log('Admin doctors response:', data);
+            const items = data?.items || (Array.isArray(data) ? data : []);
+            setAdminDoctors(items);
+          }).catch((e) => {
+            console.error('Failed to load admin doctors list', e);
+            // Fallback to public API
+            return apiClient.getDoctors({ sort: 'default', page: 1, pageSize: 500 }).then((d: any) => {
+              setAdminDoctors(Array.isArray(d) ? d : []);
+            }).catch(() => setAdminDoctors([]));
+          }).finally(() => setLoadingDoctors(false));
+        })(),
+        (() => {
+          setLoadingHospitals(true);
+          return apiClient.adminListHospitals({ page: 1, limit: 500 }).then((data: any) => {
+            console.log('Admin hospitals response:', data);
+            const items = data?.items || (Array.isArray(data) ? data : []);
+            setAdminHospitals(items);
+          }).catch((e) => {
+            console.error('Failed to load admin hospitals list', e);
+            // Fallback to public API
+            return apiClient.getHospitals({ limit: 500 }).then((d: any) => {
+              setAdminHospitals(Array.isArray(d) ? d : []);
+            }).catch(() => setAdminHospitals([]));
+          }).finally(() => setLoadingHospitals(false));
+        })(),
         loadWithCache('admin_pending_verifications', () => apiClient.adminGetPendingVerifications()).then(data => {
           setPendingDoctors((data as any).doctors || []);
           setPendingHospitals((data as any).hospitals || []);
@@ -362,7 +428,7 @@ export default function SecureAdminPanel() {
       
     } catch (error) {
       console.error('Error loading admin data:', error);
-      alert('Failed to load admin data. Please try again.');
+      showToast('Failed to load admin data. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -377,10 +443,10 @@ export default function SecureAdminPanel() {
     try {
       await apiClient.updateUserStatus(userId, !currentStatus);
       await loadData();                                     // Refresh data after update
-      alert('User status updated successfully');
+      showToast('User status updated successfully', 'success');
     } catch (error) {
       console.error('Error updating user status:', error);
-      alert('Failed to update user status');
+      showToast('Failed to update user status', 'error');
     }
   };
 
@@ -391,10 +457,10 @@ export default function SecureAdminPanel() {
     try {
       await apiClient.deleteUser(userId);
       await loadData();                                     // Refresh data after delete
-      alert('User deleted successfully');
+      showToast('User deleted successfully', 'success');
     } catch (error) {
       console.error('Error deleting user:', error);
-      alert('Failed to delete user');
+      showToast('Failed to delete user', 'error');
     }
   };
 
@@ -406,10 +472,10 @@ export default function SecureAdminPanel() {
       await apiClient.deleteUser(Number(doctor.id));
       setAdminDoctors((prev) => (prev || []).filter((d: any) => d.id !== doctor.id));
       setAdminDeletedDoctors((prev) => [{ id: doctor.id, email, deletedAt: Date.now() }, ...prev]);
-      alert('Doctor deleted permanently');
+      showToast('Doctor deleted permanently', 'success');
     } catch (error) {
       console.error('Error deleting doctor:', error);
-      alert('Failed to delete doctor');
+      showToast('Failed to delete doctor', 'error');
     }
   };
 
@@ -419,10 +485,10 @@ export default function SecureAdminPanel() {
     try {
       await apiClient.adminDeleteHospital(Number(hospitalId));
       setAdminHospitals((prev) => (prev || []).filter((h: any) => h.id !== hospitalId));
-      alert('Hospital deleted permanently');
+      showToast('Hospital deleted permanently', 'success');
     } catch (error) {
       console.error('Error deleting hospital:', error);
-      alert('Failed to delete hospital');
+      showToast('Failed to delete hospital', 'error');
     }
   };
 
@@ -432,9 +498,9 @@ export default function SecureAdminPanel() {
       await apiClient.adminDecideDoctorVerification(doctorId, decision);
       setPendingDoctors((prev) => (prev || []).filter((d: any) => d.id !== doctorId));
       await loadData();
-      alert(`Doctor ${decision === 'APPROVE' ? 'approved' : 'rejected'} successfully`);
+      showToast(`Doctor ${decision === 'APPROVE' ? 'approved' : 'rejected'} successfully`, 'success');
     } catch (e) {
-      alert('Failed to update doctor verification');
+      showToast('Failed to update doctor verification', 'error');
     } finally {
       setDecidingDoctorId(null);
     }
@@ -446,9 +512,9 @@ export default function SecureAdminPanel() {
       await apiClient.adminDecideHospitalVerification(hospitalId, decision);
       setPendingHospitals((prev) => (prev || []).filter((h: any) => h.id !== hospitalId));
       await loadData();
-      alert(`Hospital ${decision === 'APPROVE' ? 'approved' : 'rejected'} successfully`);
+      showToast(`Hospital ${decision === 'APPROVE' ? 'approved' : 'rejected'} successfully`, 'success');
     } catch (e) {
-      alert('Failed to update hospital verification');
+      showToast('Failed to update hospital verification', 'error');
     } finally {
       setDecidingHospitalId(null);
     }
@@ -463,10 +529,10 @@ export default function SecureAdminPanel() {
       setShowRoleModal(false);
       setSelectedUser(null);
       setNewRole('');
-      alert('User role updated successfully');
+      showToast('User role updated successfully', 'success');
     } catch (error) {
       console.error('Error updating user role:', error);
-      alert('Failed to update user role');
+      showToast('Failed to update user role', 'error');
     }
   };
 
@@ -479,10 +545,10 @@ export default function SecureAdminPanel() {
     try {
       await apiClient.updateAdminAppointmentStatus(appointmentId, newStatus);
       await loadData();                                     // Refresh data after update
-      alert('Appointment status updated successfully');
+      showToast('Appointment status updated successfully', 'success');
     } catch (error) {
       console.error('Error updating appointment status:', error);
-      alert('Failed to update appointment status');
+      showToast('Failed to update appointment status', 'error');
     }
   };
 
@@ -495,10 +561,10 @@ export default function SecureAdminPanel() {
       // Refresh data
       const refreshed = await apiClient.adminListDoctors({ page: 1, limit: 50 });
       setAdminDoctors(refreshed.items || []);
-      alert(`Doctor ${status === 'SUSPENDED' ? 'suspended' : 'activated'} successfully`);
+      showToast(`Doctor ${status === 'SUSPENDED' ? 'suspended' : 'activated'} successfully`, 'success');
     } catch (error) {
       console.error('Error updating doctor status:', error);
-      alert('Failed to update doctor status');
+      showToast('Failed to update doctor status', 'error');
     }
   };
 
@@ -508,10 +574,10 @@ export default function SecureAdminPanel() {
       // Refresh data
       const refreshed = await apiClient.adminListHospitals({ page: 1, limit: 50 });
       setAdminHospitals(refreshed.items || []);
-      alert(`Hospital ${status === 'SUSPENDED' ? 'suspended' : 'activated'} successfully`);
+      showToast(`Hospital ${status === 'SUSPENDED' ? 'suspended' : 'activated'} successfully`, 'success');
     } catch (error) {
       console.error('Error updating hospital status:', error);
-      alert('Failed to update hospital status');
+      showToast('Failed to update hospital status', 'error');
     }
   };
 
@@ -704,7 +770,7 @@ export default function SecureAdminPanel() {
       
       if (result) {
         setHomepageContent(content);
-        alert('✅ Homepage content saved successfully! Changes are now live on the homepage.');
+        showToast('✅ Homepage content saved successfully! Changes are now live on the homepage.', 'success');
         
         // Trigger a custom event to notify homepage to reload
         window.dispatchEvent(new CustomEvent('homepage-content-updated', { detail: content }));
@@ -713,11 +779,11 @@ export default function SecureAdminPanel() {
         localStorage.setItem('homepage-content-update', JSON.stringify({ timestamp: Date.now(), content }));
         localStorage.removeItem('homepage-content-update'); // Remove after setting
       } else {
-        alert('❌ Failed to save homepage content. Please try again.');
+        showToast('❌ Failed to save homepage content. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error saving homepage content:', error);
-      alert('❌ Error saving homepage content: ' + (error as Error).message);
+      showToast('❌ Error saving homepage content: ' + (error as Error).message, 'error');
     }
   };
 
@@ -792,32 +858,44 @@ export default function SecureAdminPanel() {
   const hf: any = homepageContent as any;
   const featuresList: any[] = Array.isArray(hf?.features) ? hf.features : [];
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50">
+    <div className="min-h-screen bg-gray-100">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          toast.type === 'success' ? 'bg-emerald-500 text-white' :
+          toast.type === 'error' ? 'bg-red-500 text-white' :
+          'bg-gray-800 text-white'
+        }`}>
+          <span>{toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : 'ℹ'}</span>
+          <span>{toast.msg}</span>
+          <button onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100">×</button>
+        </div>
+      )}
       {/* ============================================================================
           🎨 HEADER SECTION - Admin panel header with security indicators
           ============================================================================ */}
-      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center gap-3">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                  <span className="text-3xl">🔒</span>
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                  <span className="text-xl">🔒</span>
                 </div>
                 <div>
-                  <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg">Secure Admin Panel</h1>
-                  <p className="text-blue-100 mt-1 text-sm sm:text-base">Multi-layer security system administration</p>
+                  <h1 className="text-lg font-bold text-white">Secure Admin Panel</h1>
+                  <p className="text-blue-100 text-[10px]">Multi-layer security system administration</p>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <div className="text-sm">
-                <span className="inline-flex items-center px-4 py-2 rounded-full text-xs font-bold bg-white/20 backdrop-blur-sm text-white border border-white/30 shadow-lg">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-white/20 text-white">
                   🔐 Secure Session
                 </span>
               </div>
               <div className="text-sm">
-                <span className="inline-flex items-center px-4 py-2 rounded-full text-xs font-bold bg-white/20 backdrop-blur-sm text-white border border-white/30 shadow-lg">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-white/20 text-white">
                   ⏰ {new Date().toLocaleTimeString()}
                 </span>
               </div>
@@ -829,11 +907,11 @@ export default function SecureAdminPanel() {
       {/* ============================================================================
           📊 MAIN CONTENT - Admin panel content with tabs
           ============================================================================ */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         {/* ============================================================================
             🧭 NAVIGATION TABS - Tab navigation for different admin functions
             ============================================================================ */}
-        <div className="mb-8 bg-white rounded-2xl shadow-xl p-2 overflow-x-auto">
+        <div className="mb-4 bg-white rounded-xl shadow p-1 overflow-x-auto">
           <nav className="flex space-x-2 min-w-max">
             {[
               { id: 'dashboard', name: '📊 Dashboard', icon: '📊' },
@@ -849,9 +927,9 @@ export default function SecureAdminPanel() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-3 px-4 sm:px-6 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-300 whitespace-nowrap ${
+                className={`py-1.5 px-3 rounded-lg font-semibold text-xs transition-all duration-200 whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
               >
@@ -867,86 +945,86 @@ export default function SecureAdminPanel() {
             ============================================================================ */}
         {activeTab === 'dashboard' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">System Overview</h2>
-              <p className="text-gray-600 mt-2">Real-time system statistics and metrics</p>
+            <div className="mb-3">
+              <h2 className="text-xl font-bold text-gray-900">System Overview</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Real-time system statistics and metrics</p>
             </div>
             {loading ? (
-              <div className="text-center py-20">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
-                <p className="text-gray-600 text-lg font-medium">Loading dashboard data...</p>
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600 mx-auto mb-6"></div>
+                <p className="text-gray-500 text-sm">Loading dashboard data...</p>
               </div>
             ) : (
               <>
                 {/* Basic Stats Overview */}
                 {stats && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                    <div className="bg-gradient-to-br from-white to-blue-50 overflow-hidden shadow-xl rounded-2xl border-2 border-blue-200 hover:shadow-2xl hover:scale-105 transition-all duration-300">
-                      <div className="p-6">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                    <div className="bg-gradient-to-br from-white to-blue-50 overflow-hidden shadow rounded-xl border border-blue-200 hover:shadow-md hover:scale-105 transition-all duration-300">
+                      <div className="p-3">
                         <div className="flex items-center">
                           <div className="flex-shrink-0">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                              <span className="text-3xl">👥</span>
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                              <span className="text-xl">👥</span>
                             </div>
                           </div>
-                          <div className="ml-5 w-0 flex-1">
+                          <div className="ml-2 w-0 flex-1">
                             <dl>
-                              <dt className="text-sm font-bold text-gray-600 truncate uppercase tracking-wide">Total Users</dt>
-                              <dd className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{stats.totalUsers}</dd>
+                              <dt className="text-[10px] font-bold text-gray-500 truncate uppercase tracking-wide">Total Users</dt>
+                              <dd className="text-xl font-bold text-gray-900">{stats.totalUsers}</dd>
                             </dl>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-white to-green-50 overflow-hidden shadow-xl rounded-2xl border-2 border-green-200 hover:shadow-2xl hover:scale-105 transition-all duration-300">
-                      <div className="p-6">
+                    <div className="bg-gradient-to-br from-white to-green-50 overflow-hidden shadow rounded-xl border border-green-200 hover:shadow-md hover:scale-105 transition-all duration-300">
+                      <div className="p-3">
                         <div className="flex items-center">
                           <div className="flex-shrink-0">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
-                              <span className="text-3xl">👨‍⚕️</span>
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+                              <span className="text-xl">👨‍⚕️</span>
                             </div>
                           </div>
-                          <div className="ml-5 w-0 flex-1">
+                          <div className="ml-2 w-0 flex-1">
                             <dl>
-                              <dt className="text-sm font-bold text-gray-600 truncate uppercase tracking-wide">Doctors</dt>
-                              <dd className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">{stats.totalDoctors}</dd>
+                              <dt className="text-[10px] font-bold text-gray-500 truncate uppercase tracking-wide">Doctors</dt>
+                              <dd className="text-xl font-bold text-gray-900">{stats.totalDoctors}</dd>
                             </dl>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-white to-purple-50 overflow-hidden shadow-xl rounded-2xl border-2 border-purple-200 hover:shadow-2xl hover:scale-105 transition-all duration-300">
-                      <div className="p-6">
+                    <div className="bg-gradient-to-br from-white to-purple-50 overflow-hidden shadow rounded-xl border border-purple-200 hover:shadow-md hover:scale-105 transition-all duration-300">
+                      <div className="p-3">
                         <div className="flex items-center">
                           <div className="flex-shrink-0">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
-                              <span className="text-3xl">🏥</span>
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                              <span className="text-lg">🏥</span>
                             </div>
                           </div>
-                          <div className="ml-5 w-0 flex-1">
+                          <div className="ml-2 w-0 flex-1">
                             <dl>
-                              <dt className="text-sm font-bold text-gray-600 truncate uppercase tracking-wide">Patients</dt>
-                              <dd className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{stats.totalPatients}</dd>
+                              <dt className="text-[10px] font-bold text-gray-500 truncate uppercase tracking-wide">Patients</dt>
+                              <dd className="text-xl font-bold text-gray-900">{stats.totalPatients}</dd>
                             </dl>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-white to-orange-50 overflow-hidden shadow-xl rounded-2xl border-2 border-orange-200 hover:shadow-2xl hover:scale-105 transition-all duration-300">
-                      <div className="p-6">
+                    <div className="bg-gradient-to-br from-white to-orange-50 overflow-hidden shadow rounded-xl border border-orange-200 hover:shadow-md hover:scale-105 transition-all duration-300">
+                      <div className="p-3">
                         <div className="flex items-center">
                           <div className="flex-shrink-0">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
-                              <span className="text-3xl">📅</span>
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+                              <span className="text-lg">📅</span>
                             </div>
                           </div>
-                          <div className="ml-5 w-0 flex-1">
+                          <div className="ml-2 w-0 flex-1">
                             <dl>
-                              <dt className="text-sm font-bold text-gray-600 truncate uppercase tracking-wide">Appointments</dt>
-                              <dd className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">{stats.totalAppointments}</dd>
+                              <dt className="text-[10px] font-bold text-gray-500 truncate uppercase tracking-wide">Appointments</dt>
+                              <dd className="text-xl font-bold text-gray-900">{stats.totalAppointments}</dd>
                             </dl>
                           </div>
                         </div>
@@ -958,7 +1036,7 @@ export default function SecureAdminPanel() {
                 {/* Comprehensive Metrics Dashboard */}
                 <div className="space-y-10">
                   {/* Core Platform Metrics */}
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-8">
                     <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                       <span className="bg-blue-100 p-2 rounded-lg mr-3">📊</span>
                       Core Platform Metrics
@@ -966,22 +1044,22 @@ export default function SecureAdminPanel() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
                         <div className="text-sm font-semibold text-blue-700 mb-2">Total Registered Patients</div>
-                        <div className="text-3xl font-black text-blue-900">{adminMetrics?.core?.totalPatients || stats?.totalPatients || 0}</div>
+                        <div className="text-xl font-black text-blue-900">{adminMetrics?.core?.totalPatients || stats?.totalPatients || 0}</div>
                         <div className="text-xs text-blue-600 mt-2">↑ 12% from last month</div>
                       </div>
                       <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
                         <div className="text-sm font-semibold text-green-700 mb-2">Total Registered Doctors</div>
-                        <div className="text-3xl font-black text-green-900">{adminMetrics?.core?.totalDoctors || stats?.totalDoctors || 0}</div>
+                        <div className="text-xl font-black text-green-900">{adminMetrics?.core?.totalDoctors || stats?.totalDoctors || 0}</div>
                         <div className="text-xs text-green-600 mt-2">↑ 8% from last month</div>
                       </div>
                       <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
                         <div className="text-sm font-semibold text-purple-700 mb-2">Total Appointments</div>
-                        <div className="text-3xl font-black text-purple-900">{adminMetrics?.core?.totalAppointments || stats?.totalAppointments || 0}</div>
+                        <div className="text-xl font-black text-purple-900">{adminMetrics?.core?.totalAppointments || stats?.totalAppointments || 0}</div>
                         <div className="text-xs text-purple-600 mt-2">↑ 15% from last month</div>
                       </div>
                       <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-6 border border-orange-200">
                         <div className="text-sm font-semibold text-orange-700 mb-2">Conversion Rate</div>
-                        <div className="text-3xl font-black text-orange-900">{adminMetrics?.core?.conversionRate || 0}%</div>
+                        <div className="text-xl font-black text-orange-900">{adminMetrics?.core?.conversionRate || 0}%</div>
                         <div className="text-xs text-orange-600 mt-2">↑ 2% from last month</div>
                       </div>
                     </div>
@@ -989,21 +1067,21 @@ export default function SecureAdminPanel() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                       <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                         <div className="text-sm font-semibold text-gray-700 mb-2">Daily Active Users (DAU)</div>
-                        <div className="text-3xl font-black text-indigo-700">{adminMetrics?.core?.dau || 0}</div>
+                        <div className="text-xl font-black text-indigo-700">{adminMetrics?.core?.dau || 0}</div>
                       </div>
                       <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                         <div className="text-sm font-semibold text-gray-700 mb-2">Monthly Active Users (MAU)</div>
-                        <div className="text-3xl font-black text-indigo-700">{adminMetrics?.core?.mau || 0}</div>
+                        <div className="text-xl font-black text-indigo-700">{adminMetrics?.core?.mau || 0}</div>
                       </div>
                       <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                         <div className="text-sm font-semibold text-gray-700 mb-2">Doctor Onboarding Rate</div>
-                        <div className="text-3xl font-black text-emerald-700">{adminMetrics?.core?.doctorOnboardingRate || 0}%</div>
+                        <div className="text-xl font-black text-emerald-700">{adminMetrics?.core?.doctorOnboardingRate || 0}%</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Revenue Analytics */}
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-8">
                     <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                       <span className="bg-green-100 p-2 rounded-lg mr-3">💰</span>
                       Revenue Analytics
@@ -1011,20 +1089,20 @@ export default function SecureAdminPanel() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                       <div className="bg-gradient-to-br from-green-50 to-teal-50 rounded-xl p-6 border border-green-200">
                         <div className="text-sm font-semibold text-green-700 mb-2">Total Revenue</div>
-                        <div className="text-3xl font-black text-green-900">₹{Math.round(adminMetrics?.revenue?.totalRevenue || 0)}</div>
+                        <div className="text-xl font-black text-green-900">₹{Math.round(adminMetrics?.revenue?.totalRevenue || 0)}</div>
                         <div className="text-xs text-green-600 mt-2">↑ 18% from last month</div>
                       </div>
                       <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
                         <div className="text-sm font-semibold text-blue-700 mb-2">Average Booking Value</div>
-                        <div className="text-3xl font-black text-blue-900">₹{Math.round(adminMetrics?.revenue?.avgBookingValue || 0)}</div>
+                        <div className="text-xl font-black text-blue-900">₹{Math.round(adminMetrics?.revenue?.avgBookingValue || 0)}</div>
                       </div>
                       <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-6 border border-red-200">
                         <div className="text-sm font-semibold text-red-700 mb-2">Refund Rate</div>
-                        <div className="text-3xl font-black text-red-900">{adminMetrics?.revenue?.refundRate || 0}%</div>
+                        <div className="text-xl font-black text-red-900">{adminMetrics?.revenue?.refundRate || 0}%</div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                         <h4 className="text-lg font-semibold text-gray-800 mb-4">Revenue by City</h4>
                         <div className="space-y-3">
@@ -1065,7 +1143,7 @@ export default function SecureAdminPanel() {
                   </div>
 
                   {/* Operational Analytics */}
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-8">
                     <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                       <span className="bg-orange-100 p-2 rounded-lg mr-3">⚙️</span>
                       Operational Analytics
@@ -1073,30 +1151,30 @@ export default function SecureAdminPanel() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-6 border border-emerald-200">
                         <div className="text-sm font-semibold text-emerald-700 mb-2">Appointment Success Rate</div>
-                        <div className="text-3xl font-black text-emerald-900">{adminMetrics?.operational?.appointmentSuccessRate || 0}%</div>
+                        <div className="text-xl font-black text-emerald-900">{adminMetrics?.operational?.appointmentSuccessRate || 0}%</div>
                       </div>
                       <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-6 border border-red-200">
                         <div className="text-sm font-semibold text-red-700 mb-2">No-show Rate</div>
-                        <div className="text-3xl font-black text-red-900">{adminMetrics?.operational?.noShowRate || 0}%</div>
+                        <div className="text-xl font-black text-red-900">{adminMetrics?.operational?.noShowRate || 0}%</div>
                       </div>
                       <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl p-6 border border-yellow-200">
                         <div className="text-sm font-semibold text-yellow-700 mb-2">Avg Booking Time</div>
-                        <div className="text-3xl font-black text-yellow-900">{adminMetrics?.operational?.avgBookingTime || 0}m</div>
+                        <div className="text-xl font-black text-yellow-900">{adminMetrics?.operational?.avgBookingTime || 0}m</div>
                       </div>
                       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
                         <div className="text-sm font-semibold text-blue-700 mb-2">Cancellation Trend</div>
-                        <div className="text-3xl font-black text-blue-900">{adminMetrics?.operational?.cancellationTrend || 0}%</div>
+                        <div className="text-xl font-black text-blue-900">{adminMetrics?.operational?.cancellationTrend || 0}%</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Geographic Analytics */}
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-8">
                     <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                       <span className="bg-purple-100 p-2 rounded-lg mr-3">🗺️</span>
                       Geographic Analytics
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                         <h4 className="text-lg font-semibold text-gray-800 mb-4">Bookings by State</h4>
                         <div className="space-y-3">
@@ -1137,7 +1215,7 @@ export default function SecureAdminPanel() {
                   </div>
 
                   {/* Real-Time Dashboard */}
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+                  <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-8">
                     <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                       <span className="bg-red-100 p-2 rounded-lg mr-3">🔴</span>
                       Real-Time Dashboard
@@ -1145,22 +1223,22 @@ export default function SecureAdminPanel() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-xl p-6 border border-red-200 animate-pulse">
                         <div className="text-sm font-semibold text-red-700 mb-2">Live Appointments</div>
-                        <div className="text-3xl font-black text-red-900">{adminMetrics?.realtime?.liveAppointments || 0}</div>
+                        <div className="text-xl font-black text-red-900">{adminMetrics?.realtime?.liveAppointments || 0}</div>
                         <div className="text-xs text-red-600 mt-2">Happening now</div>
                       </div>
                       <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
                         <div className="text-sm font-semibold text-green-700 mb-2">Doctors Online Now</div>
-                        <div className="text-3xl font-black text-green-900">{adminMetrics?.realtime?.doctorsOnline || 0}</div>
+                        <div className="text-xl font-black text-green-900">{adminMetrics?.realtime?.doctorsOnline || 0}</div>
                         <div className="text-xs text-green-600 mt-2">Available</div>
                       </div>
                       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
                         <div className="text-sm font-semibold text-blue-700 mb-2">Users Browsing</div>
-                        <div className="text-3xl font-black text-blue-900">{adminMetrics?.realtime?.usersBrowsing || 0}</div>
+                        <div className="text-xl font-black text-blue-900">{adminMetrics?.realtime?.usersBrowsing || 0}</div>
                         <div className="text-xs text-blue-600 mt-2">Active now</div>
                       </div>
                       <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
                         <div className="text-sm font-semibold text-purple-700 mb-2">Revenue Today</div>
-                        <div className="text-3xl font-black text-purple-900">₹{Math.round(adminMetrics?.realtime?.revenueToday || 0)}</div>
+                        <div className="text-xl font-black text-purple-900">₹{Math.round(adminMetrics?.realtime?.revenueToday || 0)}</div>
                         <div className="text-xs text-purple-600 mt-2">So far today</div>
                       </div>
                     </div>
@@ -1168,9 +1246,9 @@ export default function SecureAdminPanel() {
                 </div>
 
                 {!stats && !adminMetrics && (
-                  <div className="text-center py-20 bg-white rounded-2xl shadow-xl">
-                    <div className="text-6xl mb-4">📊</div>
-                    <p className="text-gray-600 text-lg">No dashboard data available</p>
+                  <div className="text-center py-10 bg-white rounded-xl shadow-xl">
+                    <div className="text-3xl mb-2">📊</div>
+                    <p className="text-gray-500 text-sm">No dashboard data available</p>
                   </div>
                 )}
               </>
@@ -1183,16 +1261,16 @@ export default function SecureAdminPanel() {
             ============================================================================ */}
         {activeTab === 'pendingVerifications' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Pending Verifications</h2>
-              <p className="text-gray-600 mt-2">Review and approve or reject verification submissions</p>
+            <div className="mb-3">
+              <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Pending Verifications</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Review and approve or reject verification submissions</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-2xl shadow border border-gray-200">
+              <div className="bg-white rounded-xl shadow border border-gray-200">
                 <div className="px-6 py-4 border-b">
                   <h3 className="text-xl font-semibold text-gray-900">Doctors</h3>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="p-3 space-y-3">
                   {pendingDoctors.length === 0 ? (
                     <div className="text-sm text-gray-600">No pending doctor verifications</div>
                   ) : pendingDoctors.map((d: any) => {
@@ -1200,7 +1278,7 @@ export default function SecureAdminPanel() {
                     const prefix = email.split('@')[0] || '';
                     const name = 'Dr. ' + (prefix.charAt(0).toUpperCase() + prefix.slice(1).replace(/[._-]/g, ' '));
                     return (
-                      <div key={d.id} className="border border-gray-200 rounded-xl p-4 flex items-start justify-between">
+                      <div key={d.id} className="border border-gray-200 rounded-lg p-3 flex items-start justify-between">
                         <div>
                           <div className="font-semibold text-gray-900">{name}</div>
                           <div className="text-sm text-gray-600">{email}</div>
@@ -1222,15 +1300,15 @@ export default function SecureAdminPanel() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow border border-gray-200">
+              <div className="bg-white rounded-xl shadow border border-gray-200">
                 <div className="px-6 py-4 border-b">
                   <h3 className="text-xl font-semibold text-gray-900">Hospitals</h3>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="p-3 space-y-3">
                   {pendingHospitals.length === 0 ? (
                     <div className="text-sm text-gray-600">No pending hospital verifications</div>
                   ) : pendingHospitals.map((h: any) => (
-                    <div key={h.id} className="border border-gray-200 rounded-xl p-4 flex items-start justify-between">
+                    <div key={h.id} className="border border-gray-200 rounded-lg p-3 flex items-start justify-between">
                       <div>
                         <div className="font-semibold text-gray-900">{h.name}</div>
                         <div className="text-sm text-gray-600">Admin: {h.admin?.email || '-'}</div>
@@ -1254,20 +1332,20 @@ export default function SecureAdminPanel() {
         )}
         {activeTab === 'deletedDoctors' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">Deleted Doctors</h2>
-              <p className="text-gray-600 mt-2">Recently deleted doctor accounts</p>
+            <div className="mb-3">
+              <h2 className="text-xl font-bold text-gray-900">Deleted Doctors</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Recently deleted doctor accounts</p>
             </div>
             {adminDeletedDoctors.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-2xl shadow-xl">
-                <div className="text-6xl mb-4">🗑️</div>
-                <p className="text-gray-600 text-lg">No deleted doctors</p>
+              <div className="text-center py-10 bg-white rounded-xl shadow-xl">
+                <div className="text-3xl mb-2">🗑️</div>
+                <p className="text-gray-500 text-sm">No deleted doctors</p>
               </div>
             ) : (
-              <div className="bg-white shadow-2xl overflow-hidden rounded-2xl border border-gray-200">
+              <div className="bg-white shadow overflow-hidden rounded-xl border border-gray-200">
                 <ul className="divide-y divide-gray-200">
                   {adminDeletedDoctors.map((d) => (
-                    <li key={`${d.id}-${d.deletedAt}`} className="px-6 py-5 hover:bg-gray-50 transition-colors">
+                    <li key={`${d.id}-${d.deletedAt}`} className="px-4 py-3 hover:bg-gray-50 transition-colors">
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="text-sm font-bold text-gray-900">Dr. {String(d.email).split('@')[0]}</div>
@@ -1290,24 +1368,24 @@ export default function SecureAdminPanel() {
             ============================================================================ */}
         {activeTab === 'users' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">User Management</h2>
-              <p className="text-gray-600 mt-2">Manage user accounts, roles, and permissions</p>
+            <div className="mb-3">
+              <h2 className="text-xl font-bold text-gray-900">User Management</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Manage user accounts, roles, and permissions</p>
             </div>
             {loading ? (
-              <div className="text-center py-20">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-6"></div>
-                <p className="text-gray-600 text-lg font-medium">Loading users...</p>
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600 mx-auto mb-6"></div>
+                <p className="text-gray-500 text-sm">Loading users...</p>
               </div>
             ) : (
-              <div className="bg-white shadow-2xl overflow-hidden rounded-2xl border border-gray-200">
+              <div className="bg-white shadow overflow-hidden rounded-xl border border-gray-200">
                 <ul className="divide-y divide-gray-200">
                   {users.map((user) => (
-                    <li key={user.id} className="px-6 py-5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all duration-300">
+                    <li key={user.id} className="px-4 py-3 hover:bg-gray-50 transition-all duration-300">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center">
                           <div className="flex-shrink-0">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
                               <span className="text-2xl">
                                 {user.role === 'ADMIN' ? '🔒' : user.role === 'DOCTOR' ? '👨‍⚕️' : '🏥'}
                               </span>
@@ -1323,7 +1401,7 @@ export default function SecureAdminPanel() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
                             user.isActive 
                               ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
                               : 'bg-gradient-to-r from-red-500 to-pink-500 text-white'
@@ -1366,74 +1444,87 @@ export default function SecureAdminPanel() {
             ============================================================================ */}
         {activeTab === 'doctors' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Doctor Approval & Status</h2>
-              <p className="text-gray-600 mt-2">Manage doctor accounts and service status</p>
+            <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Doctor Management</h2>
+                <p className="text-gray-500 text-sm mt-1">Approve, suspend or review all registered doctors</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {[
+                  { label: 'Active', color: 'bg-emerald-100 text-emerald-700', count: adminDoctors.filter((d: any) => d.status === 'ACTIVE').length },
+                  { label: 'Pending', color: 'bg-amber-100 text-amber-700', count: adminDoctors.filter((d: any) => d.status !== 'ACTIVE' && d.status !== 'SUSPENDED').length },
+                  { label: 'Suspended', color: 'bg-red-100 text-red-700', count: adminDoctors.filter((d: any) => d.status === 'SUSPENDED').length },
+                ].map(s => (
+                  <span key={s.label} className={`${s.color} font-bold px-2.5 py-1 rounded-full`}>{s.count} {s.label}</span>
+                ))}
+                <button onClick={() => { setLoadingDoctors(true); apiClient.adminListDoctors({ page: 1, limit: 500 }).then((d: any) => setAdminDoctors(d?.items || [])).catch(()=>{}).finally(()=>setLoadingDoctors(false)); }} className="ml-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-all">⟳ Refresh</button>
+              </div>
             </div>
-            {loading ? (
-              <div className="text-center py-20">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mx-auto mb-6"></div>
-                <p className="text-gray-600 text-lg font-medium">Loading doctors...</p>
+            {loadingDoctors ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+                <p className="text-gray-500 text-sm">Loading doctors...</p>
               </div>
             ) : (
-              <div className="bg-white shadow-2xl overflow-hidden rounded-2xl border border-gray-200">
-                <ul className="divide-y divide-gray-200">
+              <div className="bg-white shadow-sm overflow-hidden rounded-xl border border-gray-200">
+                <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-5 py-2.5 bg-gray-50 border-b border-gray-200 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  <div>Doctor</div><div>Specialization</div><div>Status</div><div className="text-right">Actions</div>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {adminDoctors.length === 0 && !loadingDoctors && (
+                    <li className="px-5 py-8 text-center text-sm text-gray-400">No doctors registered yet</li>
+                  )}
                   {adminDoctors.map((doctor: any) => {
                     const email = String(doctor.email || '');
                     const prefix = email.split('@')[0] || '';
                     const name = 'Dr. ' + (prefix.charAt(0).toUpperCase() + prefix.slice(1).replace(/[._-]/g, ' '));
+                    const isActive = doctor.status === 'ACTIVE';
+                    const isSuspended = doctor.status === 'SUSPENDED';
+                    const isPending = !isActive && !isSuspended;
                     return (
-                      <li key={doctor.id} className="px-6 py-5 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 transition-all duration-300">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg flex-shrink-0">
-                              <span className="text-2xl">👨‍⚕️</span>
+                      <li key={doctor.id}>
+                        <div className="flex flex-col md:grid md:grid-cols-[2fr_1fr_1fr_auto] gap-3 md:gap-4 items-start md:items-center px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
+                              {prefix.charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                              <div className="text-sm font-bold text-gray-900">{name}</div>
-                              <div className="text-sm text-gray-600 mt-1">{email}</div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">{name}</div>
+                              <div className="text-[10px] text-gray-400 truncate">{email}</div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                              onClick={() => {
-                                if (expandedDoctorId === doctor.id) {
-                                  setExpandedDoctorId(null);
-                                } else {
-                                  loadDoctorDetails(doctor.id);
-                                }
-                              }}
-                              className="text-xs font-bold text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-all"
-                              aria-label={expandedDoctorId === doctor.id ? 'Collapse' : 'Expand'}
-                            >
-                              {expandedDoctorId === doctor.id ? '▼ Hide' : '► Details'}
+                          <div className="text-xs text-gray-600 pl-12 md:pl-0 truncate">{doctor.doctorProfile?.specialization || '—'}</div>
+                          <div className="pl-12 md:pl-0">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full ${isActive ? 'bg-emerald-50 text-emerald-700' : isSuspended ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : isSuspended ? 'bg-red-500' : 'bg-amber-500'}`} />
+                              {isActive ? 'Active' : isSuspended ? 'Suspended' : 'Pending'}
+                            </span>
+                            {isPending && <span className="ml-1 text-[9px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded">Needs Review</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap pl-12 md:pl-0 md:justify-end">
+                            <button onClick={() => expandedDoctorId === doctor.id ? setExpandedDoctorId(null) : loadDoctorDetails(doctor.id)}
+                              className="text-[10px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg transition-all">
+                              {expandedDoctorId === doctor.id ? '▲ Hide' : '▼ Details'}
                             </button>
-                            <button
-                              onClick={() => setDoctorServiceStatus(doctor.id, 'ACTIVE')}
-                              className="text-xs font-bold text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-all"
-                            >
-                              ✓ Start
-                            </button>
-                            <button
-                              onClick={() => setDoctorServiceStatus(doctor.id, 'SUSPENDED')}
-                              className="text-xs font-bold text-yellow-600 hover:text-yellow-800 bg-yellow-50 hover:bg-yellow-100 px-3 py-1.5 rounded-lg transition-all"
-                            >
-                              ⏸ Pause
-                            </button>
-                            <button
-                            onClick={() => deleteDoctor(doctor)}
-                              className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-all"
-                            >
-                              ✕ Delete
-                            </button>
+                            {isPending && <button onClick={() => decideDoctorVerification(doctor.id, 'APPROVE')} disabled={decidingDoctorId === doctor.id}
+                              className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50">✓ Approve</button>}
+                            {isPending && <button onClick={() => decideDoctorVerification(doctor.id, 'REJECT')} disabled={decidingDoctorId === doctor.id}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50">✕ Reject</button>}
+                            {isActive && <button onClick={() => setDoctorServiceStatus(doctor.id, 'SUSPENDED')}
+                              className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-all">⏸ Suspend</button>}
+                            {isSuspended && <button onClick={() => setDoctorServiceStatus(doctor.id, 'ACTIVE')}
+                              className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-all">▶ Restore</button>}
+                            <button onClick={() => deleteDoctor(doctor)}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded-lg transition-all">🗑</button>
                           </div>
                         </div>
                         {expandedDoctorId === doctor.id && (
-                          <div className="mt-6 bg-gradient-to-br from-gray-50 to-blue-50 border-2 border-blue-200 rounded-2xl p-6 shadow-lg">
+                          <div className="border-t border-gray-100 bg-gray-50 p-5">
                             {doctorDetails[doctor.id] ? (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-white rounded-xl p-4 shadow-md">
-                                  <div className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                                  <div className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                    <span>📋</span> Profile Information
                                     <span className="text-lg">📋</span> Profile Information
                                   </div>
                                   <div className="text-sm text-gray-700 space-y-2">
@@ -1499,6 +1590,45 @@ export default function SecureAdminPanel() {
                                     ))}
                                   </ul>
                                 </div>
+
+                                {/* ── FEATURE FLAGS ── */}
+                                <div className="md:col-span-2 bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="text-xs font-bold text-gray-700 flex items-center gap-2">
+                                      <span>⚙️</span> Feature Access
+                                      {savingFeatures[`doctor_${doctor.id}`] && <span className="text-[10px] text-blue-500 font-normal">Saving…</span>}
+                                    </div>
+                                    <span className="text-[10px] text-gray-400">Toggle to enable/disable features for this doctor</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {[
+                                      { key: 'onlineBooking', label: 'Online Booking', icon: '📅', desc: 'Patients can book' },
+                                      { key: 'microsite', label: 'Public Profile', icon: '🌐', desc: 'Doctor microsite' },
+                                      { key: 'reviews', label: 'Reviews', icon: '⭐', desc: 'Patient ratings' },
+                                      { key: 'analytics', label: 'Analytics', icon: '📊', desc: 'Dashboard stats' },
+                                      { key: 'walkin', label: 'Walk-in', icon: '🚶', desc: 'Walk-in reservations' },
+                                      { key: 'slotManagement', label: 'Slot Mgmt', icon: '🕐', desc: 'Manage slots' },
+                                      { key: 'tokenQueue', label: 'Token Queue', icon: '🎫', desc: 'Token system' },
+                                    ].map(f => {
+                                      const feats = entityFeatures[`doctor_${doctor.id}`];
+                                      const isOn = feats ? feats[f.key] !== false : true;
+                                      return (
+                                        <button key={f.key}
+                                          onClick={() => toggleFeature('doctor', doctor.id, f.key, !isOn)}
+                                          className={`flex items-start gap-2 p-2.5 rounded-lg border text-left transition-all ${isOn ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
+                                          <div className={`w-8 h-4 rounded-full flex-shrink-0 mt-0.5 relative transition-colors ${isOn ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                                            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${isOn ? 'left-4' : 'left-0.5'}`} />
+                                          </div>
+                                          <div>
+                                            <div className="text-[10px] font-bold text-gray-800">{f.icon} {f.label}</div>
+                                            <div className="text-[9px] text-gray-400">{f.desc}</div>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
                               </div>
                             ) : (
                               <div className="text-center py-8">
@@ -1522,87 +1652,92 @@ export default function SecureAdminPanel() {
             ============================================================================ */}
         {activeTab === 'hospitals' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Hospital Approval & Status</h2>
-              <p className="text-gray-600 mt-2">Manage hospital accounts and service status</p>
+            <div className="mb-3 flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Hospital Management</h2>
+                <p className="text-gray-500 text-sm mt-1">Approve, suspend or review all registered hospitals</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {[
+                  { label: 'Active', color: 'bg-emerald-100 text-emerald-700', count: adminHospitals.filter((h: any) => h.status === 'ACTIVE').length },
+                  { label: 'Pending', color: 'bg-amber-100 text-amber-700', count: adminHospitals.filter((h: any) => h.status !== 'ACTIVE' && h.status !== 'SUSPENDED').length },
+                  { label: 'Suspended', color: 'bg-red-100 text-red-700', count: adminHospitals.filter((h: any) => h.status === 'SUSPENDED').length },
+                ].map(s => (
+                  <span key={s.label} className={`${s.color} font-bold px-2.5 py-1 rounded-full`}>{s.count} {s.label}</span>
+                ))}
+                <button onClick={() => { setLoadingHospitals(true); apiClient.adminListHospitals({ page: 1, limit: 500 }).then((d: any) => setAdminHospitals(d?.items || [])).catch(()=>{}).finally(()=>setLoadingHospitals(false)); }} className="ml-1 text-[10px] font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-all">⟳ Refresh</button>
+              </div>
             </div>
-            {loading ? (
-              <div className="text-center py-20">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mx-auto mb-6"></div>
-                <p className="text-gray-600 text-lg font-medium">Loading hospitals...</p>
+            {loadingHospitals ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                <p className="text-gray-500 text-sm">Loading hospitals...</p>
               </div>
             ) : (
-              <div className="bg-white shadow-2xl overflow-hidden rounded-2xl border border-gray-200">
-                <ul className="divide-y divide-gray-200">
-                  {adminHospitals.map((hospital: any) => (
-                    <li key={hospital.id} className="px-6 py-5 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 transition-all duration-300">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg flex-shrink-0">
-                            <span className="text-2xl">🏥</span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-bold text-gray-900">{hospital.name}</div>
-                            <div className="text-sm text-gray-600 mt-1">{hospital.city}, {hospital.state}</div>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className="text-xs font-bold px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700">
-                                {hospital.serviceStatus || 'UNKNOWN'}
-                              </span>
-                              {hospital.admin && (
-                                <span className="text-xs text-gray-600">Admin: {hospital.admin.email}</span>
-                              )}
+              <div className="bg-white shadow-sm overflow-hidden rounded-xl border border-gray-200">
+                <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_auto] gap-4 px-5 py-2.5 bg-gray-50 border-b border-gray-200 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  <div>Hospital</div><div>Location</div><div>Status</div><div className="text-right">Actions</div>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {adminHospitals.length === 0 && !loadingHospitals && (
+                    <li className="px-5 py-8 text-center text-sm text-gray-400">No hospitals registered yet</li>
+                  )}
+                  {adminHospitals.map((hospital: any) => {
+                    const isActive = hospital.status === 'ACTIVE';
+                    const isSuspended = hospital.status === 'SUSPENDED';
+                    const isPending = !isActive && !isSuspended;
+                    return (
+                      <li key={hospital.id}>
+                        <div className="flex flex-col md:grid md:grid-cols-[2fr_1fr_1fr_auto] gap-3 md:gap-4 items-start md:items-center px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
+                              {(hospital.name || 'H').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">{hospital.name}</div>
+                              <div className="text-[10px] text-gray-400 truncate">{hospital.admin?.email || '—'}</div>
                             </div>
                           </div>
+                          <div className="text-xs text-gray-600 pl-12 md:pl-0 truncate">{hospital.city}{hospital.state ? `, ${hospital.state}` : ''}</div>
+                          <div className="pl-12 md:pl-0">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full ${isActive ? 'bg-emerald-50 text-emerald-700' : isSuspended ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : isSuspended ? 'bg-red-500' : 'bg-amber-500'}`} />
+                              {isActive ? 'Active' : isSuspended ? 'Suspended' : 'Pending'}
+                            </span>
+                            {isPending && <span className="ml-1 text-[9px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded">Needs Review</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap pl-12 md:pl-0 md:justify-end">
+                            <button onClick={() => expandedHospitalId === hospital.id ? setExpandedHospitalId(null) : loadHospitalDetails(hospital.id)}
+                              className="text-[10px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg transition-all">
+                              {expandedHospitalId === hospital.id ? '▲ Hide' : '▼ Details'}
+                            </button>
+                            {isPending && <button onClick={() => decideHospitalVerification(hospital.id, 'APPROVE')} disabled={decidingHospitalId === hospital.id}
+                              className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50">✓ Approve</button>}
+                            {isPending && <button onClick={() => decideHospitalVerification(hospital.id, 'REJECT')} disabled={decidingHospitalId === hospital.id}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50">✕ Reject</button>}
+                            {isActive && <button onClick={() => setHospitalServiceStatus(hospital.id, 'SUSPENDED')}
+                              className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-all">⏸ Suspend</button>}
+                            {isSuspended && <button onClick={() => setHospitalServiceStatus(hospital.id, 'ACTIVE')}
+                              className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-all">▶ Restore</button>}
+                            <button onClick={() => deleteHospital(hospital.id)}
+                              className="text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded-lg transition-all">🗑</button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={() => {
-                              if (expandedHospitalId === hospital.id) {
-                                setExpandedHospitalId(null);
-                              } else {
-                                loadHospitalDetails(hospital.id);
-                              }
-                            }}
-                            className="text-xs font-bold text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-all"
-                            aria-label={expandedHospitalId === hospital.id ? 'Collapse' : 'Expand'}
-                          >
-                            {expandedHospitalId === hospital.id ? '▼ Hide' : '► Details'}
-                          </button>
-                          <button
-                            onClick={() => setHospitalServiceStatus(hospital.id, 'ACTIVE')}
-                            className="text-xs font-bold text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-all"
-                          >
-                            ✓ Start
-                          </button>
-                          <button
-                            onClick={() => setHospitalServiceStatus(hospital.id, 'SUSPENDED')}
-                            className="text-xs font-bold text-yellow-600 hover:text-yellow-800 bg-yellow-50 hover:bg-yellow-100 px-3 py-1.5 rounded-lg transition-all"
-                          >
-                            ⏸ Pause
-                          </button>
-                          <button
-                            onClick={() => deleteHospital(hospital.id)}
-                            className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-all"
-                          >
-                            ✕ Delete
-                          </button>
-                        </div>
-                      </div>
-                      {expandedHospitalId === hospital.id && (
-                        <div className="mt-6 bg-gradient-to-br from-gray-50 to-purple-50 border-2 border-purple-200 rounded-2xl p-6 shadow-lg">
-                          {loadingDetails && (!selectedHospitalDetails || selectedHospitalDetails.id !== hospital.id) ? (
-                            <div className="text-center py-8">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-3"></div>
-                              <div className="text-sm text-gray-600">Loading hospital details…</div>
-                            </div>
-                          ) : selectedHospitalDetails && selectedHospitalDetails.id === hospital.id ? (
-                            <div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                                <div className="bg-white rounded-xl p-4 shadow-md">
-                                  <div className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                    <span className="text-lg">🏥</span> Hospital Profile
-                                  </div>
-                                  <div className="text-sm text-gray-700 space-y-2">
+                        {expandedHospitalId === hospital.id && (
+                          <div className="border-t border-gray-100 bg-gray-50 p-5">
+                            {loadingDetails && (!selectedHospitalDetails || selectedHospitalDetails.id !== hospital.id) ? (
+                              <div className="text-center py-6">
+                                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                                <div className="text-xs text-gray-500">Loading details…</div>
+                              </div>
+                            ) : selectedHospitalDetails && selectedHospitalDetails.id === hospital.id ? (
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                                    <div className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                      <span>🏥</span> Hospital Profile
+                                    </div>
+                                    <div className="text-sm text-gray-700 space-y-2">
                                     <div className="flex justify-between border-b border-gray-200 pb-2">
                                       <span className="font-semibold text-gray-600">Subdomain:</span>
                                       <span className="text-gray-900">{selectedHospitalDetails.subdomain || '-'}</span>
@@ -1650,7 +1785,7 @@ export default function SecureAdminPanel() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="bg-white rounded-xl p-4 shadow-md mb-6">
+                              <div className="bg-white rounded-xl p-4 shadow-md">
                                 <div className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
                                   <span className="text-lg">👨‍⚕️</span> Doctors in {hospital.name}
                                 </div>
@@ -1692,18 +1827,54 @@ export default function SecureAdminPanel() {
                                 </div>
                                 <HospitalAppointments hospitalId={hospital.id} />
                               </div>
+
+                              {/* ── HOSPITAL FEATURE FLAGS ── */}
+                              <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="text-xs font-bold text-gray-700 flex items-center gap-2">
+                                    <span>⚙️</span> Feature Access
+                                    {savingFeatures[`hospital_${hospital.id}`] && <span className="text-[10px] text-blue-500 font-normal">Saving…</span>}
+                                  </div>
+                                  <span className="text-[10px] text-gray-400">Toggle to enable/disable features for this hospital</span>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                  {[
+                                    { key: 'onlineBooking', label: 'Online Booking', icon: '📅', desc: 'Patients can book' },
+                                    { key: 'microsite', label: 'Microsite', icon: '🌐', desc: 'Public hospital page' },
+                                    { key: 'reviews', label: 'Reviews', icon: '⭐', desc: 'Patient ratings' },
+                                    { key: 'analytics', label: 'Analytics', icon: '📊', desc: 'Dashboard stats' },
+                                    { key: 'departments', label: 'Departments', icon: '🏥', desc: 'Dept management' },
+                                    { key: 'patientPortal', label: 'Patient Portal', icon: '👤', desc: 'Patient access' },
+                                    { key: 'multiDoctor', label: 'Multi-Doctor', icon: '👨‍⚕️', desc: 'Multiple doctors' },
+                                  ].map(f => {
+                                    const feats = entityFeatures[`hospital_${hospital.id}`];
+                                    const isOn = feats ? feats[f.key] !== false : true;
+                                    return (
+                                      <button key={f.key}
+                                        onClick={() => toggleFeature('hospital', hospital.id, f.key, !isOn)}
+                                        className={`flex items-start gap-2 p-2.5 rounded-lg border text-left transition-all ${isOn ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
+                                        <div className={`w-8 h-4 rounded-full flex-shrink-0 mt-0.5 relative transition-colors ${isOn ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                                          <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${isOn ? 'left-4' : 'left-0.5'}`} />
+                                        </div>
+                                        <div>
+                                          <div className="text-[10px] font-bold text-gray-800">{f.icon} {f.label}</div>
+                                          <div className="text-[9px] text-gray-400">{f.desc}</div>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
                             </div>
                           ) : (
-                            <div className="text-center py-8">
-                              <div className="text-6xl mb-4">🏥</div>
-                              <div className="text-sm text-gray-600">No hospital details available.</div>
-                            </div>
+                            <div className="text-center py-6 text-xs text-gray-400">No hospital details available.</div>
                           )}
                         </div>
                       )}
-                      
                     </li>
-                  ))}
+                  );
+                })}
                 </ul>
               </div>
             )}
@@ -1717,7 +1888,7 @@ export default function SecureAdminPanel() {
             ============================================================================ */}
         {activeTab === 'appointments' && (
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Appointment Management</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-3">Appointment Management</h2>
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -1821,14 +1992,14 @@ export default function SecureAdminPanel() {
             ============================================================================ */}
         {activeTab === 'homepage' && (
           <div>
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Homepage Content Management</h2>
-              <p className="text-gray-600 mt-2">Edit all homepage sections - changes will be live immediately after saving</p>
+            <div className="mb-3">
+              <h2 className="text-xl font-bold text-gray-900">Homepage Content Management</h2>
+              <p className="text-gray-500 text-xs mt-0.5">Edit all homepage sections - changes will be live immediately after saving</p>
             </div>
             
             {!homepageContent ? (
-              <div className="text-center py-20 bg-white rounded-2xl shadow-xl">
-                <div className="text-6xl mb-4">🏠</div>
+              <div className="text-center py-10 bg-white rounded-xl shadow-xl">
+                <div className="text-3xl mb-2">🏠</div>
                 <p className="text-gray-600 text-lg mb-6">Click below to load current homepage content</p>
                 <button
                   onClick={loadHomepageContent}
@@ -1840,7 +2011,7 @@ export default function SecureAdminPanel() {
             ) : (
               <div className="space-y-6">
                 {/* Hero Carousel Section */}
-                <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-xl p-6 border-2 border-blue-200">
+                <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-xl p-6 border-2 border-blue-200">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">🎯</span> Hero Carousel Slides
                   </h3>
@@ -1900,7 +2071,7 @@ export default function SecureAdminPanel() {
                 </div>
 
                 {/* Trusted By Section */}
-                <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+                <div className="bg-gradient-to-br from-white to-purple-50 rounded-xl shadow-xl p-6 border-2 border-purple-200">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">📊</span> Trusted by Thousands Section
                   </h3>
@@ -1995,7 +2166,7 @@ export default function SecureAdminPanel() {
                 </div>
 
                 {/* How It Works Section */}
-                <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl shadow-xl p-6 border-2 border-green-200">
+                <div className="bg-gradient-to-br from-white to-green-50 rounded-xl shadow-xl p-6 border-2 border-green-200">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">📋</span> How It Works Section
                   </h3>
@@ -2066,7 +2237,7 @@ export default function SecureAdminPanel() {
                 </div>
 
                 {/* Why Choose Us Section */}
-                <div className="bg-gradient-to-br from-white to-yellow-50 rounded-2xl shadow-xl p-6 border-2 border-yellow-200">
+                <div className="bg-gradient-to-br from-white to-yellow-50 rounded-xl shadow-xl p-6 border-2 border-yellow-200">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">⭐</span> Why Choose Us Section
                   </h3>
@@ -2133,7 +2304,7 @@ export default function SecureAdminPanel() {
                 </div>
 
                 {/* Testimonials Section */}
-                <div className="bg-gradient-to-br from-white to-pink-50 rounded-2xl shadow-xl p-6 border-2 border-pink-200">
+                <div className="bg-gradient-to-br from-white to-pink-50 rounded-xl shadow-xl p-6 border-2 border-pink-200">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">💬</span> Testimonials Section
                   </h3>
@@ -2230,7 +2401,7 @@ export default function SecureAdminPanel() {
                 </div>
 
                 {/* Health Tips Section */}
-                <div className="bg-gradient-to-br from-white to-indigo-50 rounded-2xl shadow-xl p-6 border-2 border-indigo-200">
+                <div className="bg-gradient-to-br from-white to-indigo-50 rounded-xl shadow-xl p-6 border-2 border-indigo-200">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">📚</span> Health Tips Section
                   </h3>
@@ -2319,7 +2490,7 @@ export default function SecureAdminPanel() {
                       const { resetHomepageContent } = await import('@/lib/homepage-content');
                       resetHomepageContent();
                       loadHomepageContent();
-                      alert('✅ Homepage content reset to default!');
+                      showToast('✅ Homepage content reset to default!', 'success');
                     }}
                     className="bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 transition-all shadow-lg font-bold"
                   >

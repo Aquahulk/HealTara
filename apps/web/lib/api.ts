@@ -812,10 +812,10 @@ class ApiClient {
     return this.request('/api/admin/users');
   }
 
-  async adminListDoctors(params: { page?: number; limit?: number } = {}): Promise<{ items: Doctor[] }> {
+  async adminListDoctors(params: { page?: number; limit?: number } = {}): Promise<{ items: any[] }> {
     const query = new URLSearchParams({
       page: String(params.page || 1),
-      limit: String(params.limit || 50),
+      limit: String(params.limit || 500),
     }).toString();
     return this.request(`/api/admin/doctors?${query}`);
   }
@@ -823,13 +823,23 @@ class ApiClient {
   async adminListHospitals(params: { page?: number; limit?: number } = {}): Promise<{ items: any[] }> {
     const query = new URLSearchParams({
       page: String(params.page || 1),
-      limit: String(params.limit || 50),
+      limit: String(params.limit || 500),
     }).toString();
     return this.request(`/api/admin/hospitals?${query}`);
   }
 
   async adminGetHospitalFullDetails(hospitalId: number): Promise<any> {
-    return this.request(`/api/admin/hospitals/${hospitalId}/full-details`);
+    // Try direct first, fall back to proxied route
+    try {
+      return await this.request(`/api/admin/hospitals/${hospitalId}/full-details`);
+    } catch {
+      // Try via Next.js proxy (relative URL)
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (this.token) headers.Authorization = `Bearer ${this.token}`;
+      const res = await fetch(`/api/admin/hospitals/${hospitalId}/full-details`, { headers, cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
   }
 
   async adminGetHospitalAppointments(hospitalId: number, limit: number = 10): Promise<any[]> {
@@ -852,7 +862,37 @@ class ApiClient {
   }
 
   async adminGetDoctorDetails(doctorId: number): Promise<any> {
-    return this.request(`/api/admin/doctors/${doctorId}/details`);
+    try {
+      return await this.request(`/api/admin/doctors/${doctorId}/details`);
+    } catch {
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (this.token) headers.Authorization = `Bearer ${this.token}`;
+      const res = await fetch(`/api/admin/doctors/${doctorId}/details`, { headers, cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+  }
+
+  async adminGetDoctorFeatures(doctorId: number): Promise<any> {
+    return this.request(`/api/admin/doctors/${doctorId}/features`);
+  }
+
+  async adminSetDoctorFeatures(doctorId: number, features: Record<string, boolean>): Promise<any> {
+    return this.request(`/api/admin/doctors/${doctorId}/features`, {
+      method: 'PATCH',
+      body: JSON.stringify(features),
+    });
+  }
+
+  async adminGetHospitalFeatures(hospitalId: number): Promise<any> {
+    return this.request(`/api/admin/hospitals/${hospitalId}/features`);
+  }
+
+  async adminSetHospitalFeatures(hospitalId: number, features: Record<string, boolean>): Promise<any> {
+    return this.request(`/api/admin/hospitals/${hospitalId}/features`, {
+      method: 'PATCH',
+      body: JSON.stringify(features),
+    });
   }
 
   // ============================================================================

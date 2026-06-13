@@ -241,6 +241,44 @@ declare global {
 const app = express();                                     // Create Express application
 const port = process.env.PORT || 3001;                    // Use environment port or default to 3001
 
+// ── Feature flag types & helpers ──────────────────────────────────────────────
+interface DoctorFeatures {
+  onlineBooking: boolean;     // Patients can book online
+  microsite: boolean;         // Doctor microsite / public profile page
+  reviews: boolean;           // Patients can leave reviews/ratings
+  analytics: boolean;         // Doctor can see analytics in dashboard
+  walkin: boolean;            // Walk-in reservation allowed
+  slotManagement: boolean;    // Doctor can manage their own slots
+  tokenQueue: boolean;        // Token queue system enabled
+}
+interface HospitalFeatures {
+  onlineBooking: boolean;     // Patients can book online through hospital
+  microsite: boolean;         // Hospital public microsite
+  reviews: boolean;           // Reviews/ratings on hospital
+  analytics: boolean;         // Hospital analytics dashboard
+  departments: boolean;       // Department management
+  patientPortal: boolean;     // Patient portal access
+  multiDoctor: boolean;       // Multiple doctors management
+}
+const getDefaultDoctorFeatures = (f: Partial<DoctorFeatures> = {}): DoctorFeatures => ({
+  onlineBooking:   f.onlineBooking   ?? true,
+  microsite:       f.microsite       ?? true,
+  reviews:         f.reviews         ?? true,
+  analytics:       f.analytics       ?? true,
+  walkin:          f.walkin          ?? true,
+  slotManagement:  f.slotManagement  ?? true,
+  tokenQueue:      f.tokenQueue      ?? true,
+});
+const getDefaultHospitalFeatures = (f: Partial<HospitalFeatures> = {}): HospitalFeatures => ({
+  onlineBooking:  f.onlineBooking  ?? true,
+  microsite:      f.microsite      ?? true,
+  reviews:        f.reviews        ?? true,
+  analytics:      f.analytics      ?? true,
+  departments:    f.departments    ?? true,
+  patientPortal:  f.patientPortal  ?? true,
+  multiDoctor:    f.multiDoctor    ?? true,
+});
+
 // Initialize HTTP server and Socket.IO for realtime WebSocket updates
 const server = createServer(app);
 const io = new SocketIOServer(server, { 
@@ -580,7 +618,6 @@ app.post('/api/register', async (req: Request, res: Response) => {
 // ============================================================================
 // 🔑 USER LOGIN ENDPOINT - Authenticates users and provides JWT tokens
 // ============================================================================
-// Route: POST /api/login
 // Purpose: Verifies user credentials and returns authentication token
 // Security: No authentication required (public endpoint)
 app.post('/api/login', async (req: Request, res: Response) => {
@@ -2518,7 +2555,14 @@ app.get('/api/admin/doctors', authMiddleware, adminMiddleware, async (req: Reque
       prisma.user.findMany({
         where,
         include: { 
-          doctorProfile: true,
+          doctorProfile: {
+            select: {
+              id: true, specialization: true, qualifications: true, experience: true,
+              clinicName: true, city: true, state: true, phone: true,
+              consultationFee: true, slug: true, profileImage: true,
+              registrationNumber: true, verificationStatus: true, userId: true
+            }
+          },
           hospitalMemberships: {
             include: { hospital: { select: { name: true } } }
           }
@@ -2550,9 +2594,16 @@ app.get('/api/admin/doctors/:doctorId/details', authMiddleware, adminMiddleware,
     const user = await prisma.user.findUnique({
       where: { id: doctorId },
       include: {
-        doctorProfile: true,
+        doctorProfile: {
+          select: {
+            id: true, specialization: true, qualifications: true, experience: true,
+            clinicName: true, clinicAddress: true, city: true, state: true, phone: true,
+            consultationFee: true, slug: true, profileImage: true, registrationNumber: true,
+            verificationStatus: true, micrositeEnabled: true, userId: true
+          }
+        },
         hospitalMemberships: {
-          include: { hospital: true }
+          include: { hospital: { select: { id: true, name: true, city: true } } }
         }
       }
     });
@@ -2561,14 +2612,12 @@ app.get('/api/admin/doctors/:doctorId/details', authMiddleware, adminMiddleware,
       where: { doctorId },
       orderBy: { createdAt: 'desc' },
       take: 10,
-      include: {
-        patient: { select: { id: true, email: true } }
-      }
+      include: { patient: { select: { id: true, email: true } } }
     });
     const totalAppointments = await prisma.appointment.count({ where: { doctorId } });
     res.status(200).json({ doctor: user, totalAppointments, recentAppointments: appointments });
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    console.error('Doctor details error:', error?.message);
     res.status(500).json({ message: 'Failed to fetch doctor details' });
   }
 });
@@ -2625,9 +2674,11 @@ app.get('/api/admin/hospitals/:hospitalId/full-details', authMiddleware, adminMi
   if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
 
   try {
+    // Try full details with all relations
     const hospital = await prisma.hospital.findUnique({
       where: { id: hospitalId },
       include: {
+        admin: { select: { id: true, email: true } },
         departments: {
           include: {
             doctors: {
@@ -2640,7 +2691,6 @@ app.get('/api/admin/hospitals/:hospitalId/full-details', authMiddleware, adminMi
           }
         },
         doctors: {
-          where: { departmentId: null }, // Doctors not assigned to any department
           include: {
             doctor: {
               select: { id: true, email: true, status: true, doctorProfile: { select: { specialization: true } } }
@@ -2652,8 +2702,16 @@ app.get('/api/admin/hospitals/:hospitalId/full-details', authMiddleware, adminMi
 
     if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
     res.status(200).json(hospital);
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    console.error('full-details error:', error?.message || error);
+    // Return basic info even if full details fail
+    try {
+      const basic = await prisma.hospital.findUnique({
+        where: { id: hospitalId },
+        include: { admin: { select: { id: true, email: true } } }
+      });
+      if (basic) return res.status(200).json({ ...basic, departments: [], doctors: [] });
+    } catch {}
     res.status(500).json({ message: 'Failed to fetch hospital details' });
   }
 });
@@ -3130,82 +3188,6 @@ app.patch('/api/appointments/:appointmentId', authMiddleware, async (req: Reques
 });
 
 // --- Start the server ---
-// --- Admin: List hospitals ---
-app.get('/api/admin/hospitals', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
-  try {
-    const page = parseInt(String(req.query.page ?? '1'), 10);
-    const limit = parseInt(String(req.query.limit ?? '20'), 10);
-    const skip = (page - 1) * limit;
-    const hospitals = await prisma.hospital.findMany({
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        name: true,
-        city: true,
-        state: true,
-        profile: true,
-        admin: {
-          select: { id: true, email: true }
-        }
-      }
-    });
-    const items = hospitals.map((h: any) => {
-      const profile = (h.profile as any) ?? {};
-      return {
-        id: h.id,
-        name: h.name,
-        city: h.city,
-        state: h.state,
-        admin: h.admin ? { email: h.admin.email } : undefined,
-        logoUrl: profile.logoUrl ?? undefined,
-        serviceStatus: profile.serviceStatus ?? undefined,
-      };
-    });
-    res.status(200).json(items);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'An error occurred while fetching hospitals.' });
-  }
-});
-
-// --- Admin: Update hospital service status ---
-app.patch('/api/admin/hospitals/:hospitalId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
-  const id = Number(req.params.hospitalId);
-  const { action } = req.body as { action: 'START' | 'PAUSE' | 'REVOKE' };
-  if (!Number.isFinite(id)) {
-    return res.status(400).json({ message: 'Invalid hospitalId' });
-  }
-  if (!action || !['START', 'PAUSE', 'REVOKE'].includes(action)) {
-    return res.status(400).json({ message: 'Invalid action' });
-  }
-  try {
-    const hospital = await prisma.hospital.findUnique({ where: { id }, select: { profile: true } });
-    if (!hospital) {
-      return res.status(404).json({ message: 'Hospital not found' });
-    }
-    const currentProfile = (hospital.profile as any) ?? {};
-    const newStatus = action === 'START' ? 'STARTED' : action === 'PAUSE' ? 'PAUSED' : 'REVOKED';
-    const updatedProfile = { ...currentProfile, serviceStatus: newStatus };
-    await prisma.hospital.update({ where: { id }, data: { profile: updatedProfile } });
-    // Audit log
-    const adminId = req.user!.userId;
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId,
-        action: `HOSPITAL_${action}`,
-        entityType: 'HOSPITAL',
-        entityId: id,
-        details: `Service status set to ${newStatus}`
-      }
-    }).catch(() => {});
-    res.status(200).json({ serviceStatus: newStatus });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'An error occurred while updating hospital status.' });
-  }
-});
 
 // --- Admin: Update hospital profile ---
 app.put('/api/admin/hospitals/:hospitalId/profile', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
@@ -3324,39 +3306,6 @@ app.post('/api/admin/doctors/:doctorId/photo', authMiddleware, adminMiddleware, 
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while uploading doctor photo.' });
-  }
-});
-
-// --- Admin: Update doctor service status ---
-app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
-  const doctorId = Number(req.params.doctorId);
-  const { action } = req.body as { action: 'START' | 'PAUSE' | 'REVOKE' };
-  if (!Number.isFinite(doctorId)) {
-    return res.status(400).json({ message: 'Invalid doctorId' });
-  }
-  if (!action || !['START', 'PAUSE', 'REVOKE'].includes(action)) {
-    return res.status(400).json({ message: 'Invalid action' });
-  }
-  try {
-    const profile = await prisma.doctorProfile.findUnique({ where: { userId: doctorId } });
-    if (!profile) {
-      return res.status(404).json({ message: 'Doctor profile not found' });
-    }
-    let micrositeEnabled = profile.micrositeEnabled;
-    if (action === 'START') micrositeEnabled = true;
-    if (action === 'REVOKE') micrositeEnabled = false;
-    if (micrositeEnabled !== profile.micrositeEnabled) {
-      await prisma.doctorProfile.update({ where: { id: profile.id }, data: { micrositeEnabled } });
-    }
-    const adminId = req.user!.userId;
-    await prisma.adminAuditLog.create({
-      data: { adminId, action: `DOCTOR_${action}`, entityType: 'DOCTOR', entityId: doctorId }
-    }).catch(() => {});
-    const serviceStatus = action === 'START' ? 'STARTED' : action === 'PAUSE' ? 'PAUSED' : 'REVOKED';
-    res.status(200).json({ serviceStatus });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'An error occurred while updating doctor status.' });
   }
 });
 
@@ -4076,7 +4025,61 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * c;
 }
 
-// --- Public: Get doctor working hours by doctorId (no auth required) ---
+// --- Admin: Get/Set feature flags for a doctor ---
+app.get('/api/admin/doctors/:doctorId/features', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: doctorId }, select: { features: true } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found' });
+    const features = (profile.features as any) || {};
+    return res.status(200).json(getDefaultDoctorFeatures(features));
+  } catch (error) { console.error(error); return res.status(500).json({ message: 'Failed to fetch features' }); }
+});
+
+app.patch('/api/admin/doctors/:doctorId/features', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  try {
+    const patch = req.body as Partial<DoctorFeatures>;
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: doctorId }, select: { features: true } });
+    if (!profile) return res.status(404).json({ message: 'Doctor profile not found' });
+    const current = getDefaultDoctorFeatures((profile.features as any) || {});
+    const updated = { ...current, ...patch };
+    await prisma.doctorProfile.update({ where: { userId: doctorId }, data: { features: updated } });
+    await prisma.adminAuditLog.create({ data: { adminId: req.user!.userId, action: 'DOCTOR_FEATURES_UPDATE', entityType: 'USER', entityId: doctorId, details: JSON.stringify(updated) } }).catch(() => {});
+    return res.status(200).json(updated);
+  } catch (error) { console.error(error); return res.status(500).json({ message: 'Failed to update features' }); }
+});
+
+// --- Admin: Get/Set feature flags for a hospital ---
+app.get('/api/admin/hospitals/:hospitalId/features', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  try {
+    const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId }, select: { features: true } });
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
+    const features = (hospital.features as any) || {};
+    return res.status(200).json(getDefaultHospitalFeatures(features));
+  } catch (error) { console.error(error); return res.status(500).json({ message: 'Failed to fetch features' }); }
+});
+
+app.patch('/api/admin/hospitals/:hospitalId/features', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  try {
+    const patch = req.body as Partial<HospitalFeatures>;
+    const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId }, select: { features: true } });
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
+    const current = getDefaultHospitalFeatures((hospital.features as any) || {});
+    const updated = { ...current, ...patch };
+    await prisma.hospital.update({ where: { id: hospitalId }, data: { features: updated } });
+    await prisma.adminAuditLog.create({ data: { adminId: req.user!.userId, action: 'HOSPITAL_FEATURES_UPDATE', entityType: 'HOSPITAL', entityId: hospitalId, details: JSON.stringify(updated) } }).catch(() => {});
+    return res.status(200).json(updated);
+  } catch (error) { console.error(error); return res.status(500).json({ message: 'Failed to update features' }); }
+});
+
+
 app.get('/api/doctors/:doctorId/working-hours', async (req: Request, res: Response) => {
   const doctorId = Number(req.params.doctorId);
   if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });

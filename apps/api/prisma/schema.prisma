@@ -70,6 +70,7 @@ model DoctorProfile {
   registrationNumber String?             @map("registration_number")
   verificationSubmitted Boolean          @default(false) @map("verification_submitted")
   verificationStatus String              @default("PENDING") @map("verification_status") // PENDING, APPROVED, REJECTED
+  features          Json?                @default("{}") @map("features") // Feature flags: { onlineBooking, microsite, reviews, analytics, walkin, slotManagement }
   user              User                 @relation("UserDoctorProfile", fields: [userId], references: [id], onDelete: Cascade)
   timeOffs          DoctorTimeOff[]
   workingHours      DoctorWorkingHours[]
@@ -156,6 +157,7 @@ model Hospital {
   registrationNumberGov String? @map("registration_number_gov")
   verificationSubmitted Boolean @default(false) @map("verification_submitted")
   verificationStatus    String  @default("PENDING") @map("verification_status") // PENDING, APPROVED, REJECTED
+  features              Json?   @default("{}") @map("features") // Feature flags: { onlineBooking, microsite, reviews, analytics, departments, patientPortal }
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
   adminId     Int?             @map("admin_id")
