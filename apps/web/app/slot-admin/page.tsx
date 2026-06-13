@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { GripVertical } from "lucide-react";
 import { getSocket, joinDoctorRoom, joinHospitalRoom, onAppointmentUpdates, onSlotUpdates } from "@/lib/realtime";
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import PatientDetailPopup from '@/components/PatientDetailPopup';
@@ -1238,8 +1239,26 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                                       ) : (
                                         <ul className="space-y-2">
                                           {seg.inSeg.map((a) => (
-                                            <li key={a.id} className="bg-white rounded-lg p-3 shadow-md border border-gray-200 hover:shadow-lg hover:scale-102 transition-all duration-200 cursor-pointer" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)} onClick={() => setSelectedAppointment(a)}>
-                                              <div className="flex items-start justify-between mb-2">
+                                            <li 
+                                              key={a.id} 
+                                              className="bg-white rounded-lg p-3 shadow-md border border-gray-200 hover:shadow-lg hover:scale-102 transition-all duration-200 cursor-pointer relative group/card" 
+                                              draggable 
+                                              onDragStart={(ev) => {
+                                                // Only allow drag if the drag handle was the source
+                                                if ((ev.target as HTMLElement).classList.contains('drag-handle') || (ev.target as HTMLElement).closest('.drag-handle')) {
+                                                  onDragStartAppointment(ev, a);
+                                                } else {
+                                                  ev.preventDefault();
+                                                }
+                                              }} 
+                                              onClick={() => setSelectedAppointment(a)}
+                                            >
+                                              {/* Drag Handle Icon */}
+                                              <div className="absolute top-2 right-2 drag-handle cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors z-10">
+                                                <GripVertical className="w-4 h-4" />
+                                              </div>
+
+                                              <div className="flex items-start justify-between mb-2 pr-6">
                                                 <div className="flex items-center gap-2 flex-1 mr-2">
                                                   <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
                                                     <span className="text-white text-xs font-bold">👤</span>
@@ -1411,8 +1430,25 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                                             ) : (
                                               <ul className="space-y-3">
                                                 {inSeg.map((a) => (
-                                                  <li key={a.id} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer" draggable onDragStart={(ev) => onDragStartAppointment(ev, a)} onClick={() => setSelectedAppointment(a)}>
-                                                    <div className="flex items-start justify-between mb-2">
+                                                  <li 
+                                                    key={a.id} 
+                                                    className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer relative group/card" 
+                                                    draggable 
+                                                    onDragStart={(ev) => {
+                                                      if ((ev.target as HTMLElement).classList.contains('drag-handle') || (ev.target as HTMLElement).closest('.drag-handle')) {
+                                                        onDragStartAppointment(ev, a);
+                                                      } else {
+                                                        ev.preventDefault();
+                                                      }
+                                                    }} 
+                                                    onClick={() => setSelectedAppointment(a)}
+                                                  >
+                                                    {/* Drag Handle Icon */}
+                                                    <div className="absolute top-2 right-2 drag-handle cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors z-10">
+                                                      <GripVertical className="w-4 h-4" />
+                                                    </div>
+
+                                                    <div className="flex items-start justify-between mb-2 pr-6">
                                                       <div className="text-xs font-bold text-gray-900 truncate flex-1 mr-2">
                                                         {(a.patient as any)?.name || a.patient?.email?.split('@')[0] || `Patient ${a.patientId}`}
                                                       </div>

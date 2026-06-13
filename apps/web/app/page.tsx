@@ -761,7 +761,7 @@ export default function HomePage() {
         </section>
 
         {/* ── DOCTORS & HOSPITALS DISCOVERY ─────────────────────────────── */}
-        <section ref={discoverySection.ref} className={`py-6 px-4 transition-all duration-500 ease-in-out ${discoverySection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}
+        <section ref={discoverySection.ref} className="py-6 px-4 transition-all duration-500 ease-in-out lg:mr-[22rem]"
           style={{ background: activeGrid === 'doctors' ? 'linear-gradient(135deg, #3b3baa 0%, #1e1e96 40%, #00c4e8 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
           <div className="max-w-5xl mx-auto">
 
@@ -810,7 +810,7 @@ export default function HomePage() {
             {/* ── DOCTOR CARDS ── */}
             {activeGrid === 'doctors' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all duration-500 ease-in-out ${discoverySection.overlaps ? 'lg:grid-cols-2' : 'lg:grid-cols-3'}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3 transition-all duration-500 ease-in-out">
                   {filteredDoctors.map((doctor, index) => (
                     <motion.div 
                       key={doctor.id} 
@@ -918,7 +918,7 @@ export default function HomePage() {
             {/* ── HOSPITAL CARDS ── */}
             {activeGrid === 'hospitals' && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-all duration-500 ease-in-out ${discoverySection.overlaps ? 'lg:grid-cols-2' : 'lg:grid-cols-3'}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3 transition-all duration-500 ease-in-out">
                   {hospitals.map((hospital, index) => {
                     const name = hospital.name || '';
                     const location = [hospital.city, hospital.state].filter(Boolean).join(', ') || 'Location';
@@ -1020,7 +1020,7 @@ export default function HomePage() {
         </section>
 
         {/* ── STATS ─────────────────────────────────────────────────────── */}
-        <section ref={statsSection.ref} className={`py-8 px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out ${statsSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        <section ref={statsSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.trustedBy?.title || "Trusted by Thousands"}</h2>
@@ -1065,7 +1065,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
-        <section ref={howItWorksSection.ref} className={`py-8 px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out ${howItWorksSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        <section ref={howItWorksSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.howItWorks?.title || "How It Works"}</h2>
@@ -1100,7 +1100,7 @@ export default function HomePage() {
         </section>
 
         {/* ── WHY CHOOSE US ─────────────────────────────────────────────── */}
-        <section ref={whyChooseSection.ref} className={`py-8 px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out ${whyChooseSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        <section ref={whyChooseSection.ref} className="py-8 px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.whyChooseUs?.title || "Why Choose Us"}</h2>
@@ -1126,7 +1126,7 @@ export default function HomePage() {
         </section>
 
         {/* ── TESTIMONIALS ──────────────────────────────────────────────── */}
-        <section ref={testimonialsSection.ref} className={`py-8 px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out ${testimonialsSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        <section ref={testimonialsSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.testimonials?.title || "What Our Users Say"}</h2>
@@ -1158,7 +1158,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HEALTH TIPS ───────────────────────────────────────────────── */}
-        <section ref={healthTipsSection.ref} className={`py-8 px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out ${healthTipsSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        <section ref={healthTipsSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-5">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.healthTips?.title || "Health Tips from Our Doctors"}</h2>
@@ -1194,7 +1194,7 @@ export default function HomePage() {
         </section>
 
         {/* ── CTA BANNERS ───────────────────────────────────────────────── */}
-        <section ref={ctaSection.ref} className={`py-8 px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out ${ctaSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        <section ref={ctaSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
             <motion.div initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
               <div className="bg-white rounded-xl p-5 text-center shadow-md">
