@@ -401,10 +401,17 @@ class ApiClient {
     });
   }
 
-  async register(email: string, password: string, role: string, name?: string): Promise<RegisterResponse> {
+  async loginWithFirebasePhone(firebaseUid: string, phone: string, name?: string): Promise<LoginResponse> {
+    return this.request('/api/auth/firebase-phone', {
+      method: 'POST',
+      body: JSON.stringify({ firebaseUid, phone, name }),
+    });
+  }
+
+  async register(email: string, password: string, role: string, name?: string, phone?: string): Promise<RegisterResponse> {
     return this.request('/api/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, role, name }),
+      body: JSON.stringify({ email, password, role, name, phone }),
     });
   }
 

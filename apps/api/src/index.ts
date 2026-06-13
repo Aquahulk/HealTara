@@ -568,47 +568,37 @@ const upload = multer({
 // Purpose: Allows new users to create accounts (patients, doctors, admins)
 // Security: No authentication required (public endpoint)
 app.post('/api/register', async (req: Request, res: Response) => {
-  const { email, password, role } = req.body;              // Extract data from request body
-  
-  // ============================================================================
-  // ✅ INPUT VALIDATION - Check if required fields are provided
-  // ============================================================================
+  const { email, password, role, name, phone } = req.body;
+
   if (!email || !password || !role) {
     return res.status(400).json({ message: 'Email, password, and role are required' });
   }
-  
+
+  // For patients, phone is mandatory
+  if (role === 'PATIENT' && !phone) {
+    return res.status(400).json({ message: 'Phone number is required for patient registration' });
+  }
+
   try {
-    // ============================================================================
-    // 🔍 DUPLICATE CHECK - Ensure email isn't already registered
-    // ============================================================================
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
-    
-    // ============================================================================
-    // 🔐 PASSWORD SECURITY - Hash password before storing in database
-    // ============================================================================
-    const hashedPassword = await bcrypt.hash(password, 10);  // 10 = salt rounds (higher = more secure)
-    
-    // ============================================================================
-    // 💾 DATABASE CREATION - Save new user to database
-    // ============================================================================
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const initialStatus = ['DOCTOR', 'HOSPITAL_ADMIN'].includes(String(role)) ? 'PENDING' : 'ACTIVE';
+
     const newUser = await prisma.user.create({
       data: { email, password: hashedPassword, role, status: initialStatus },
     });
-    
-    // ============================================================================
-    // ✅ SUCCESS RESPONSE - Return user data (without password)
-    // ============================================================================
-    res.status(201).json({ 
-        message: 'User created successfully',
-        user: { id: newUser.id, email: newUser.email, role: newUser.role } 
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user: { id: newUser.id, email: newUser.email, role: newUser.role }
     });
   } catch (error: any) {
     console.error('❌ REGISTER ERROR:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'An error occurred while creating the user',
       error: error?.message || String(error)
     });
@@ -666,6 +656,67 @@ app.post('/api/login', async (req: Request, res: Response) => {
       message: 'An error occurred during login',
       error: error?.message || String(error)
     });
+  }
+});
+
+// ============================================================================
+// 📱 FIREBASE PHONE OTP LOGIN - Patient login via phone number
+// ============================================================================
+app.post('/api/auth/firebase-phone', async (req: Request, res: Response) => {
+  const { firebaseUid, phone, name } = req.body as { firebaseUid: string; phone: string; name?: string };
+
+  if (!firebaseUid || !phone) {
+    return res.status(400).json({ message: 'firebaseUid and phone are required' });
+  }
+
+  try {
+    // Normalise phone: keep digits + leading +
+    const normalised = phone.trim();
+
+    // Find existing patient by phone stored in email field (phone@phone.healtara)
+    // or by a dedicated phone field convention
+    const phoneEmail = `${normalised.replace(/\D/g, '')}@phone.healtara`;
+
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: phoneEmail },
+          { email: normalised },
+        ],
+        role: 'PATIENT',
+      },
+    });
+
+    if (!user) {
+      // Auto-register new patient
+      const displayName = name?.trim() || `Patient ${normalised.slice(-4)}`;
+      const dummyPassword = await (await import('bcryptjs')).default.hash(firebaseUid, 10);
+      user = await prisma.user.create({
+        data: {
+          email: phoneEmail,
+          password: dummyPassword,
+          role: 'PATIENT',
+          status: 'ACTIVE',
+          canLogin: true,
+        },
+      });
+    }
+
+    if (!user.canLogin || user.status !== 'ACTIVE') {
+      return res.status(403).json({ message: 'Account is inactive. Please contact support.' });
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
+    const token = (await import('jsonwebtoken')).default.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      jwtSecret,
+      { expiresIn: '7d' }
+    );
+
+    res.status(200).json({ token, user: { id: user.id, email: user.email, role: user.role } });
+  } catch (error: any) {
+    console.error('Firebase phone auth error:', error?.message);
+    res.status(500).json({ message: 'Authentication failed. Please try again.' });
   }
 });
 
