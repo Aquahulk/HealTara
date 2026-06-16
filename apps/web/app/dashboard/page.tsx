@@ -383,6 +383,8 @@ export default function DashboardPage() {
   const [calYear, setCalYear] = useState(() => new Date().getFullYear()); // Mini calendar year
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth()); // Mini calendar month
   const [hospitalProfile, setHospitalProfile] = useState<any | null>(null); // Hospital profile data (admin)
+  const [hospitalBI, setHospitalBI] = useState<any | null>(null); // Business intelligence data
+  const [hospitalBILoading, setHospitalBILoading] = useState(false);
   const [patients, setPatients] = useState<Array<{ patientId: number; email: string; count: number; lastDate: string }>>([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
   const [hospitalDoctors, setHospitalDoctors] = useState<Array<{ id: number; email: string; doctorProfile?: any; departmentId?: number | null; departmentName?: string | null }>>([]);
@@ -1067,6 +1069,17 @@ const [socketReady, setSocketReady] = useState(false);
   }, [user, appointments]);
 
   // Load hospital doctors and their bookings for hospital admins
+  useEffect(() => {
+    // Also load BI data
+    if (user?.role === 'HOSPITAL_ADMIN' && hospitalProfile?.id) {
+      setHospitalBILoading(true);
+      apiClient.getHospitalBI(hospitalProfile.id)
+        .then((data: any) => setHospitalBI(data))
+        .catch(() => setHospitalBI(null))
+        .finally(() => setHospitalBILoading(false));
+    }
+  }, [user?.role, hospitalProfile?.id]);
+
   useEffect(() => {
     const loadHospitalBookings = async () => {
       if (!user || user.role !== 'HOSPITAL_ADMIN' || !hospitalProfile?.id) return;
@@ -2656,137 +2669,122 @@ const [socketReady, setSocketReady] = useState(false);
 
             {user.role === 'HOSPITAL_ADMIN' && (
               <>
-                {/* ── COMMAND HEADER ── */}
-                <div className="bg-gradient-to-r from-blue-700 to-indigo-700 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl flex-shrink-0">🏥</div>
-                    <div>
-                      <h2 className="text-xl font-black text-white leading-tight">
-                        {(hospitalProfile as any)?.profile?.general?.brandName || (hospitalProfile as any)?.profile?.general?.legalName || (hospitalProfile as any)?.name || 'Hospital'}
-                      </h2>
-                      <p className="text-blue-200 text-xs mt-0.5">
-                        {(hospitalProfile as any)?.address || (hospitalProfile as any)?.profile?.general?.address || 'Address not configured'}
-                        {(hospitalProfile as any)?.city ? ` · ${(hospitalProfile as any).city}` : ''}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="bg-emerald-400 text-emerald-900 text-[10px] font-bold px-2 py-0.5 rounded-full">LIVE</span>
-                        <span className="text-blue-300 text-[10px]">{hospitalDoctors.length} doctors · {new Set(hospitalDoctors.map((d: any) => d?.departmentName || 'General')).size} departments</span>
+                {/* ── ROW 0: Status Banner ── */}
+                <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 rounded-2xl p-4 shadow-lg">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {(hospitalProfile as any)?.profile?.general?.logoUrl ? (
+                        <img src={(hospitalProfile as any).profile.general.logoUrl} alt="logo" className="w-12 h-12 rounded-xl object-cover bg-white/10" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl flex-shrink-0">🏥</div>
+                      )}
+                      <div>
+                        <h2 className="text-lg font-black text-white leading-tight">
+                          {(hospitalProfile as any)?.profile?.general?.brandName || (hospitalProfile as any)?.name || 'Hospital'}
+                        </h2>
+                        <p className="text-blue-200 text-[11px]">
+                          {(hospitalProfile as any)?.city || ''}{(hospitalProfile as any)?.state ? ` · ${(hospitalProfile as any).state}` : ''}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="bg-emerald-400 text-emerald-900 text-[9px] font-black px-2 py-0.5 rounded-full">● LIVE</span>
+                          <span className="text-blue-300 text-[10px]">{hospitalDoctors.length} doctors · {new Set(hospitalDoctors.map((d: any) => d?.departmentName || 'General')).size} depts</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => setActiveTab('appointments')}
-                      className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all">
-                      📅 Appointments
-                    </button>
-                    <a href="/hospital-admin/profile"
-                      className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all">
-                      ✏️ Edit Profile
-                    </a>
-                    <a href={`/hospital-site/${(hospitalProfile as any)?.id}`} target="_blank" rel="noreferrer"
-                      className="flex items-center gap-1.5 bg-white text-blue-700 hover:bg-blue-50 text-xs font-semibold px-3 py-2 rounded-lg transition-all">
-                      🌐 View Site
-                    </a>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => setActiveTab('appointments')} className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">📅 Appointments</button>
+                      <a href="/hospital-admin/profile" className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">✏️ Edit Profile</a>
+                      <a href={`/hospital-site/${(hospitalProfile as any)?.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white text-blue-700 hover:bg-blue-50 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">🌐 View Site</a>
+                    </div>
                   </div>
                 </div>
 
-                {/* ── TODAY'S SNAPSHOT ── */}
+                {/* ── ROW 1: Revenue + KPIs ── */}
                 {(() => {
+                  const bi = hospitalBI;
+                  const revTrend = bi && bi.yesterdayRevenue > 0 ? Math.round(((bi.todayRevenue - bi.yesterdayRevenue) / bi.yesterdayRevenue) * 100) : null;
                   const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
                   const todayStr = fmtD.format(getISTNow());
                   const allAppts = Object.values(doctorAppointmentsMap).flat();
                   const todayAppts = allAppts.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr);
-                  const pending = todayAppts.filter(a => a.status === 'PENDING').length;
-                  const confirmed = todayAppts.filter(a => a.status === 'CONFIRMED').length;
-                  const completed = todayAppts.filter(a => a.status === 'COMPLETED').length;
-                  const upcoming = allAppts.filter(a => getAppointmentISTDate(a).getTime() >= getISTNow().getTime()).length;
+                  const activeDoctorsNow = new Set(todayAppts.filter(a => a.status === 'CONFIRMED').map(a => a.doctorId)).size;
+                  const waitingPatients = todayAppts.filter(a => a.status === 'PENDING').length;
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {[
-                        { label: "Today's Total", value: stats?.todaysBookings ?? todayAppts.length, sub: 'appointments today', icon: '📅', gradient: 'from-blue-500 to-blue-600' },
-                        { label: 'Pending Action', value: pending, sub: 'awaiting confirmation', icon: '⏳', gradient: 'from-amber-500 to-orange-500' },
-                        { label: 'Confirmed', value: confirmed, sub: 'ready to see patients', icon: '✅', gradient: 'from-emerald-500 to-green-600' },
-                        { label: 'All Upcoming', value: upcoming, sub: 'total future bookings', icon: '🔜', gradient: 'from-violet-500 to-purple-600' },
-                      ].map(s => (
-                        <div key={s.label} className={`bg-gradient-to-br ${s.gradient} rounded-xl p-4 shadow-sm`}>
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-2xl">{s.icon}</span>
-                            <span className="text-3xl font-black text-white">{s.value}</span>
-                          </div>
-                          <div className="text-white font-bold text-xs">{s.label}</div>
-                          <div className="text-white/70 text-[10px] mt-0.5">{s.sub}</div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-start justify-between mb-1">
+                          <span className="text-xl">💰</span>
+                          {revTrend !== null && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${revTrend >= 0 ? 'bg-white/20 text-white' : 'bg-red-400/30 text-white'}`}>{revTrend >= 0 ? '↑' : '↓'}{Math.abs(revTrend)}%</span>}
                         </div>
-                      ))}
+                        <div className="text-2xl font-black text-white">₹{bi ? (bi.todayRevenue >= 1000 ? `${(bi.todayRevenue/1000).toFixed(1)}k` : bi.todayRevenue) : '—'}</div>
+                        <div className="text-white font-bold text-[11px]">Today's Revenue</div>
+                        <div className="text-white/70 text-[10px] mt-0.5">Week: ₹{bi ? (bi.weekRevenue >= 1000 ? `${(bi.weekRevenue/1000).toFixed(1)}k` : bi.weekRevenue) : '—'} · Month: ₹{bi ? (bi.monthRevenue >= 1000 ? `${(bi.monthRevenue/1000).toFixed(1)}k` : bi.monthRevenue) : '—'}</div>
+                      </div>
+                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-sm">
+                        <div className="text-xl mb-1">👥</div>
+                        <div className="text-2xl font-black text-white">{bi ? bi.todayPatients : (stats?.todaysBookings ?? 0)}</div>
+                        <div className="text-white font-bold text-[11px]">Patients Today</div>
+                        <div className="text-white/70 text-[10px] mt-0.5">Pending: {bi ? bi.todayPending : waitingPatients} · Confirmed: {bi ? bi.todayConfirmed : 0}</div>
+                      </div>
+                      <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-4 shadow-sm">
+                        <div className="text-xl mb-1">👨‍⚕️</div>
+                        <div className="text-2xl font-black text-white">{activeDoctorsNow || bi?.activeDoctors || hospitalDoctors.length}</div>
+                        <div className="text-white font-bold text-[11px]">Active Doctors</div>
+                        <div className="text-white/70 text-[10px] mt-0.5">{hospitalDoctors.length} total · Avg fee ₹{bi?.avgConsultFee || 0}</div>
+                      </div>
+                      <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-4 shadow-sm">
+                        <div className="text-xl mb-1">⏱️</div>
+                        <div className="text-2xl font-black text-white">{waitingPatients}</div>
+                        <div className="text-white font-bold text-[11px]">Waiting Now</div>
+                        <div className="text-white/70 text-[10px] mt-0.5">Completed today: {bi ? bi.todayCompleted : todayAppts.filter(a => a.status === 'COMPLETED').length}</div>
+                      </div>
                     </div>
                   );
                 })()}
 
-                {/* ── LIFETIME STATS ── */}
-                {stats && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {[
-                      { label: 'Total Appointments', value: stats.totalAppointments, sub: 'all time', icon: '📋', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
-                      { label: 'Total Patients', value: stats.totalPatients, sub: 'unique patients served', icon: '👥', color: 'text-pink-600', bg: 'bg-pink-50', border: 'border-pink-100' },
-                      { label: 'Completed', value: stats.completedAppointments, sub: 'successfully done', icon: '🏁', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
-                      { label: 'Active Doctors', value: hospitalDoctors.length, sub: `${new Set(hospitalDoctors.map((d: any) => d?.departmentName || 'General')).size} departments`, icon: '👨‍⚕️', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100' },
-                    ].map(s => (
-                      <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-4`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-lg">{s.icon}</span>
-                          <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
-                        </div>
-                        <div className="text-xs font-bold text-gray-700">{s.label}</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{s.sub}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── DEPARTMENT BREAKDOWN + DOCTOR ROSTER ── */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Department Performance */}
+                {/* ── ROW 2: Live Queue + Healtara Contribution ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {/* Live Queue */}
                   <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-gray-900">🏥 Departments</h3>
-                      <button onClick={() => setActiveTab('appointments')} className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold">View all →</button>
+                    <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                      <h3 className="text-sm font-bold text-gray-900">🔴 Live Queue</h3>
+                      <span className="text-[10px] text-gray-400">Real-time token status</span>
                     </div>
                     <div className="divide-y divide-gray-50">
                       {(() => {
                         const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
                         const todayStr = fmtD.format(getISTNow());
-                        const deptMap = new Map<string, { doctors: number; todayAppts: number; totalAppts: number }>();
-                        hospitalDoctors.forEach(doc => {
-                          const dept = (doc as any).departmentName?.trim() || 'General / Unassigned';
-                          const items = doctorAppointmentsMap[doc.id] || [];
-                          const entry = deptMap.get(dept) || { doctors: 0, todayAppts: 0, totalAppts: 0 };
-                          entry.doctors++;
-                          entry.todayAppts += items.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr).length;
-                          entry.totalAppts += items.length;
-                          deptMap.set(dept, entry);
+                        const deptQueues = new Map<string, { serving: number; waiting: number; doctors: string[] }>();
+                        hospitalDoctors.forEach((doc: any) => {
+                          const dept = doc.departmentName || 'General';
+                          const appts = (doctorAppointmentsMap[doc.id] || []).filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr);
+                          const confirmed = appts.filter(a => a.status === 'CONFIRMED').length;
+                          const pending = appts.filter(a => a.status === 'PENDING').length;
+                          const entry = deptQueues.get(dept) || { serving: 0, waiting: 0, doctors: [] };
+                          entry.serving += confirmed;
+                          entry.waiting += pending;
+                          entry.doctors.push(getDoctorLabel(doc));
+                          deptQueues.set(dept, entry);
                         });
-                        const depts = Array.from(deptMap.entries()).sort((a, b) => b[1].todayAppts - a[1].todayAppts);
-                        if (depts.length === 0) return (
-                          <div className="px-4 py-6 text-center text-xs text-gray-400">No departments configured yet.<br /><a href="/hospital-admin/profile" className="text-blue-500 hover:underline">Add doctors & departments →</a></div>
-                        );
-                        return depts.map(([name, data]) => (
-                          <div key={name} className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center text-xs font-black text-indigo-700 flex-shrink-0">
-                                {name.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-gray-900 truncate">{name}</p>
-                                <p className="text-[10px] text-gray-400">{data.doctors} doctor{data.doctors !== 1 ? 's' : ''}</p>
+                        const queues = Array.from(deptQueues.entries());
+                        if (queues.length === 0) return <div className="px-4 py-6 text-center text-xs text-gray-400">No active queues today</div>;
+                        return queues.map(([dept, q]) => (
+                          <div key={dept} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                              <div>
+                                <p className="text-xs font-bold text-gray-900">{dept}</p>
+                                <p className="text-[10px] text-gray-400">{q.doctors.slice(0,2).join(', ')}{q.doctors.length > 2 ? ` +${q.doctors.length-2}` : ''}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-3 flex-shrink-0">
+                            <div className="flex items-center gap-4">
                               <div className="text-center">
-                                <div className="text-sm font-black text-blue-600">{data.todayAppts}</div>
-                                <div className="text-[9px] text-gray-400">today</div>
+                                <div className="text-sm font-black text-emerald-600">{q.serving}</div>
+                                <div className="text-[9px] text-gray-400">serving</div>
                               </div>
                               <div className="text-center">
-                                <div className="text-sm font-black text-gray-500">{data.totalAppts}</div>
-                                <div className="text-[9px] text-gray-400">total</div>
+                                <div className="text-sm font-black text-amber-600">{q.waiting}</div>
+                                <div className="text-[9px] text-gray-400">waiting</div>
                               </div>
                             </div>
                           </div>
@@ -2794,138 +2792,288 @@ const [socketReady, setSocketReady] = useState(false);
                       })()}
                     </div>
                   </div>
-
-                  {/* Doctor Roster */}
-                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-gray-900">👨‍⚕️ Doctor Roster</h3>
-                      <a href="/hospital-admin/profile" className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold">Manage →</a>
+                  {/* Healtara Contribution */}
+                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-indigo-100 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-indigo-900">💙 Healtara Contribution</h3>
+                      <span className="text-[10px] text-indigo-400">Platform impact</span>
                     </div>
-                    <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
-                      {hospitalDoctors.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-xs text-gray-400">No doctors linked.<br /><a href="/hospital-admin/profile" className="text-blue-500 hover:underline">Add doctors →</a></div>
-                      ) : (
-                        hospitalDoctors.map(doc => {
-                          const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
-                          const todayStr = fmtD.format(getISTNow());
-                          const items = doctorAppointmentsMap[doc.id] || [];
-                          const todayCount = items.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr).length;
-                          const pending = items.filter(a => a.status === 'PENDING').length;
-                          return (
-                            <div key={doc.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer"
-                              onClick={() => { setActiveTab('appointments'); setSelectedDoctorView(doc.id); }}>
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0">
-                                {getDoctorLabel(doc).charAt(0).toUpperCase()}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-gray-900 truncate">{getDoctorLabel(doc)}</p>
-                                <p className="text-[10px] text-gray-400 truncate">{(doc as any).departmentName || 'General'} · {doc.doctorProfile?.specialization || 'Doctor'}</p>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className="text-xs font-black text-blue-600">{todayCount}</span>
-                                <span className="text-[9px] text-gray-400">today</span>
-                                {pending > 0 && <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full">{pending} pending</span>}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
+                    <div className="p-4 grid grid-cols-3 gap-3">
+                      {[
+                        { label: 'Today', value: hospitalBI?.healtaraToday ?? '—', sub: 'new patients', icon: '📅', color: 'text-indigo-700' },
+                        { label: 'This Month', value: hospitalBI?.healtaraMonth ?? '—', sub: 'via platform', icon: '📆', color: 'text-blue-700' },
+                        { label: 'Revenue', value: hospitalBI?.healtaraRevenue ? `₹${hospitalBI.healtaraRevenue >= 1000 ? `${(hospitalBI.healtaraRevenue/1000).toFixed(1)}k` : hospitalBI.healtaraRevenue}` : '₹—', sub: 'generated (month)', icon: '💰', color: 'text-emerald-700' },
+                      ].map(s => (
+                        <div key={s.label} className="bg-white rounded-xl p-3 text-center shadow-sm">
+                          <div className="text-2xl mb-1">{s.icon}</div>
+                          <div className={`text-xl font-black ${s.color}`}>{s.value}</div>
+                          <div className="text-[10px] font-bold text-gray-700">{s.label}</div>
+                          <div className="text-[9px] text-gray-400">{s.sub}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-4 pb-4">
+                      <div className="bg-indigo-100 rounded-lg p-2.5 text-center">
+                        <p className="text-[11px] text-indigo-800 font-medium">Every patient above booked through Healtara</p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* ── ALERTS & ACTIONS ── */}
+                {/* ── ROW 3: Department Performance ── */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                    <h3 className="text-sm font-bold text-gray-900">🏥 Department Performance</h3>
+                    <button onClick={() => setActiveTab('appointments')} className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold">View all →</button>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {(() => {
+                      const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                      const todayStr = fmtD.format(getISTNow());
+                      const deptMap = new Map<string, { doctors: number; todayAppts: number; pendingAppts: number; completedAppts: number; todayRevenue: number; doctorList: typeof hospitalDoctors }>();
+                      hospitalDoctors.forEach(doc => {
+                        const dept = (doc as any).departmentName?.trim() || 'General';
+                        const appts = doctorAppointmentsMap[doc.id] || [];
+                        const fee = (doc as any).doctorProfile?.consultationFee || hospitalBI?.doctors?.find((d: any) => d.id === doc.id)?.consultationFee || 0;
+                        const entry = deptMap.get(dept) || { doctors: 0, todayAppts: 0, pendingAppts: 0, completedAppts: 0, todayRevenue: 0, doctorList: [] };
+                        entry.doctors++;
+                        entry.doctorList.push(doc);
+                        const todayDoctorAppts = appts.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr);
+                        entry.todayAppts += todayDoctorAppts.filter(a => a.status !== 'CANCELLED').length;
+                        entry.pendingAppts += todayDoctorAppts.filter(a => a.status === 'PENDING').length;
+                        entry.completedAppts += todayDoctorAppts.filter(a => a.status === 'COMPLETED').length;
+                        entry.todayRevenue += todayDoctorAppts.filter(a => a.status === 'COMPLETED').length * fee;
+                        deptMap.set(dept, entry);
+                      });
+                      const depts = Array.from(deptMap.entries()).sort((a, b) => b[1].todayAppts - a[1].todayAppts);
+                      if (depts.length === 0) return <div className="px-4 py-6 text-center text-xs text-gray-400">No departments yet. <a href="/hospital-admin/profile" className="text-blue-500 hover:underline">Add doctors →</a></div>;
+                      return depts.map(([name, data]) => (
+                        <div key={name} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-sm font-black text-indigo-700">{name.charAt(0)}</div>
+                              <div>
+                                <p className="text-xs font-bold text-gray-900">{name}</p>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  {data.doctorList.slice(0,3).map((d: any) => (
+                                    <span key={d.id} className="bg-blue-50 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded cursor-pointer hover:bg-blue-100"
+                                      onClick={() => { setActiveTab('appointments'); setSelectedDoctorView(d.id); }}>
+                                      {getDoctorLabel(d).replace('Dr. ','Dr.')}
+                                    </span>
+                                  ))}
+                                  {data.doctorList.length > 3 && <span className="text-[9px] text-gray-400">+{data.doctorList.length-3}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 text-center">
+                              <div><div className="text-sm font-black text-blue-600">{data.todayAppts}</div><div className="text-[9px] text-gray-400">today</div></div>
+                              <div><div className="text-sm font-black text-amber-600">{data.pendingAppts}</div><div className="text-[9px] text-gray-400">pending</div></div>
+                              <div><div className="text-sm font-black text-emerald-600">{data.todayRevenue > 0 ? `₹${data.todayRevenue >= 1000 ? `${(data.todayRevenue/1000).toFixed(1)}k` : data.todayRevenue}` : '₹0'}</div><div className="text-[9px] text-gray-400">revenue</div></div>
+                            </div>
+                          </div>
+                          {/* Utilization bar */}
+                          {data.todayAppts > 0 && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-gradient-to-r from-blue-400 to-indigo-500 h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.round((data.completedAppts / Math.max(data.todayAppts,1)) * 100))}%` }} />
+                              </div>
+                              <span className="text-[9px] text-gray-400">{Math.round((data.completedAppts/Math.max(data.todayAppts,1))*100)}% done</span>
+                            </div>
+                          )}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* ── ROW 4: Doctor Utilization ── */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                    <h3 className="text-sm font-bold text-gray-900">👨‍⚕️ Doctor Utilization</h3>
+                    <span className="text-[10px] text-gray-400">Click a doctor to see full stats</span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {hospitalDoctors.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-gray-400">No doctors linked. <a href="/hospital-admin/profile" className="text-blue-500 hover:underline">Add doctors →</a></div>
+                    ) : hospitalDoctors.map(doc => {
+                      const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                      const todayStr = fmtD.format(getISTNow());
+                      const appts = doctorAppointmentsMap[doc.id] || [];
+                      const todayAppts = appts.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr);
+                      const todayBooked = todayAppts.filter(a => a.status !== 'CANCELLED').length;
+                      const todayCompleted = todayAppts.filter(a => a.status === 'COMPLETED').length;
+                      const totalBooked = appts.filter(a => a.status !== 'CANCELLED').length;
+                      const totalCompleted = appts.filter(a => a.status === 'COMPLETED').length;
+                      const utilPct = totalBooked > 0 ? Math.round((totalCompleted/totalBooked)*100) : 0;
+                      const fee = (doc as any).doctorProfile?.consultationFee || 0;
+                      const todayRev = todayCompleted * fee;
+                      const biDoc = hospitalBI?.doctors?.find((d: any) => d.id === doc.id);
+                      return (
+                        <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => { setActiveTab('appointments'); setSelectedDoctorView(doc.id); }}>
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
+                            {getDoctorLabel(doc).charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="text-xs font-bold text-gray-900 truncate">{getDoctorLabel(doc)}</p>
+                              <span className="text-[9px] text-gray-400 flex-shrink-0">{(doc as any).departmentName || 'General'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${utilPct >= 80 ? 'bg-red-400' : utilPct >= 60 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                  style={{ width: `${utilPct}%` }} />
+                              </div>
+                              <span className="text-[9px] font-bold text-gray-500 flex-shrink-0">{utilPct}%</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-center flex-shrink-0">
+                            <div><div className="text-xs font-black text-blue-600">{todayBooked}</div><div className="text-[9px] text-gray-400">today</div></div>
+                            <div><div className="text-xs font-black text-emerald-600">{todayRev > 0 ? `₹${todayRev >= 1000 ? `${(todayRev/1000).toFixed(1)}k` : todayRev}` : '₹0'}</div><div className="text-[9px] text-gray-400">rev today</div></div>
+                            {todayAppts.filter(a => a.status === 'PENDING').length > 0 && (
+                              <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full">{todayAppts.filter(a => a.status === 'PENDING').length} pending</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ── ROW 5: No-Show Tracking + Upcoming ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {/* No-Show Tracking */}
+                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                      <h3 className="text-sm font-bold text-gray-900">📊 Attendance & No-Shows</h3>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {[
+                        { label: 'Total Booked', value: hospitalBI?.bookedTotal ?? (stats?.totalAppointments ?? 0), color: 'bg-blue-100 text-blue-700' },
+                        { label: 'Attended', value: hospitalBI?.attendedTotal ?? (stats?.completedAppointments ?? 0), color: 'bg-emerald-100 text-emerald-700' },
+                        { label: 'No-Shows', value: hospitalBI?.noShowAppts ?? 0, color: 'bg-red-100 text-red-700' },
+                        { label: 'Lost Revenue', value: `₹${hospitalBI?.noShowLost ?? 0}`, color: 'bg-orange-100 text-orange-700' },
+                      ].map(s => (
+                        <div key={s.label} className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">{s.label}</span>
+                          <span className={`text-xs font-black px-2.5 py-1 rounded-full ${s.color}`}>{s.value}</span>
+                        </div>
+                      ))}
+                      {hospitalBI && hospitalBI.bookedTotal > 0 && (
+                        <div className="mt-1 pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div className="bg-emerald-400 h-full rounded-full" style={{ width: `${Math.round((hospitalBI.attendedTotal/hospitalBI.bookedTotal)*100)}%` }} />
+                            </div>
+                            <span className="text-[10px] text-gray-500 font-bold">{Math.round((hospitalBI.attendedTotal/hospitalBI.bookedTotal)*100)}% attendance</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Upcoming Appointments */}
+                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                      <h3 className="text-sm font-bold text-gray-900">🔜 Upcoming (Next 24h)</h3>
+                      <button onClick={() => setActiveTab('appointments')} className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold">All →</button>
+                    </div>
+                    <div className="divide-y divide-gray-50 max-h-52 overflow-y-auto">
+                      {(() => {
+                        const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                        const now = getISTNow();
+                        const next24 = new Date(now.getTime() + 86400000);
+                        const upcoming = Object.values(doctorAppointmentsMap).flat()
+                          .filter(a => a.status !== 'CANCELLED' && getAppointmentISTDate(a) >= now && getAppointmentISTDate(a) <= next24)
+                          .sort((a,b) => getAppointmentISTDate(a).getTime() - getAppointmentISTDate(b).getTime())
+                          .slice(0,8);
+                        if (upcoming.length === 0) return <div className="px-4 py-4 text-center text-xs text-gray-400">No upcoming appointments in next 24h</div>;
+                        return upcoming.map(a => (
+                          <div key={a.id} className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-gray-50">
+                            <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center text-sm flex-shrink-0">👤</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-semibold text-gray-900 truncate">{getPatientLabel(a.patient as any, a.patientId)}</p>
+                              <p className="text-[9px] text-gray-400">{formatISTTime(getAppointmentISTDate(a))} · {formatIST(getAppointmentISTDate(a), { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${a.status==='CONFIRMED'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}`}>{a.status}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── ROW 6: AI Recommendations ── */}
                 {(() => {
                   const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
                   const todayStr = fmtD.format(getISTNow());
                   const allAppts = Object.values(doctorAppointmentsMap).flat();
+                  const todayAppts = allAppts.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr);
+                  const insights: Array<{ icon: string; msg: string; type: 'warning' | 'info' | 'success' }> = [];
+
+                  // Overloaded doctors
+                  hospitalDoctors.forEach(doc => {
+                    const todayDocAppts = (doctorAppointmentsMap[doc.id] || []).filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr && a.status !== 'CANCELLED');
+                    if (todayDocAppts.length >= 15) insights.push({ icon: '🔥', msg: `${getDoctorLabel(doc)} is overloaded with ${todayDocAppts.length} appointments today`, type: 'warning' });
+                  });
+
+                  // High no-show rate
+                  if (hospitalBI?.noShowRate > 15) insights.push({ icon: '⚠️', msg: `No-show rate is ${hospitalBI.noShowRate}% — consider sending appointment reminders`, type: 'warning' });
+
+                  // Revenue opportunity
+                  if (hospitalBI?.avgConsultFee > 0 && hospitalBI?.todayPatients < 5) insights.push({ icon: '💡', msg: `Low footfall today (${hospitalBI.todayPatients} patients) — consider running a promotion`, type: 'info' });
+
+                  // Pending action needed
                   const pendingOld = allAppts.filter(a => a.status === 'PENDING' && getAppointmentISTDate(a).getTime() < getISTNow().getTime());
-                  const todayUnconfirmed = allAppts.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr && a.status === 'PENDING');
-                  const alerts = [
-                    pendingOld.length > 0 && { type: 'warning', icon: '⚠️', msg: `${pendingOld.length} past appointment${pendingOld.length > 1 ? 's' : ''} still PENDING — needs action`, action: 'appointments' },
-                    todayUnconfirmed.length > 0 && { type: 'info', icon: '📋', msg: `${todayUnconfirmed.length} today's booking${todayUnconfirmed.length > 1 ? 's' : ''} not yet confirmed`, action: 'appointments' },
-                    hospitalDoctors.length === 0 && { type: 'warning', icon: '👨‍⚕️', msg: 'No doctors linked to your hospital yet', action: null, href: '/hospital-admin/profile' },
-                  ].filter(Boolean) as Array<{ type: string; icon: string; msg: string; action?: string | null; href?: string }>;
-                  if (alerts.length === 0) return null;
+                  if (pendingOld.length > 0) insights.push({ icon: '📋', msg: `${pendingOld.length} past appointment${pendingOld.length > 1 ? 's' : ''} still PENDING — confirm or cancel them`, type: 'warning' });
+
+                  // Good day
+                  if (hospitalBI && hospitalBI.todayRevenue > 0 && hospitalBI.noShowRate < 10) insights.push({ icon: '✅', msg: `Excellent day! Revenue ₹${hospitalBI.todayRevenue} with less than 10% no-show rate`, type: 'success' });
+
+                  // No doctors
+                  if (hospitalDoctors.length === 0) insights.push({ icon: '👨‍⚕️', msg: 'No doctors linked yet — add doctors to start receiving bookings', type: 'warning' });
+
+                  if (insights.length === 0) return null;
                   return (
-                    <div className="space-y-2">
-                      {alerts.map((alert, i) => (
-                        <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-xs font-medium ${alert.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
-                          <span className="text-base flex-shrink-0">{alert.icon}</span>
-                          <span className="flex-1">{alert.msg}</span>
-                          {alert.action && (
-                            <button onClick={() => setActiveTab(alert.action!)} className={`text-[10px] font-bold px-2 py-1 rounded-md ${alert.type === 'warning' ? 'bg-amber-200 text-amber-900' : 'bg-blue-200 text-blue-900'}`}>
-                              View →
-                            </button>
-                          )}
-                          {alert.href && (
-                            <a href={alert.href} className="text-[10px] font-bold px-2 py-1 rounded-md bg-amber-200 text-amber-900">
-                              Fix →
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                        <h3 className="text-sm font-bold text-gray-900">🤖 AI Recommendations</h3>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        {insights.map((ins, i) => (
+                          <div key={i} className={`flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium ${ins.type==='warning'?'bg-amber-50 text-amber-800 border border-amber-200':ins.type==='success'?'bg-emerald-50 text-emerald-800 border border-emerald-200':'bg-blue-50 text-blue-800 border border-blue-200'}`}>
+                            <span className="flex-shrink-0 text-base">{ins.icon}</span>
+                            <span>{ins.msg}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   );
                 })()}
 
-                {/* ── RECENT APPOINTMENTS ── */}
-                <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-gray-900">🕐 Recent Appointments</h3>
-                    <button onClick={() => setActiveTab('appointments')} className="text-[10px] text-blue-500 hover:text-blue-700 font-semibold">View all →</button>
-                  </div>
-                  {recentHospitalAppointments.length === 0 ? (
-                    <div className="px-4 py-6 text-center text-xs text-gray-400">No appointments yet</div>
-                  ) : (
-                    <div className="divide-y divide-gray-50">
-                      {recentHospitalAppointments.slice(0, 6).map(a => (
-                        <div key={a.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                          <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center text-sm flex-shrink-0">👤</div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-900 truncate">{getPatientLabel(a.patient as any, a.patientId)}</p>
-                            <p className="text-[10px] text-gray-400">{formatIST(getAppointmentISTDate(a), { dateStyle: 'medium' })} · {formatISTTime(getAppointmentISTDate(a))}</p>
-                          </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${a.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700' : a.status === 'PENDING' ? 'bg-amber-50 text-amber-700' : a.status === 'COMPLETED' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
-                            {a.status}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── QUICK ACTIONS ── */}
+                {/* ── ROW 7: Quick Actions ── */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { icon: '📅', label: 'Manage Appointments', desc: 'View & update bookings', action: () => setActiveTab('appointments') },
+                    { icon: '📅', label: 'Appointments', desc: 'View & update bookings', action: () => setActiveTab('appointments') },
                     { icon: '👨‍⚕️', label: 'Add Doctor', desc: 'Link a new doctor', href: '/hospital-admin/profile' },
                     { icon: '🏥', label: 'Hospital Profile', desc: 'Edit info & departments', href: '/hospital-admin/profile' },
-                    { icon: '🌐', label: 'View Microsite', desc: 'See public hospital page', href: `/hospital-site/${(hospitalProfile as any)?.id}` },
+                    { icon: '🌐', label: 'View Microsite', desc: 'See public page', href: `/hospital-site/${(hospitalProfile as any)?.id}` },
                   ].map((q, i) => (
                     q.href ? (
-                      <a key={i} href={q.href}
-                        className="bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all flex items-start gap-3 group">
-                        <span className="text-2xl">{q.icon}</span>
-                        <div>
-                          <p className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{q.label}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{q.desc}</p>
-                        </div>
+                      <a key={i} href={q.href} className="bg-white border border-gray-200 rounded-xl p-3.5 hover:border-blue-300 hover:shadow-md transition-all flex items-start gap-2.5 group">
+                        <span className="text-xl flex-shrink-0">{q.icon}</span>
+                        <div><p className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{q.label}</p><p className="text-[10px] text-gray-400 mt-0.5">{q.desc}</p></div>
                       </a>
                     ) : (
-                      <button key={i} onClick={q.action}
-                        className="bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all flex items-start gap-3 group text-left">
-                        <span className="text-2xl">{q.icon}</span>
-                        <div>
-                          <p className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{q.label}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{q.desc}</p>
-                        </div>
+                      <button key={i} onClick={q.action} className="bg-white border border-gray-200 rounded-xl p-3.5 hover:border-blue-300 hover:shadow-md transition-all flex items-start gap-2.5 group text-left">
+                        <span className="text-xl flex-shrink-0">{q.icon}</span>
+                        <div><p className="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{q.label}</p><p className="text-[10px] text-gray-400 mt-0.5">{q.desc}</p></div>
                       </button>
                     )
                   ))}
                 </div>
               </>
             )}
+
 
             {/* Non-hospital roles (PATIENT etc) keep original stats */}
             {user.role !== 'HOSPITAL_ADMIN' && stats && (

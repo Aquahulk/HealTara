@@ -661,6 +661,10 @@ class ApiClient {
     return this.request(`/api/hospitals/${hospitalId}/stats`);
   }
 
+  async getHospitalBI(hospitalId: number): Promise<any> {
+    return this.request(`/api/hospitals/${hospitalId}/bi`);
+  }
+
   async getHospitalProfile(hospitalId: number): Promise<any> {
     return this.request(`/api/hospitals/${hospitalId}/profile`);
   }

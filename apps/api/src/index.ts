@@ -5501,6 +5501,182 @@ app.get('/api/hospitals/:hospitalId/stats', authMiddleware, async (req: Request,
   }
 });
 
+// ============================================================================
+// 📊 HOSPITAL BUSINESS INTELLIGENCE ENDPOINT
+// Returns all data needed for the hospital ops control center dashboard
+// ============================================================================
+app.get('/api/hospitals/:hospitalId/bi', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  if (!['ADMIN', 'HOSPITAL_ADMIN', 'SLOT_ADMIN'].includes(user.role)) return res.status(403).json({ message: 'Forbidden' });
+
+  try {
+    const nowIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const todayStr = nowIST.format(new Date());
+    const ystStr = nowIST.format(new Date(Date.now() - 86400000));
+
+    // Week and month boundaries (UTC-based but aligned to IST midnight)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const nowUtc = Date.now();
+    const nowIstMs = nowUtc + istOffset;
+    const todayIstStart = new Date(Math.floor(nowIstMs / 86400000) * 86400000 - istOffset);
+    const weekStart = new Date(todayIstStart.getTime() - 6 * 86400000);
+    const monthStart = new Date(todayIstStart.getTime() - 29 * 86400000);
+    const ystStart = new Date(todayIstStart.getTime() - 86400000);
+    const ystEnd = new Date(todayIstStart.getTime() - 1);
+
+    // Get all doctor IDs for this hospital
+    const links = await prisma.hospitalDoctor.findMany({
+      where: { hospitalId },
+      include: {
+        doctor: { include: { doctorProfile: { select: { consultationFee: true, specialization: true, slotPeriodMinutes: true, profileImage: true, slug: true } } } },
+        department: { select: { id: true, name: true } },
+      }
+    });
+    const doctorIds = links.map((l: any) => l.doctorId).filter((id: any) => Number.isFinite(id));
+
+    if (doctorIds.length === 0) {
+      return res.status(200).json({
+        todayRevenue: 0, yesterdayRevenue: 0, weekRevenue: 0, monthRevenue: 0,
+        todayPatients: 0, yesterdayPatients: 0, weekPatients: 0,
+        todayAppts: 0, pendingAppts: 0, confirmedAppts: 0, completedAppts: 0,
+        noShowAppts: 0, noShowLost: 0, totalAppts: 0,
+        avgConsultFee: 0, activeDoctors: 0, totalDoctors: 0,
+        healtaraToday: 0, healtaraMonth: 0, healtaraRevenue: 0,
+        departments: [], doctors: [], recentAppts: [], upcomingAppts: [],
+      });
+    }
+
+    // Build fee map
+    const feeMap: Record<number, number> = {};
+    links.forEach((l: any) => { feeMap[l.doctorId] = l.doctor?.doctorProfile?.consultationFee || 0; });
+
+    // Fetch all appointments in parallel
+    const [todayAppts, ystAppts, weekAppts, monthAppts, allAppts, recentRaw] = await Promise.all([
+      prisma.appointment.findMany({ where: { doctorId: { in: doctorIds }, date: { gte: todayIstStart, lt: new Date(todayIstStart.getTime() + 86400000) } }, include: { patient: { select: { id: true, email: true } }, doctor: { select: { id: true, email: true } } } }),
+      prisma.appointment.findMany({ where: { doctorId: { in: doctorIds }, date: { gte: ystStart, lt: todayIstStart } } }),
+      prisma.appointment.findMany({ where: { doctorId: { in: doctorIds }, date: { gte: weekStart } } }),
+      prisma.appointment.findMany({ where: { doctorId: { in: doctorIds }, date: { gte: monthStart } } }),
+      prisma.appointment.findMany({ where: { doctorId: { in: doctorIds } } }),
+      prisma.appointment.findMany({ where: { doctorId: { in: doctorIds } }, orderBy: { createdAt: 'desc' }, take: 10, include: { patient: { select: { id: true, email: true } }, doctor: { select: { id: true, email: true, doctorProfile: { select: { specialization: true } } } } } }),
+    ]);
+
+    const revOf = (appts: any[]) => appts.filter((a: any) => a.status === 'COMPLETED').reduce((s: number, a: any) => s + (feeMap[a.doctorId] || 0), 0);
+    const patientsOf = (appts: any[]) => new Set(appts.filter((a: any) => a.status !== 'CANCELLED').map((a: any) => a.patientId)).size;
+
+    // Today breakdowns
+    const todayCompleted = todayAppts.filter((a: any) => a.status === 'COMPLETED').length;
+    const todayPending = todayAppts.filter((a: any) => a.status === 'PENDING').length;
+    const todayConfirmed = todayAppts.filter((a: any) => a.status === 'CONFIRMED').length;
+    const todayCancelled = todayAppts.filter((a: any) => a.status === 'CANCELLED').length;
+    const noShow = allAppts.filter((a: any) => a.status === 'NO_SHOW').length;
+    const booked = allAppts.filter((a: any) => a.status !== 'CANCELLED').length;
+    const attended = allAppts.filter((a: any) => ['COMPLETED', 'CONFIRMED'].includes(a.status)).length;
+
+    // Healtara contribution (all patients who booked via the platform — all are from Healtara)
+    const healtaraToday = new Set(todayAppts.filter((a: any) => a.status !== 'CANCELLED').map((a: any) => a.patientId)).size;
+    const healtaraMonth = new Set(monthAppts.filter((a: any) => a.status !== 'CANCELLED').map((a: any) => a.patientId)).size;
+    const healtaraRevenue = revOf(monthAppts);
+
+    // Per-department stats
+    const deptMap = new Map<string, { id: number | null; doctors: number; todayAppts: number; todayRevenue: number; monthAppts: number; monthRevenue: number }>();
+    links.forEach((l: any) => {
+      const dName = l.department?.name || 'General';
+      const dId = l.department?.id || null;
+      const entry = deptMap.get(dName) || { id: dId, doctors: 0, todayAppts: 0, todayRevenue: 0, monthAppts: 0, monthRevenue: 0 };
+      entry.doctors++;
+      const dTodayAppts = todayAppts.filter((a: any) => a.doctorId === l.doctorId);
+      const dMonthAppts = monthAppts.filter((a: any) => a.doctorId === l.doctorId);
+      entry.todayAppts += dTodayAppts.filter((a: any) => a.status !== 'CANCELLED').length;
+      entry.todayRevenue += dTodayAppts.filter((a: any) => a.status === 'COMPLETED').reduce((s: number, a: any) => s + (feeMap[a.doctorId] || 0), 0);
+      entry.monthAppts += dMonthAppts.filter((a: any) => a.status !== 'CANCELLED').length;
+      entry.monthRevenue += revOf(dMonthAppts);
+      deptMap.set(dName, entry);
+    });
+
+    // Per-doctor stats
+    const doctors = links.map((l: any) => {
+      const dAppts = allAppts.filter((a: any) => a.doctorId === l.doctorId);
+      const dToday = todayAppts.filter((a: any) => a.doctorId === l.doctorId);
+      const dMonth = monthAppts.filter((a: any) => a.doctorId === l.doctorId);
+      const totalSlots = dAppts.filter((a: any) => a.status !== 'CANCELLED').length;
+      const completed = dAppts.filter((a: any) => a.status === 'COMPLETED').length;
+      // Utilization: completed / total booked (rough estimate)
+      const utilization = totalSlots > 0 ? Math.round((completed / totalSlots) * 100) : 0;
+      const email = l.doctor?.email || '';
+      const prefix = email.split('@')[0] || '';
+      const name = 'Dr. ' + (prefix.charAt(0).toUpperCase() + prefix.slice(1).replace(/[._-]/g, ' '));
+      return {
+        id: l.doctorId,
+        name,
+        email,
+        specialization: l.doctor?.doctorProfile?.specialization || '',
+        consultationFee: feeMap[l.doctorId] || 0,
+        department: l.department?.name || 'General',
+        departmentId: l.department?.id || null,
+        profileImage: l.doctor?.doctorProfile?.profileImage || null,
+        slug: l.doctor?.doctorProfile?.slug || null,
+        todayAppts: dToday.filter((a: any) => a.status !== 'CANCELLED').length,
+        todayPending: dToday.filter((a: any) => a.status === 'PENDING').length,
+        todayCompleted: dToday.filter((a: any) => a.status === 'COMPLETED').length,
+        monthAppts: dMonth.filter((a: any) => a.status !== 'CANCELLED').length,
+        monthRevenue: revOf(dMonth),
+        totalAppts: totalSlots,
+        utilization,
+        avgRating: 0, // can hook into comments later
+      };
+    });
+
+    const avgFee = doctorIds.length > 0 ? Math.round(Object.values(feeMap).reduce((s: number, f: number) => s + f, 0) / doctorIds.length) : 0;
+
+    // Upcoming appointments (next 24h)
+    const next24h = new Date(Date.now() + 86400000);
+    const upcomingAppts = allAppts
+      .filter((a: any) => a.status !== 'CANCELLED' && new Date(a.date) >= new Date() && new Date(a.date) <= next24h)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 10);
+
+    return res.status(200).json({
+      // Revenue
+      todayRevenue: revOf(todayAppts),
+      yesterdayRevenue: revOf(ystAppts),
+      weekRevenue: revOf(weekAppts),
+      monthRevenue: revOf(monthAppts),
+      // Patients
+      todayPatients: patientsOf(todayAppts),
+      yesterdayPatients: patientsOf(ystAppts),
+      weekPatients: patientsOf(weekAppts),
+      // Appointments
+      todayAppts: todayAppts.filter((a: any) => a.status !== 'CANCELLED').length,
+      todayCompleted, todayPending, todayConfirmed, todayCancelled,
+      pendingAppts: allAppts.filter((a: any) => a.status === 'PENDING').length,
+      confirmedAppts: allAppts.filter((a: any) => a.status === 'CONFIRMED').length,
+      completedAppts: allAppts.filter((a: any) => a.status === 'COMPLETED').length,
+      totalAppts: allAppts.filter((a: any) => a.status !== 'CANCELLED').length,
+      // No-show
+      bookedTotal: booked, attendedTotal: attended,
+      noShowAppts: noShow,
+      noShowLost: noShow * avgFee,
+      noShowRate: booked > 0 ? Math.round((noShow / booked) * 100) : 0,
+      // Doctors
+      activeDoctors: doctorIds.length,
+      totalDoctors: doctorIds.length,
+      avgConsultFee: avgFee,
+      // Healtara contribution
+      healtaraToday, healtaraMonth, healtaraRevenue,
+      // Structured data
+      departments: Array.from(deptMap.entries()).map(([name, d]) => ({ name, ...d })),
+      doctors,
+      recentAppts: recentRaw,
+      upcomingAppts,
+    });
+  } catch (error: any) {
+    console.error('BI error:', error?.message);
+    return res.status(500).json({ message: 'Failed to fetch business intelligence data.' });
+  }
+});
+
 // --- Public hospital profile JSON ---
 app.get('/api/hospitals/:hospitalId/profile', async (req: Request, res: Response) => {
   const hospitalId = Number(req.params.hospitalId);
