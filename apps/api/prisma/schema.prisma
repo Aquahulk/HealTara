@@ -59,6 +59,8 @@ model DoctorProfile {
   state             String?
   phone             String
   consultationFee   Int                  @map("consultation_fee")
+  latitude          Float?               @map("latitude")
+  longitude         Float?               @map("longitude")
   createdAt         DateTime             @default(now()) @map("created_at")
   updatedAt         DateTime             @updatedAt @map("updated_at")
   slug              String?              @unique
@@ -153,6 +155,8 @@ model Hospital {
   state       String?
   phone       String?
   profile     Json?
+  latitude    Float?           @map("latitude")
+  longitude   Float?           @map("longitude")
   status      String           @default("ACTIVE") // ACTIVE, SUSPENDED, PENDING
   registrationNumberGov String? @map("registration_number_gov")
   verificationSubmitted Boolean @default(false) @map("verification_submitted")

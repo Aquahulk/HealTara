@@ -269,6 +269,7 @@ export const CommentForm: React.FC<CommentFormProps> = ({
     comment: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const deriveNameFromEmail = (email?: string) => {
     if (!email) return 'Anonymous';
@@ -280,11 +281,11 @@ export const CommentForm: React.FC<CommentFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      alert('Please login to post a review');
+      setFormError('Please login to post a review');
       return;
     }
     if (!formData.comment.trim()) {
-      alert('Please enter your review');
+      setFormError('Please enter your review');
       return;
     }
 
@@ -310,11 +311,11 @@ export const CommentForm: React.FC<CommentFormProps> = ({
         if (onCommentPosted) onCommentPosted(result.data);
       } else {
         const result = await response.json();
-        alert(`Failed to post comment: ${result.detail || 'Server error'}`);
+        setFormError(result.detail || 'Failed to post review. Please try again.');
       }
     } catch (error) {
       console.error('Failed to post comment:', error);
-      alert(`Failed to post comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setFormError('Failed to post review. Please try again later.');
     } finally {
       setIsSubmitting(false);
     }
@@ -378,6 +379,7 @@ export const CommentForm: React.FC<CommentFormProps> = ({
         >
           {isSubmitting ? 'Posting Review...' : 'Post Review'}
         </button>
+        {formError && <p className="text-xs text-red-600">{formError}</p>}
       </form>
     </div>
   );
@@ -420,7 +422,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
         if (pageNum === 1) setError('Reviews temporarily unavailable');
       }
     } catch (err) {
-      setError('Failed to load comments');
+      setError('Reviews temporarily unavailable');
     } finally {
       setLoading(false);
     }
@@ -539,8 +541,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       />
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-          <p className="text-red-800">Failed to load comments</p>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+          <p className="text-gray-500 text-sm">{error}</p>
           <button
             onClick={() => loadComments()}
             className="mt-2 text-red-600 hover:text-red-800 underline"

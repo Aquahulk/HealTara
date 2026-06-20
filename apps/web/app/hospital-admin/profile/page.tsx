@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
+import LocationPicker from "@/components/LocationPicker";
 
 type HospitalProfile = {
   general?: {
@@ -687,31 +688,31 @@ export default function HospitalAdminProfilePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
               <input 
-                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                 placeholder="Hospital Name (required)" 
                 value={createHospitalForm.name} 
                 onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, name: e.target.value })} 
               />
               <input 
-                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                 placeholder="Phone" 
                 value={createHospitalForm.phone} 
                 onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, phone: e.target.value })} 
               />
               <input 
-                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all md:col-span-2" 
+                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all md:col-span-2" 
                 placeholder="Address" 
                 value={createHospitalForm.address} 
                 onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, address: e.target.value })} 
               />
               <input 
-                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                 placeholder="City" 
                 value={createHospitalForm.city} 
                 onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, city: e.target.value })} 
               />
               <input 
-                className="px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                 placeholder="State" 
                 value={createHospitalForm.state} 
                 onChange={(e) => setCreateHospitalForm({ ...createHospitalForm, state: e.target.value })} 
@@ -738,7 +739,7 @@ export default function HospitalAdminProfilePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Government Registration Number</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Government Registration Number</label>
                 <input
                   type="text"
                   value={verification.registrationNumberGov}
@@ -748,7 +749,7 @@ export default function HospitalAdminProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Mobile</label>
                 <input
                   type="text"
                   value={verification.phone}
@@ -758,7 +759,7 @@ export default function HospitalAdminProfilePage() {
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Address</label>
                 <input
                   type="text"
                   value={verification.address}
@@ -768,7 +769,7 @@ export default function HospitalAdminProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">City</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">City</label>
                 <input
                   type="text"
                   value={verification.city}
@@ -777,7 +778,7 @@ export default function HospitalAdminProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">State</label>
                 <input
                   type="text"
                   value={verification.state}
@@ -851,47 +852,47 @@ export default function HospitalAdminProfilePage() {
             {activeSection === 'general' && (
               <div className="space-y-6">
                 {/* Basic Information */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Basic Information</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Basic Information</h2>
                     <p className="text-sm text-gray-600 mt-1">Hospital identity and branding</p>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Legal Name</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Legal Name</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Full Legal Name" 
                         value={profile.general?.legalName || ""} 
                         onChange={(e) => updateGeneralField("legalName", e.target.value)} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Brand Name</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Brand Name</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Brand Name" 
                         value={profile.general?.brandName || ""} 
                         onChange={(e) => updateGeneralField("brandName", e.target.value)} 
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Tagline</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Tagline</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Hospital Tagline" 
                         value={profile.general?.tagline || ""} 
                         onChange={(e) => updateGeneralField("tagline", e.target.value)} 
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Logo</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Logo</label>
                       <div className="flex gap-3">
                         <input
                           type="file"
                           accept="image/*"
                           onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                          className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -907,34 +908,34 @@ export default function HospitalAdminProfilePage() {
                 </div>
 
                 {/* Location & Contact */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Location & Address</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Location & Address</h2>
                     <p className="text-sm text-gray-600 mt-1">Physical location details</p>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Complete Address</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Complete Address</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Street Address" 
                         value={profile.general?.address || ""} 
                         onChange={(e) => updateGeneralField("address", e.target.value)} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">PIN Code</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">PIN Code</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="PIN code" 
                         value={profile.general?.pincode || ""} 
                         onChange={(e) => updateGeneralField("pincode", e.target.value)} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Google Maps Link</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Google Maps Link</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Google Maps URL" 
                         value={profile.general?.googleMapsLink || ""} 
                         onChange={(e) => updateGeneralField("googleMapsLink", e.target.value)} 
@@ -944,18 +945,18 @@ export default function HospitalAdminProfilePage() {
                 </div>
 
                 {/* Hospital Website Domain */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Hospital’s Website Domain</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Hospital’s Website Domain</h2>
                     <p className="text-sm text-gray-600 mt-1">One-time setup for your hospital website domain {initialSubdomain && <span className="text-red-600 font-semibold">(Cannot be changed once set)</span>}</p>
                   </div>
-                  <div className="p-6">
+                  <div className="p-4">
                     {initialSubdomain ? (
                       <div className="bg-gray-100 border-2 border-gray-300 rounded-xl p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
                             <p className="text-sm text-gray-600 mb-1">Hospital Website Domain:</p>
-                            <p className="text-xl font-bold text-gray-900">{`${initialSubdomain}.`}{process.env.NEXT_PUBLIC_PRIMARY_DOMAIN || 'healtara.com'}</p>
+                            <p className="text-sm font-bold text-gray-900">{`${initialSubdomain}.`}{process.env.NEXT_PUBLIC_PRIMARY_DOMAIN || 'healtara.com'}</p>
                           </div>
                           <div className="bg-green-100 text-green-800 px-4 py-2 rounded-lg font-semibold text-sm">
                             ✓ Active
@@ -1002,61 +1003,61 @@ export default function HospitalAdminProfilePage() {
                 </div>
 
                 {/* Contact Numbers */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-orange-50 to-red-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Contact Numbers</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Contact Numbers</h2>
                     <p className="text-sm text-gray-600 mt-1">Phone numbers for different services</p>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Emergency/Casualty</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Emergency/Casualty</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Emergency" 
                         value={profile.general?.contacts?.emergency || ""} 
                         onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), emergency: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Reception</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Reception</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Reception" 
                         value={profile.general?.contacts?.reception || ""} 
                         onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), reception: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Ambulance</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Ambulance</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Ambulance" 
                         value={profile.general?.contacts?.ambulance || ""} 
                         onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), ambulance: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Appointment Desk</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Appointment Desk</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Appointments" 
                         value={profile.general?.contacts?.appointment || ""} 
                         onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), appointment: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Health Check-ups</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Health Check-ups</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Health Checkups" 
                         value={profile.general?.contacts?.healthCheckups || ""} 
                         onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), healthCheckups: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Fax</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Fax</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Fax" 
                         value={profile.general?.contacts?.fax || ""} 
                         onChange={(e) => updateGeneralField("contacts", { ...(profile.general?.contacts || {}), fax: e.target.value })} 
@@ -1066,43 +1067,43 @@ export default function HospitalAdminProfilePage() {
                 </div>
 
                 {/* Email Addresses */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-50 to-blue-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Email Addresses</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-cyan-50 to-blue-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Email Addresses</h2>
                     <p className="text-sm text-gray-600 mt-1">Email contacts for different purposes</p>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Info Email</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Info Email</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="info@hospital.com" 
                         value={profile.general?.emails?.info || ""} 
                         onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), info: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Appointments Email</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Appointments Email</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="appointments@hospital.com" 
                         value={profile.general?.emails?.appointments || ""} 
                         onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), appointments: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Feedback Email</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Feedback Email</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="feedback@hospital.com" 
                         value={profile.general?.emails?.feedback || ""} 
                         onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), feedback: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Careers Email</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Careers Email</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="hr@hospital.com" 
                         value={profile.general?.emails?.careers || ""} 
                         onChange={(e) => updateGeneralField("emails", { ...(profile.general?.emails || {}), careers: e.target.value })} 
@@ -1112,52 +1113,52 @@ export default function HospitalAdminProfilePage() {
                 </div>
 
                 {/* Social Media */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-pink-50 to-purple-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Social Media</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-pink-50 to-purple-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Social Media</h2>
                     <p className="text-sm text-gray-600 mt-1">Connect with patients on social platforms</p>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Facebook</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Facebook</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Facebook URL" 
                         value={profile.general?.social?.facebook || ""} 
                         onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), facebook: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Twitter</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Twitter</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Twitter URL" 
                         value={profile.general?.social?.twitter || ""} 
                         onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), twitter: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Instagram</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Instagram</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="Instagram URL" 
                         value={profile.general?.social?.instagram || ""} 
                         onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), instagram: e.target.value })} 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">LinkedIn</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">LinkedIn</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="LinkedIn URL" 
                         value={profile.general?.social?.linkedin || ""} 
                         onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), linkedin: e.target.value })} 
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">YouTube</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">YouTube</label>
                       <input 
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all" 
                         placeholder="YouTube URL" 
                         value={profile.general?.social?.youtube || ""} 
                         onChange={(e) => updateGeneralField("social", { ...(profile.general?.social || {}), youtube: e.target.value })} 
@@ -1170,43 +1171,43 @@ export default function HospitalAdminProfilePage() {
 
             {/* About Us Section */}
             {activeSection === 'about' && (
-              <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-xl font-bold text-gray-900">About Your Hospital</h2>
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+                  <h2 className="text-sm font-bold text-gray-900">About Your Hospital</h2>
                   <p className="text-sm text-gray-600 mt-1">Tell your story and values</p>
                 </div>
-                <div className="p-6 space-y-6">
+                <div className="p-4 space-y-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mission Statement</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Mission Statement</label>
                     <textarea 
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
                       placeholder="Our mission is to..." 
                       value={profile.about?.mission || ""} 
                       onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), mission: e.target.value } }))} 
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Vision Statement</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Vision Statement</label>
                     <textarea 
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
                       placeholder="Our vision is to..." 
                       value={profile.about?.vision || ""} 
                       onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), vision: e.target.value } }))} 
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Core Values</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Core Values</label>
                     <textarea 
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
                       placeholder="Our values include..." 
                       value={profile.about?.values || ""} 
                       onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), values: e.target.value } }))} 
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">History</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">History</label>
                     <textarea 
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all min-h-[120px]" 
                       placeholder="Founded in..." 
                       value={profile.about?.history || ""} 
                       onChange={(e) => setProfile((p) => ({ ...p, about: { ...(p.about || {}), history: e.target.value } }))} 
@@ -1220,26 +1221,26 @@ export default function HospitalAdminProfilePage() {
             {activeSection === 'departments' && (
               <div className="space-y-6">
                 {/* Add New Department */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Add New Department</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Add New Department</h2>
                     <p className="text-sm text-gray-600 mt-1">Create a new medical department</p>
                   </div>
-                  <div className="p-6">
+                  <div className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Department Name *</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Department Name *</label>
                         <input
-                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                           placeholder="e.g., Cardiology"
                           value={newDepartment.name}
                           onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Description</label>
                         <input
-                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                           placeholder="Brief description"
                           value={newDepartment.description || ''}
                           onChange={(e) => setNewDepartment({ ...newDepartment, description: e.target.value })}
@@ -1274,12 +1275,12 @@ export default function HospitalAdminProfilePage() {
 
                 {/* Existing Departments */}
                 {(profile.departments || []).length > 0 && (
-                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-                      <h2 className="text-xl font-bold text-gray-900">Existing Departments ({profile.departments?.length || 0})</h2>
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+                      <h2 className="text-sm font-bold text-gray-900">Existing Departments ({profile.departments?.length || 0})</h2>
                       <p className="text-sm text-gray-600 mt-1">Manage your hospital departments</p>
                     </div>
-                    <div className="p-6 space-y-4">
+                    <div className="p-4 space-y-4">
                       {(profile.departments || []).map((dept, idx) => (
                         <div key={idx} className="border-2 border-gray-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
                           <div className="flex items-start justify-between mb-4">
@@ -1315,18 +1316,18 @@ export default function HospitalAdminProfilePage() {
                             <div className="space-y-4 mt-4 pt-4 border-t border-gray-200">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Department Name</label>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Department Name</label>
                                   <input
-                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                                     placeholder="Department Name"
                                     value={dept.name}
                                     onChange={(e) => updateDepartment(idx, "name", e.target.value)}
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Description</label>
                                   <input
-                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                                     placeholder="Description"
                                     value={dept.description || ""}
                                     onChange={(e) => updateDepartment(idx, "description", e.target.value)}
@@ -1455,35 +1456,35 @@ export default function HospitalAdminProfilePage() {
             {activeSection === 'doctors' && (
               <div className="space-y-6">
                 {/* Add New Doctor */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-900">Add New Doctor</h2>
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-3 border-b border-gray-200">
+                    <h2 className="text-sm font-bold text-gray-900">Add New Doctor</h2>
                     <p className="text-sm text-gray-600 mt-1">Add a doctor to your hospital profile</p>
                   </div>
-                  <div className="p-6">
+                  <div className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Doctor Name *</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Doctor Name *</label>
                         <input
-                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                           placeholder="Dr. John Doe"
                           value={newDoctor.name}
                           onChange={(e) => setNewDoctor({ ...newDoctor, name: e.target.value })}
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Primary Specialty</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Primary Specialty</label>
                         <input
-                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                           placeholder="e.g., Cardiologist"
                           value={newDoctor.primarySpecialty || ''}
                           onChange={(e) => setNewDoctor({ ...newDoctor, primarySpecialty: e.target.value })}
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Sub-Specialty</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Sub-Specialty</label>
                         <input
-                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                           placeholder="e.g., Interventional"
                           value={newDoctor.subSpecialty || ''}
                           onChange={(e) => setNewDoctor({ ...newDoctor, subSpecialty: e.target.value })}
@@ -1492,9 +1493,9 @@ export default function HospitalAdminProfilePage() {
                     </div>
                     {(profile.departments || []).length > 0 && (
                       <div className="mb-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Associate with Department</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Associate with Department</label>
                         <select
-                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                           value={newDoctor.departmentName || ''}
                           onChange={(e) => setNewDoctor({ ...newDoctor, departmentName: e.target.value })}
                         >
@@ -1534,12 +1535,12 @@ export default function HospitalAdminProfilePage() {
 
                 {/* Existing Doctors */}
                 {(profile.doctors || []).length > 0 && (
-                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-                      <h2 className="text-xl font-bold text-gray-900">Existing Doctors ({profile.doctors?.length || 0})</h2>
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+                      <h2 className="text-sm font-bold text-gray-900">Existing Doctors ({profile.doctors?.length || 0})</h2>
                       <p className="text-sm text-gray-600 mt-1">Manage your hospital doctors</p>
                     </div>
-                    <div className="p-6 space-y-4">
+                    <div className="p-4 space-y-4">
                       {(profile.doctors || []).map((doc, idx) => (
                         <div key={idx} className="border-2 border-gray-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
                           <div className="flex items-start justify-between mb-4">
@@ -1596,27 +1597,27 @@ export default function HospitalAdminProfilePage() {
                             <div className="space-y-4 mt-4 pt-4 border-t border-gray-200">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Doctor Name</label>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Doctor Name</label>
                                   <input
-                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                                     placeholder="Doctor Name"
                                     value={doc.name || ""}
                                     onChange={(e) => updateDoctor(idx, "name", e.target.value)}
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Primary Specialty</label>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Primary Specialty</label>
                                   <input
-                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                                     placeholder="Primary Specialty"
                                     value={doc.primarySpecialty || ""}
                                     onChange={(e) => updateDoctor(idx, "primarySpecialty", e.target.value)}
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Sub-Specialty</label>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Sub-Specialty</label>
                                   <input
-                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                                     placeholder="Sub-Specialty"
                                     value={doc.subSpecialty || ""}
                                     onChange={(e) => updateDoctor(idx, "subSpecialty", e.target.value)}
@@ -1627,10 +1628,10 @@ export default function HospitalAdminProfilePage() {
                               {/* Department Association */}
                               {(profile.departments || []).length > 0 && (
                                 <div>
-                                  <label className="block text-sm font-semibold text-gray-700 mb-2">Associate with Department</label>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Associate with Department</label>
                                   <div className="flex gap-3">
                                     <select
-                                      className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                                      className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                                       value={(doc.departments && doc.departments[0]) || ""}
                                       onChange={(e) => setDoctorDepartment(idx, e.target.value)}
                                     >
@@ -1665,7 +1666,7 @@ export default function HospitalAdminProfilePage() {
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                                     <div>
-                                      <label className="block text-sm font-semibold text-gray-700 mb-2">Slot Admin Email</label>
+                                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">Slot Admin Email</label>
                                       <input
                                         type="email"
                                         className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
@@ -1676,7 +1677,7 @@ export default function HospitalAdminProfilePage() {
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
+                                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">New Password</label>
                                       <input
                                         type="password"
                                         className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
@@ -1707,12 +1708,28 @@ export default function HospitalAdminProfilePage() {
               </div>
             )}
 
+            {/* Location Section */}
+            {hospitalId && (
+              <LocationPicker
+                latitude={null}
+                longitude={null}
+                label="Hospital Location"
+                onAutoGeocode={async () => {
+                  const res = await apiClient.setHospitalLocation(hospitalId, { autoGeocode: true });
+                  return res;
+                }}
+                onSave={async (coords) => {
+                  await apiClient.setHospitalLocation(hospitalId, coords);
+                }}
+              />
+            )}
+
             {/* Save Button */}
             <div className="flex justify-end">
               <button 
                 onClick={saveProfile} 
                 disabled={saving} 
-                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? "Saving..." : "Save All Changes"}
               </button>

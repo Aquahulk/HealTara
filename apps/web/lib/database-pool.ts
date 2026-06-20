@@ -89,8 +89,8 @@ if (pool) {
 // Global circuit breaker state
 let lastFailureTime = 0;
 let consecutiveFailures = 0;
-const FAILURE_THRESHOLD = 3;
-const COOLDOWN_MS = 30000; // 30 seconds cooldown
+const FAILURE_THRESHOLD = 5;
+const COOLDOWN_MS = 5000; // 5 seconds cooldown
 
 export async function executeQuery<T = any>(
   sql: string, 

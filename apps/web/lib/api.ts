@@ -665,6 +665,14 @@ class ApiClient {
     return this.request(`/api/hospitals/${hospitalId}/bi`);
   }
 
+  async setDoctorLocation(data: { latitude?: number; longitude?: number; autoGeocode?: boolean }): Promise<{ latitude: number; longitude: number }> {
+    return this.request('/api/doctor/location', { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async setHospitalLocation(hospitalId: number, data: { latitude?: number; longitude?: number; autoGeocode?: boolean }): Promise<{ latitude: number; longitude: number }> {
+    return this.request(`/api/hospitals/${hospitalId}/location`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
   async getHospitalProfile(hospitalId: number): Promise<any> {
     return this.request(`/api/hospitals/${hospitalId}/profile`);
   }

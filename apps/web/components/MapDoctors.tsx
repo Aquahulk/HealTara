@@ -43,15 +43,29 @@ export default function MapDoctors({
       const L = (window as any).L;
       if (!ref.current) return;
       ref.current.innerHTML = "";
-      const map = L.map(ref.current).setView([center.lat, center.lon], 13);
+      const map = L.map(ref.current).setView([center.lat, center.lon], pins.length <= 1 ? 13 : 5);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap",
       }).addTo(map);
+      const markers: any[] = [];
       pins.forEach((p) => {
-        const m = L.marker([p.lat, p.lon]).addTo(map);
-        m.bindPopup(`<strong>${p.title}</strong>${p.subtitle ? `<br/>${p.subtitle}` : ""}`);
+        const isHospital = p.title.startsWith('🏥');
+        const icon = L.divIcon({
+          html: `<div style="font-size:${isHospital ? '18px' : '14px'};text-align:center">${isHospital ? '🏥' : '👨‍⚕️'}</div>`,
+          className: '',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+        const m = L.marker([p.lat, p.lon], { icon }).addTo(map);
+        m.bindPopup(`<strong>${p.title}</strong>${p.subtitle ? `<br/><span style="font-size:11px;color:#666">${p.subtitle}</span>` : ""}`);
+        markers.push(m);
       });
+      // Auto-fit bounds to show all pins
+      if (markers.length > 1) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.1));
+      }
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -87,6 +87,8 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
         h.subdomain,
         h.profile,
         h.status,
+        h.latitude,
+        h.longitude,
         h.created_at,
         h.updated_at,
         h.admin_id,
@@ -2035,10 +2037,97 @@ app.put('/api/doctor/profile', authMiddleware, async (req: Request, res: Respons
         specialization, qualifications, experience, clinicName, clinicAddress, city, state, phone, consultationFee, slug: desiredSlug,
       },
     });
+
+    // Auto-geocode if address/city changed and no manual coordinates set
+    if ((city || clinicAddress)) {
+      try {
+        const existingCoords: any[] = await prisma.$queryRaw`SELECT latitude FROM "doctor_profiles" WHERE "user_id" = ${user.userId}`;
+        if (!existingCoords[0]?.latitude) {
+          const query = [clinicAddress, city, state].filter(Boolean).join(', ');
+          const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, { headers: { 'User-Agent': 'healtara/1.0' } });
+          const geoData = await geoRes.json();
+          if (geoData?.[0]?.lat && geoData?.[0]?.lon) {
+            await prisma.$executeRaw`UPDATE "doctor_profiles" SET "latitude" = ${parseFloat(geoData[0].lat)}, "longitude" = ${parseFloat(geoData[0].lon)} WHERE "user_id" = ${user.userId}`;
+          }
+        }
+      } catch {} // Non-critical
+    }
+
     res.status(200).json({ message: 'Doctor profile updated successfully', profile: updatedProfile });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'An error occurred while updating the profile.' });
+  }
+});
+
+// --- Doctor: Set location coordinates (manual pin drop OR auto-geocode) ---
+app.put('/api/doctor/location', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== 'DOCTOR') return res.status(403).json({ message: 'Forbidden' });
+  const { latitude, longitude, autoGeocode } = req.body;
+
+  try {
+    const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId } });
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+
+    if (autoGeocode) {
+      // Auto-geocode from address
+      const query = [profile.clinicAddress, profile.city, profile.state].filter(Boolean).join(', ');
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, { headers: { 'User-Agent': 'healtara/1.0' } });
+      const geoData = await geoRes.json();
+      if (!geoData?.[0]?.lat) return res.status(400).json({ message: 'Could not geocode your address. Try manual pin drop.' });
+      const lat = parseFloat(geoData[0].lat);
+      const lon = parseFloat(geoData[0].lon);
+      await prisma.$executeRaw`UPDATE "doctor_profiles" SET "latitude" = ${lat}, "longitude" = ${lon} WHERE "user_id" = ${user.userId}`;
+      return res.status(200).json({ latitude: lat, longitude: lon });
+    }
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return res.status(400).json({ message: 'Valid latitude and longitude required' });
+    }
+    await prisma.$executeRaw`UPDATE "doctor_profiles" SET "latitude" = ${latitude}, "longitude" = ${longitude} WHERE "user_id" = ${user.userId}`;
+    return res.status(200).json({ latitude, longitude });
+  } catch (error: any) {
+    console.error('Location update error:', error?.message);
+    return res.status(500).json({ message: 'Failed to update location' });
+  }
+});
+
+// --- Hospital: Set location coordinates ---
+app.put('/api/hospitals/:hospitalId/location', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) return res.status(400).json({ message: 'Invalid hospitalId' });
+  const { latitude, longitude, autoGeocode } = req.body;
+
+  try {
+    const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId } });
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
+    // Auth check
+    if (user.role !== 'ADMIN' && hospital.adminId !== user.userId) return res.status(403).json({ message: 'Forbidden' });
+
+    if (autoGeocode) {
+      const query = [hospital.address, hospital.city, hospital.state].filter(Boolean).join(', ');
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, { headers: { 'User-Agent': 'healtara/1.0' } });
+      const geoData = await geoRes.json();
+      if (!geoData?.[0]?.lat) return res.status(400).json({ message: 'Could not geocode address. Try manual pin drop.' });
+      const lat = parseFloat(geoData[0].lat);
+      const lon = parseFloat(geoData[0].lon);
+      await prisma.$executeRaw`UPDATE "hospitals" SET "latitude" = ${lat}, "longitude" = ${lon} WHERE "id" = ${hospitalId}`;
+      cachedHospitals = []; lastHospitalsFetch = 0;
+      return res.status(200).json({ latitude: lat, longitude: lon });
+    }
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return res.status(400).json({ message: 'Valid latitude and longitude required' });
+    }
+    // Use raw SQL to avoid Prisma client needing regeneration for new columns
+    await prisma.$executeRaw`UPDATE "hospitals" SET "latitude" = ${latitude}, "longitude" = ${longitude} WHERE "id" = ${hospitalId}`;
+    cachedHospitals = []; lastHospitalsFetch = 0;
+    return res.status(200).json({ latitude, longitude });
+  } catch (error: any) {
+    console.error('Hospital location update error:', error?.message);
+    return res.status(500).json({ message: 'Failed to update location' });
   }
 });
 

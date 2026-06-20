@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext'; // We'll use this to get the user info
-import { apiClient } from '@/lib/api'; // API client for making requests
+import { useAuth } from '@/context/AuthContext';
+import { apiClient } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import LocationPicker from '@/components/LocationPicker';
 
 export default function DoctorProfilePage() {
   const { user } = useAuth();
@@ -153,15 +154,15 @@ export default function DoctorProfilePage() {
             <form onSubmit={onSubmit} className="space-y-6 bg-white rounded-2xl shadow-lg p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Full Name</label>
                   <input name="name" value={patient.name} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" placeholder="Your name" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Age</label>
                   <input name="age" type="number" value={patient.age} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" placeholder="Age" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Gender</label>
                   <select name="gender" value={patient.gender} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3">
                     <option value="">Select</option>
                     <option value="Male">Male</option>
@@ -170,27 +171,27 @@ export default function DoctorProfilePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Phone</label>
                   <input name="phone" value={patient.phone} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" placeholder="+91..." />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Address</label>
                   <input name="address" value={patient.address} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" placeholder="Street and locality" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">City</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">City</label>
                   <input name="city" value={patient.city} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">State</label>
                   <input name="state" value={patient.state} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Blood Group</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Blood Group</label>
                   <input name="bloodGroup" value={patient.bloodGroup} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" placeholder="O+, A-, ..." />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Allergies</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Allergies</label>
                   <input name="allergies" value={patient.allergies} onChange={onChange} className="w-full border border-gray-300 rounded-lg p-3" placeholder="e.g. Peanuts, Dust" />
                 </div>
               </div>
@@ -233,33 +234,33 @@ export default function DoctorProfilePage() {
         </div>
 
         {/* Verification Section */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">✅</span>
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
+            <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <span className="text-base">✅</span>
               Verification
             </h2>
-            <p className="text-sm text-gray-600 mt-1">Submit required verification to enable services</p>
+            <p className="text-xs text-gray-500 mt-0.5">Submit required verification to enable services</p>
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Registration Number</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Registration Number</label>
               <input
                 type="text"
                 value={verification.registrationNumber}
                 onChange={(e) => setVerification((v) => ({ ...v, registrationNumber: e.target.value }))}
                 placeholder="e.g., MCI/STATE/12345"
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Mobile</label>
               <input
                 type="text"
                 value={verification.phone}
                 onChange={(e) => setVerification((v) => ({ ...v, phone: e.target.value }))}
                 placeholder="+91..."
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
               />
             </div>
           </div>
@@ -294,17 +295,17 @@ export default function DoctorProfilePage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Professional Information Section */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <span className="text-2xl">🩺</span>
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-base">🩺</span>
                 Professional Information
               </h2>
-              <p className="text-sm text-gray-600 mt-1">Your medical expertise and qualifications</p>
+              <p className="text-xs text-gray-500 mt-0.5">Your medical expertise and qualifications</p>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Specialization *
                 </label>
                 <input
@@ -314,12 +315,12 @@ export default function DoctorProfilePage() {
                   onChange={handleChange}
                   required
                   placeholder="e.g., Cardiologist, Pediatrician"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Qualifications *
                 </label>
                 <input
@@ -329,12 +330,12 @@ export default function DoctorProfilePage() {
                   onChange={handleChange}
                   required
                   placeholder="e.g., MBBS, MD"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Years of Experience *
                 </label>
                 <input
@@ -345,12 +346,12 @@ export default function DoctorProfilePage() {
                   required
                   min="0"
                   placeholder="e.g., 10"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Consultation Fee (₹) *
                 </label>
                 <input
@@ -361,24 +362,24 @@ export default function DoctorProfilePage() {
                   required
                   min="0"
                   placeholder="e.g., 500"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
             </div>
           </div>
 
           {/* Clinic Information Section */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <span className="text-2xl">🏥</span>
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-base">🏥</span>
                 Clinic Information
               </h2>
-              <p className="text-sm text-gray-600 mt-1">Where you practice medicine</p>
+              <p className="text-xs text-gray-500 mt-0.5">Where you practice medicine</p>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Clinic Name *
                 </label>
                 <input
@@ -388,12 +389,12 @@ export default function DoctorProfilePage() {
                   onChange={handleChange}
                   required
                   placeholder="e.g., City Health Clinic"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Clinic Address *
                 </label>
                 <input
@@ -403,12 +404,12 @@ export default function DoctorProfilePage() {
                   onChange={handleChange}
                   required
                   placeholder="e.g., 123 Main Street, Building A"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   City *
                 </label>
                 <input
@@ -418,12 +419,12 @@ export default function DoctorProfilePage() {
                   onChange={handleChange}
                   required
                   placeholder="e.g., Mumbai"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   State *
                 </label>
                 <input
@@ -433,24 +434,24 @@ export default function DoctorProfilePage() {
                   onChange={handleChange}
                   required
                   placeholder="e.g., Maharashtra"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
             </div>
           </div>
 
           {/* Contact Information Section */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <span className="text-2xl">📞</span>
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-3 border-b border-gray-200">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-base">📞</span>
                 Contact Information
               </h2>
-              <p className="text-sm text-gray-600 mt-1">How patients can reach you</p>
+              <p className="text-xs text-gray-500 mt-0.5">How patients can reach you</p>
             </div>
-            <div className="p-6">
+            <div className="p-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Phone Number *
                 </label>
                 <input
@@ -460,18 +461,32 @@ export default function DoctorProfilePage() {
                   onChange={handleChange}
                   required
                   placeholder="e.g., +91 98765 43210"
-                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
                 />
               </div>
             </div>
           </div>
+
+          {/* Location Section */}
+          <LocationPicker
+            latitude={null}
+            longitude={null}
+            label="Clinic Location"
+            onAutoGeocode={async () => {
+              const res = await apiClient.setDoctorLocation({ autoGeocode: true });
+              return res;
+            }}
+            onSave={async (coords) => {
+              await apiClient.setDoctorLocation(coords);
+            }}
+          />
 
           {/* Submit Button */}
           <div className="flex justify-end gap-4">
             <button 
               type="submit" 
               disabled={loading}
-              className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Saving...' : 'Save Profile'}
             </button>

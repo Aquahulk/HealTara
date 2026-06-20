@@ -329,6 +329,113 @@ export default function HomePage() {
     finally { setMapLoading(false); }
   };
 
+  // Load ALL doctors + hospitals on map from their stored coordinates or city data
+  const loadAllOnMap = async () => {
+    try {
+      setMapLoading(true); setMapError(null);
+      const allPins: typeof mapPins = [];
+
+      // Add doctor pins using stored coordinates or geocoded city
+      const citiesToGeocode = new Set<string>();
+      doctors.forEach((d: any) => {
+        const lat = d.doctorProfile?.latitude;
+        const lon = d.doctorProfile?.longitude;
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          allPins.push({
+            id: d.id,
+            lat: lat,
+            lon: lon,
+            title: `Dr. ${(d.email || '').split('@')[0].replace(/[._-]/g,' ').replace(/\d{5,}/g,'').trim()}`,
+            subtitle: d.doctorProfile?.specialization || 'Doctor'
+          });
+        } else {
+          const city = ((d.doctorProfile?.city || d.city) || '').trim();
+          if (city) citiesToGeocode.add(city.toLowerCase());
+        }
+      });
+
+      hospitals.forEach((h: any) => {
+        const lat = h.latitude;
+        const lon = h.longitude;
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          allPins.push({
+            id: h.id + 100000,
+            lat: lat,
+            lon: lon,
+            title: `🏥 ${h.name || 'Hospital'}`,
+            subtitle: h.city || ''
+          });
+        } else {
+          const city = ((h.city) || '').trim();
+          if (city) citiesToGeocode.add(city.toLowerCase());
+        }
+      });
+
+      // Geocode remaining cities that don't have stored coordinates
+      const cityCoords = new Map<string, {lat:number;lon:number}>();
+      for (const city of Array.from(citiesToGeocode).slice(0, 8)) {
+        try {
+          const g = await fetch(`/api/geo/geocode?query=${encodeURIComponent(city)}`, { cache: 'no-store' });
+          const gj = await g.json().catch(() => null);
+          if (gj && Number.isFinite(gj.lat) && Number.isFinite(gj.lon)) {
+            cityCoords.set(city, { lat: gj.lat, lon: gj.lon });
+          }
+        } catch {}
+      }
+
+      // Add remaining doctors without stored coordinates
+      doctors.forEach((d: any) => {
+        if (Number.isFinite(d.doctorProfile?.latitude)) return; // already added
+        const city = ((d.doctorProfile?.city || d.city) || '').toLowerCase().trim();
+        const coords = cityCoords.get(city);
+        if (coords) {
+          allPins.push({
+            id: d.id,
+            lat: coords.lat + (Math.random() - 0.5) * 0.005,
+            lon: coords.lon + (Math.random() - 0.5) * 0.005,
+            title: `Dr. ${(d.email || '').split('@')[0].replace(/[._-]/g,' ').replace(/\d{5,}/g,'').trim()}`,
+            subtitle: d.doctorProfile?.specialization || 'Doctor'
+          });
+        }
+      });
+
+      // Add remaining hospitals without stored coordinates
+      hospitals.forEach((h: any) => {
+        if (Number.isFinite(h.latitude)) return; // already added
+        const city = ((h.city) || '').toLowerCase().trim();
+        const coords = cityCoords.get(city);
+        if (coords) {
+          allPins.push({
+            id: h.id + 100000,
+            lat: coords.lat + (Math.random() - 0.5) * 0.003,
+            lon: coords.lon + (Math.random() - 0.5) * 0.003,
+            title: `🏥 ${h.name || 'Hospital'}`,
+            subtitle: h.city || ''
+          });
+        }
+      });
+
+      if (allPins.length > 0) {
+        const avgLat = allPins.reduce((s, p) => s + p.lat, 0) / allPins.length;
+        const avgLon = allPins.reduce((s, p) => s + p.lon, 0) / allPins.length;
+        setMapCenter({ lat: avgLat, lon: avgLon });
+        setMapPins(allPins);
+      } else {
+        // Default to India center
+        setMapCenter({ lat: 20.5937, lon: 78.9629 });
+        setMapPins([]);
+      }
+    } catch (e: any) { setMapError(e?.message || 'Failed to load map data'); }
+    finally { setMapLoading(false); }
+  };
+
+  // Auto-load all pins when doctors/hospitals are loaded
+  useEffect(() => {
+    if ((doctors.length > 0 || hospitals.length > 0) && !mapCenter) {
+      loadAllOnMap();
+    }
+  }, [doctors.length, hospitals.length]);
+
   const detectLocation = async () => {
     try {
       setMapLoading(true); setMapError(null);
@@ -346,12 +453,67 @@ export default function HomePage() {
 
   const searchByCity = async (city: string) => {
     try {
-      if (!city.trim()) return;
+      if (!city.trim()) {
+        // Clear search → reload all pins
+        await loadAllOnMap();
+        return;
+      }
       setMapLoading(true); setMapError(null);
       const g = await fetch(`/api/geo/geocode?query=${encodeURIComponent(city)}`, { cache: 'no-store' });
       const gj = await g.json().catch(() => ({} as any));
       if (!Number.isFinite(gj?.lat) || !Number.isFinite(gj?.lon)) throw new Error('City not found');
-      await fetchNearbyDoctors(Number(gj.lat), Number(gj.lon), 15);
+
+      const lat = Number(gj.lat);
+      const lon = Number(gj.lon);
+      setMapCenter({ lat, lon });
+
+      // Filter loaded doctors/hospitals by city name match
+      const cityLower = city.trim().toLowerCase();
+      const pins: typeof mapPins = [];
+
+      doctors.forEach((d: any) => {
+        const dCity = ((d.doctorProfile?.city || d.city) || '').toLowerCase();
+        if (dCity.includes(cityLower) || cityLower.includes(dCity)) {
+          const dLat = d.doctorProfile?.latitude;
+          const dLon = d.doctorProfile?.longitude;
+          pins.push({
+            id: d.id,
+            lat: Number.isFinite(dLat) ? dLat : lat + (Math.random() - 0.5) * 0.01,
+            lon: Number.isFinite(dLon) ? dLon : lon + (Math.random() - 0.5) * 0.01,
+            title: `Dr. ${(d.email || '').split('@')[0].replace(/[._-]/g,' ').replace(/\d{5,}/g,'').trim()}`,
+            subtitle: d.doctorProfile?.specialization || 'Doctor'
+          });
+        }
+      });
+
+      hospitals.forEach((h: any) => {
+        const hCity = ((h.city) || '').toLowerCase();
+        if (hCity.includes(cityLower) || cityLower.includes(hCity)) {
+          const hLat = h.latitude;
+          const hLon = h.longitude;
+          pins.push({
+            id: h.id + 100000,
+            lat: Number.isFinite(hLat) ? hLat : lat + (Math.random() - 0.5) * 0.008,
+            lon: Number.isFinite(hLon) ? hLon : lon + (Math.random() - 0.5) * 0.008,
+            title: `🏥 ${h.name || 'Hospital'}`,
+            subtitle: h.city || ''
+          });
+        }
+      });
+
+      // Also try nearby API for radius-based results
+      try {
+        const resp = await fetch(`/api/doctors/near?lat=${lat}&lon=${lon}&radiusKm=15`, { cache: 'no-store' });
+        const data = await resp.json().catch(() => ({} as any));
+        const nearbyDocs = Array.isArray(data?.doctors) ? data.doctors : [];
+        nearbyDocs.forEach((d: any) => {
+          if (!pins.find(p => p.id === d.id)) {
+            pins.push({ id: d.id, lat: Number(d.lat), lon: Number(d.lon), title: d?.profile?.clinicName || `Doctor ${d.id}`, subtitle: `${d?.profile?.specialization || 'General'} • ${d.distanceKm}km` });
+          }
+        });
+      } catch {} // Non-critical
+
+      setMapPins(pins);
     } catch (e: any) { setMapError(e?.message || 'Search failed'); }
     finally { setMapLoading(false); }
   };
@@ -537,22 +699,22 @@ export default function HomePage() {
         <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out ${heroSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
           <div className="relative">
             {/* Hero */}
-            <div className="relative h-[240px] md:h-[260px] overflow-hidden">
+            <div className="relative h-[180px] md:h-[260px] overflow-hidden">
               <HeroCarousel />
             </div>
 
               {/* Search cutout — overlaps hero bottom */}
-              <div className="relative z-30 -mt-9 px-3 pb-3">
+              <div className="relative z-30 -mt-6 md:-mt-9 px-3 pb-2 md:pb-3">
                 <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-3">
-                    <div className="space-y-2">
+                  <div className="bg-white rounded-xl md:rounded-2xl shadow-lg md:shadow-xl border border-gray-100 p-2 md:p-3">
+                    <div className="space-y-1.5 md:space-y-2">
 
                       {/* Search input */}
                       <div className="relative z-30">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                         <input
                           type="text"
-                          placeholder="Search doctors, specialties, conditions…"
+                          placeholder="Search doctors, specialties…"
                           value={searchQuery}
                           onChange={async (e) => {
                             const raw = e.target.value;
@@ -582,7 +744,7 @@ export default function HomePage() {
                               if (q) { apiClient.trackSearch(q, { source: 'enter' }); setShowSuggestions(false); router.push(`/doctors?search=${encodeURIComponent(q)}`); }
                             }
                           }}
-                          className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all"
+                          className="w-full pl-8 pr-3 py-2 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs md:text-sm transition-all"
                         />
                         {showSuggestions && suggestions.length > 0 && (
                           <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-48 overflow-auto">
@@ -612,7 +774,7 @@ export default function HomePage() {
                       {/* Filters */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
                         <select value={selectedSpecialization} onChange={(e) => setSelectedSpecialization(e.target.value)}
-                          className="px-2.5 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
+                          className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
                           <option value="">Specialization</option>
                           <option value="cardiology">Cardiology</option>
                           <option value="dermatology">Dermatology</option>
@@ -620,7 +782,7 @@ export default function HomePage() {
                           <option value="orthopedics">Orthopedics</option>
                         </select>
                         <select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}
-                          className="px-2.5 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
+                          className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
                           <option value="">City / Town</option>
                           <option value="mumbai">Mumbai</option>
                           <option value="delhi">Delhi</option>
@@ -628,7 +790,7 @@ export default function HomePage() {
                           <option value="chennai">Chennai</option>
                         </select>
                         <select value={selectedAvailability} onChange={(e) => setSelectedAvailability(e.target.value)}
-                          className="px-2.5 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
+                          className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
                           <option value="">Availability</option>
                           <option value="today">Today</option>
                           <option value="tomorrow">Tomorrow</option>
@@ -735,10 +897,52 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── QUICK ACCESS ──────────────────────────────────────────────── */}
-        <section ref={quickAccessSection.ref} className={`py-5 px-4 bg-white transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        {/* ── MOBILE MAP SECTION (visible only on small screens) ── */}
+        <section className="lg:hidden py-4 px-4 bg-gradient-to-br from-emerald-50 to-teal-50">
           <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  Doctors Near You
+                </h3>
+                <p className="text-[10px] text-gray-400">Find healthcare providers on the map</p>
+              </div>
+              <button onClick={detectLocation} disabled={mapLoading}
+                className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-all">
+                <MapPin className="w-3 h-3" />
+                {mapLoading ? '…' : 'Detect'}
+              </button>
+            </div>
+            {mapError && <p className="text-xs text-red-500 mb-2">{mapError}</p>}
+            {mapCenter ? (
+              <div className="h-[200px] rounded-xl overflow-hidden shadow-sm border border-emerald-200">
+                <MapDoctors center={mapCenter} pins={mapPins} height={200} />
+              </div>
+            ) : (
+              <div className="h-[140px] flex flex-col items-center justify-center bg-white/70 rounded-xl border border-dashed border-emerald-200 text-center">
+                <MapPin className="w-6 h-6 text-emerald-300 mb-1" />
+                <p className="text-xs font-medium text-gray-500">Tap "Detect" to find nearby doctors</p>
+              </div>
+            )}
+            {/* City search */}
+            <div className="flex gap-2 mt-3">
+              <input type="text" value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') searchByCity(selectedCity); }}
+                placeholder="Search city..."
+                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              <button onClick={() => searchByCity(selectedCity)} disabled={mapLoading}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap">
+                {mapLoading ? '…' : 'Search'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── QUICK ACCESS ──────────────────────────────────────────────── */}
+        <section ref={quickAccessSection.ref} className={`py-3 md:py-5 px-3 md:px-4 bg-white transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-2 md:mb-4">
               <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">Explore Healthcare Services</h2>
               <p className="text-sm text-gray-400">Everything you need for your health, all in one place</p>
             </div>
@@ -761,7 +965,7 @@ export default function HomePage() {
         </section>
 
         {/* ── DOCTORS & HOSPITALS DISCOVERY ─────────────────────────────── */}
-        <section ref={discoverySection.ref} className="py-6 px-4 transition-all duration-500 ease-in-out lg:mr-[22rem]"
+        <section ref={discoverySection.ref} className="py-3 md:py-6 px-3 md:px-4 transition-all duration-500 ease-in-out lg:mr-[22rem]"
           style={{ background: activeGrid === 'doctors' ? 'linear-gradient(135deg, #3b3baa 0%, #1e1e96 40%, #00c4e8 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
           <div className="max-w-5xl mx-auto">
 
@@ -781,7 +985,7 @@ export default function HomePage() {
             </div>
 
             {/* Section heading */}
-            <div className="text-center mb-4">
+            <div className="text-center mb-2 md:mb-4">
               <h2 className="text-xl md:text-2xl font-black text-white mb-1.5 drop-shadow">
                 {activeGrid === 'doctors' ? 'Doctors' : 'Hospitals'}
               </h2>
@@ -1020,9 +1224,9 @@ export default function HomePage() {
         </section>
 
         {/* ── STATS ─────────────────────────────────────────────────────── */}
-        <section ref={statsSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={statsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-6">
+            <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.trustedBy?.title || "Trusted by Thousands"}</h2>
               <p className="text-sm text-gray-500">{homepageContent?.trustedBy?.subtitle || "Join our growing community of healthcare providers and patients"}</p>
             </div>
@@ -1065,9 +1269,9 @@ export default function HomePage() {
         </section>
 
         {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
-        <section ref={howItWorksSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={howItWorksSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-6">
+            <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.howItWorks?.title || "How It Works"}</h2>
               <p className="text-sm text-blue-200">{homepageContent?.howItWorks?.subtitle || "Get started in 3 simple steps"}</p>
             </div>
@@ -1100,9 +1304,9 @@ export default function HomePage() {
         </section>
 
         {/* ── WHY CHOOSE US ─────────────────────────────────────────────── */}
-        <section ref={whyChooseSection.ref} className="py-8 px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={whyChooseSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-6">
+            <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.whyChooseUs?.title || "Why Choose Us"}</h2>
               <p className="text-sm text-gray-500">{homepageContent?.whyChooseUs?.subtitle || "Healthcare reimagined for the digital age"}</p>
             </div>
@@ -1126,9 +1330,9 @@ export default function HomePage() {
         </section>
 
         {/* ── TESTIMONIALS ──────────────────────────────────────────────── */}
-        <section ref={testimonialsSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={testimonialsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-6">
+            <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.testimonials?.title || "What Our Users Say"}</h2>
               <p className="text-sm text-blue-200">{homepageContent?.testimonials?.subtitle || "Real stories from real people"}</p>
             </div>
@@ -1158,9 +1362,9 @@ export default function HomePage() {
         </section>
 
         {/* ── HEALTH TIPS ───────────────────────────────────────────────── */}
-        <section ref={healthTipsSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={healthTipsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-5">
+            <div className="text-center mb-3 md:mb-5">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.healthTips?.title || "Health Tips from Our Doctors"}</h2>
               <p className="text-sm text-blue-200">{homepageContent?.healthTips?.subtitle || "Expert advice and health awareness articles"}</p>
             </div>
@@ -1194,7 +1398,7 @@ export default function HomePage() {
         </section>
 
         {/* ── CTA BANNERS ───────────────────────────────────────────────── */}
-        <section ref={ctaSection.ref} className="py-8 px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={ctaSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[22rem]">
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
             <motion.div initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
               <div className="bg-white rounded-xl p-5 text-center shadow-md">
@@ -1222,6 +1426,8 @@ export default function HomePage() {
         </section>
 
       </main>
+      {/* Spacer for mobile bottom nav */}
+      <div className="h-16 md:hidden" aria-hidden="true" />
       <MobileBottomNavigation />
 
       {/* Entity Info Popup */}
@@ -1247,7 +1453,7 @@ export default function HomePage() {
       </AnimatePresence>
 
       {/* ── FOOTER ────────────────────────────────────────────────────── */}
-      <footer className="bg-gray-900 text-white py-8 px-4 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">
+      <footer className="bg-gray-900 text-white py-4 md:py-8 px-3 md:px-4 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
             <div>

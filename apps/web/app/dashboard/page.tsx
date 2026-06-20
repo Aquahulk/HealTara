@@ -2053,7 +2053,7 @@ const [socketReady, setSocketReady] = useState(false);
 
           {/* What's needed */}
           {!hasSubmitted && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 md:p-4 mb-5">
               <p className="text-xs font-bold text-blue-800 mb-2">What you need to submit:</p>
               <ul className="space-y-1">
                 {isDoctor ? [
@@ -2075,7 +2075,7 @@ const [socketReady, setSocketReady] = useState(false);
           )}
 
           {isRejected && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 md:p-4 mb-5">
               <p className="text-xs text-red-700">Your submission was rejected. Please update your profile with accurate information and resubmit for review.</p>
             </div>
           )}
@@ -2250,7 +2250,7 @@ const [socketReady, setSocketReady] = useState(false);
                           <Clock className="w-8 h-8" />
                         </div>
                         <div>
-                          <h4 className="text-white text-xl font-black">{isMyTurn ? 'It\'s Your Turn!' : hasPassed ? 'Appointment Completed' : 'Live Token Tracking'}</h4>
+                          <h4 className="text-white text-base md:text-xl font-black">{isMyTurn ? 'It\'s Your Turn!' : hasPassed ? 'Appointment Completed' : 'Live Token Tracking'}</h4>
                           <p className="text-white/80 font-bold text-sm uppercase tracking-widest">{docLabel}</p>
                         </div>
                       </div>
@@ -2327,7 +2327,7 @@ const [socketReady, setSocketReady] = useState(false);
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <h1 className="text-base md:text-xl font-bold text-gray-900 flex items-center gap-2">
                   Good morning, Dr. {doctorProfile?.clinicName.split(' ')[0] || user.email.split('@')[0]} 👋
                 </h1>
                 <p className="text-xs text-gray-500">Here's what's happening in your practice today.</p>
@@ -2368,7 +2368,7 @@ const [socketReady, setSocketReady] = useState(false);
                   </div>
                   <h3 className="text-gray-500 text-[10px] font-medium uppercase tracking-wider">{stat.label}</h3>
                   <div className="flex items-baseline gap-2 mt-0.5">
-                    <span className="text-xl font-black text-gray-900">{stat.value}</span>
+                    <span className="text-base md:text-xl font-black text-gray-900">{stat.value}</span>
                     <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{stat.trend.split(' ').slice(2).join(' ')}</span>
                   </div>
                 </div>
@@ -2379,7 +2379,7 @@ const [socketReady, setSocketReady] = useState(false);
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
               {/* Today's Appointments List */}
               <div className="lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+                <div className="px-3 py-2 md:px-4 md:py-3 border-b border-gray-50 flex items-center justify-between">
                   <h3 className="text-xs font-bold text-gray-900">Today's Appointments</h3>
                   <button onClick={() => setActiveTab('appointments')} className="text-blue-600 text-[10px] font-bold hover:underline">View all</button>
                 </div>
@@ -2615,7 +2615,7 @@ const [socketReady, setSocketReady] = useState(false);
                   <h3 className="text-xs font-bold text-gray-900">Recent Reviews</h3>
                   <button className="text-blue-600 text-[10px] font-bold hover:underline">View all</button>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3 md:space-y-4">
                   {[
                     { name: 'Riya Sharma', text: 'Kind and patient doctor.', rating: 5, date: '18 May' },
                     { name: 'Vikram Patel', text: 'Excellent experience.', rating: 5, date: '16 May' },
@@ -2672,7 +2672,7 @@ const [socketReady, setSocketReady] = useState(false);
                 </div>
                 <div className="flex-1 flex flex-col justify-center">
                   <div className="flex items-baseline gap-1.5 mb-1">
-                    <span className="text-xl font-black text-gray-900">₹{stats?.monthlyRevenue.toLocaleString() || "2.48k"}</span>
+                    <span className="text-base md:text-xl font-black text-gray-900">₹{stats?.monthlyRevenue.toLocaleString() || "2.48k"}</span>
                     <span className="text-emerald-600 font-bold text-[10px] flex items-center gap-0.5">
                       ↑ 22%
                     </span>
@@ -2701,7 +2701,7 @@ const [socketReady, setSocketReady] = useState(false);
         )}
 
         {activeTab === 'overview' && user.role !== 'DOCTOR' && (
-          <div className="space-y-5">
+          <div className="space-y-3 md:space-y-5">
             {user.role === 'HOSPITAL_ADMIN' && hospitalProfile && (hospitalProfile as any)?.profile?.serviceStatus === 'PENDING' && (
               <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 flex items-center gap-2 text-sm">
                 <span>⏳</span>
@@ -2712,13 +2712,13 @@ const [socketReady, setSocketReady] = useState(false);
             {user.role === 'HOSPITAL_ADMIN' && (
               <>
                 {/* ── ROW 0: Status Banner ── */}
-                <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 rounded-2xl p-4 shadow-lg">
+                <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-violet-700 rounded-xl md:rounded-2xl p-3 md:p-4 shadow-lg">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       {(hospitalProfile as any)?.profile?.general?.logoUrl ? (
-                        <img src={(hospitalProfile as any).profile.general.logoUrl} alt="logo" className="w-12 h-12 rounded-xl object-cover bg-white/10" />
+                        <img src={(hospitalProfile as any).profile.general.logoUrl} alt="logo" className="w-9 h-9 md:w-12 md:h-12 rounded-xl object-cover bg-white/10" />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl flex-shrink-0">🏥</div>
+                        <div className="w-9 h-9 md:w-12 md:h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl flex-shrink-0">🏥</div>
                       )}
                       <div>
                         <h2 className="text-lg font-black text-white leading-tight">
@@ -2752,31 +2752,31 @@ const [socketReady, setSocketReady] = useState(false);
                   const activeDoctorsNow = new Set(todayAppts.filter(a => a.status === 'CONFIRMED').map(a => a.doctorId)).size;
                   const waitingPatients = todayAppts.filter(a => a.status === 'PENDING').length;
                   return (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-4 shadow-sm">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                      <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-3 md:p-4 shadow-sm">
                         <div className="flex items-start justify-between mb-1">
                           <span className="text-xl">💰</span>
                           {revTrend !== null && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${revTrend >= 0 ? 'bg-white/20 text-white' : 'bg-red-400/30 text-white'}`}>{revTrend >= 0 ? '↑' : '↓'}{Math.abs(revTrend)}%</span>}
                         </div>
-                        <div className="text-2xl font-black text-white">₹{bi ? (bi.todayRevenue >= 1000 ? `${(bi.todayRevenue/1000).toFixed(1)}k` : bi.todayRevenue) : '—'}</div>
+                        <div className="text-lg md:text-2xl font-black text-white">₹{bi ? (bi.todayRevenue >= 1000 ? `${(bi.todayRevenue/1000).toFixed(1)}k` : bi.todayRevenue) : '—'}</div>
                         <div className="text-white font-bold text-[11px]">Today's Revenue</div>
                         <div className="text-white/70 text-[10px] mt-0.5">Week: ₹{bi ? (bi.weekRevenue >= 1000 ? `${(bi.weekRevenue/1000).toFixed(1)}k` : bi.weekRevenue) : '—'} · Month: ₹{bi ? (bi.monthRevenue >= 1000 ? `${(bi.monthRevenue/1000).toFixed(1)}k` : bi.monthRevenue) : '—'}</div>
                       </div>
-                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-sm">
+                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-2.5 md:p-4 shadow-sm">
                         <div className="text-xl mb-1">👥</div>
-                        <div className="text-2xl font-black text-white">{bi ? bi.todayPatients : (stats?.todaysBookings ?? 0)}</div>
+                        <div className="text-lg md:text-lg md:text-2xl font-black text-white">{bi ? bi.todayPatients : (stats?.todaysBookings ?? 0)}</div>
                         <div className="text-white font-bold text-[11px]">Patients Today</div>
                         <div className="text-white/70 text-[10px] mt-0.5">Pending: {bi ? bi.todayPending : waitingPatients} · Confirmed: {bi ? bi.todayConfirmed : 0}</div>
                       </div>
-                      <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-4 shadow-sm">
+                      <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-2.5 md:p-4 shadow-sm">
                         <div className="text-xl mb-1">👨‍⚕️</div>
-                        <div className="text-2xl font-black text-white">{activeDoctorsNow || bi?.activeDoctors || hospitalDoctors.length}</div>
+                        <div className="text-lg md:text-2xl font-black text-white">{activeDoctorsNow || bi?.activeDoctors || hospitalDoctors.length}</div>
                         <div className="text-white font-bold text-[11px]">Active Doctors</div>
                         <div className="text-white/70 text-[10px] mt-0.5">{hospitalDoctors.length} total · Avg fee ₹{bi?.avgConsultFee || 0}</div>
                       </div>
-                      <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-4 shadow-sm">
+                      <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-2.5 md:p-4 shadow-sm">
                         <div className="text-xl mb-1">⏱️</div>
-                        <div className="text-2xl font-black text-white">{waitingPatients}</div>
+                        <div className="text-lg md:text-2xl font-black text-white">{waitingPatients}</div>
                         <div className="text-white font-bold text-[11px]">Waiting Now</div>
                         <div className="text-white/70 text-[10px] mt-0.5">Completed today: {bi ? bi.todayCompleted : todayAppts.filter(a => a.status === 'COMPLETED').length}</div>
                       </div>
@@ -2811,7 +2811,7 @@ const [socketReady, setSocketReady] = useState(false);
                         const queues = Array.from(deptQueues.entries());
                         if (queues.length === 0) return <div className="px-4 py-6 text-center text-xs text-gray-400">No active queues today</div>;
                         return queues.map(([dept, q]) => (
-                          <div key={dept} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                          <div key={dept} className="flex items-center justify-between px-3 py-2 md:px-4 md:py-3 hover:bg-gray-50">
                             <div className="flex items-center gap-2.5">
                               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
                               <div>
@@ -2847,8 +2847,8 @@ const [socketReady, setSocketReady] = useState(false);
                         { label: 'Revenue', value: hospitalBI?.healtaraRevenue ? `₹${hospitalBI.healtaraRevenue >= 1000 ? `${(hospitalBI.healtaraRevenue/1000).toFixed(1)}k` : hospitalBI.healtaraRevenue}` : '₹—', sub: 'generated (month)', icon: '💰', color: 'text-emerald-700' },
                       ].map(s => (
                         <div key={s.label} className="bg-white rounded-xl p-3 text-center shadow-sm">
-                          <div className="text-2xl mb-1">{s.icon}</div>
-                          <div className={`text-xl font-black ${s.color}`}>{s.value}</div>
+                          <div className="text-lg md:text-2xl mb-1">{s.icon}</div>
+                          <div className={`text-base md:text-xl font-black ${s.color}`}>{s.value}</div>
                           <div className="text-[10px] font-bold text-gray-700">{s.label}</div>
                           <div className="text-[9px] text-gray-400">{s.sub}</div>
                         </div>
@@ -2890,7 +2890,7 @@ const [socketReady, setSocketReady] = useState(false);
                       const depts = Array.from(deptMap.entries()).sort((a, b) => b[1].todayAppts - a[1].todayAppts);
                       if (depts.length === 0) return <div className="px-4 py-6 text-center text-xs text-gray-400">No departments yet. <a href="/hospital-admin/profile" className="text-blue-500 hover:underline">Add doctors →</a></div>;
                       return depts.map(([name, data]) => (
-                        <div key={name} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                        <div key={name} className="px-3 py-2 md:px-4 md:py-3 hover:bg-gray-50 transition-colors">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2.5">
                               <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-sm font-black text-indigo-700">{name.charAt(0)}</div>
@@ -2951,7 +2951,7 @@ const [socketReady, setSocketReady] = useState(false);
                       const todayRev = todayCompleted * fee;
                       const biDoc = hospitalBI?.doctors?.find((d: any) => d.id === doc.id);
                       return (
-                        <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
+                        <div key={doc.id} className="flex items-center gap-3 px-3 py-2 md:px-4 md:py-3 hover:bg-gray-50 transition-colors cursor-pointer"
                           onClick={() => { setActiveTab('appointments'); setSelectedDoctorView(doc.id); }}>
                           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-sm font-black flex-shrink-0">
                             {getDoctorLabel(doc).charAt(0)}
@@ -3093,7 +3093,7 @@ const [socketReady, setSocketReady] = useState(false);
                 })()}
 
                 {/* ── ROW 7: Quick Actions ── */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
                   {[
                     { icon: '📅', label: 'Appointments', desc: 'View & update bookings', action: () => setActiveTab('appointments') },
                     { icon: '👨‍⚕️', label: 'Add Doctor', desc: 'Link a new doctor', href: '/hospital-admin/profile' },
@@ -3213,7 +3213,7 @@ const [socketReady, setSocketReady] = useState(false);
               return (
                 <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
                   <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-6 py-4">
-                    <h3 className="text-xl font-bold text-white flex items-center">
+                    <h3 className="text-base md:text-xl font-bold text-white flex items-center">
                       <span className="mr-2">🎫</span>
                       Today’s Bookings
                     </h3>
@@ -3357,14 +3357,14 @@ const [socketReady, setSocketReady] = useState(false);
             {user.role === 'HOSPITAL_ADMIN' && hospitalProfile && (
               <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100 mt-8">
                 <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
-                  <h3 className="text-xl font-bold text-white flex items-center">
+                  <h3 className="text-base md:text-xl font-bold text-white flex items-center">
                     <span className="mr-2">🏥</span>
                     Hospital Information
                   </h3>
                 </div>
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
+                    <div className="space-y-3 md:space-y-4">
                       <h4 className="text-2xl font-bold text-gray-900 mb-4">{(hospitalProfile as any)?.profile?.general?.name || (hospitalProfile as any)?.name || 'Hospital Name'}</h4>
                       <div className="space-y-3">
                         <div className="flex items-start text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
@@ -3381,7 +3381,7 @@ const [socketReady, setSocketReady] = useState(false);
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-3 md:space-y-4">
                       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">
                         <h5 className="font-bold text-indigo-900 mb-3 flex items-center">
                           <span className="bg-indigo-200 p-2 rounded-lg mr-2">👨‍⚕️</span>
@@ -3410,14 +3410,14 @@ const [socketReady, setSocketReady] = useState(false);
             {doctorProfile && (
               <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
                 <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
-                  <h3 className="text-xl font-bold text-white flex items-center">
+                  <h3 className="text-base md:text-xl font-bold text-white flex items-center">
                     <span className="mr-2">🏥</span>
                     Practice Information
                   </h3>
                 </div>
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
+                    <div className="space-y-3 md:space-y-4">
                       <h4 className="text-2xl font-bold text-gray-900 mb-4">{doctorProfile.clinicName}</h4>
                       <div className="space-y-3">
                         <div className="flex items-start text-gray-700 bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors">
@@ -3434,7 +3434,7 @@ const [socketReady, setSocketReady] = useState(false);
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-3 md:space-y-4">
                       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">
                         <h5 className="font-bold text-indigo-900 mb-3 flex items-center">
                           <span className="bg-indigo-200 p-2 rounded-lg mr-2">🩺</span>
@@ -3464,7 +3464,7 @@ const [socketReady, setSocketReady] = useState(false);
               </div>
               <div className="p-6">
                 {(() => { const recents = (user.role as string) === 'HOSPITAL_ADMIN' ? recentHospitalAppointments : appointments.slice(0, 5); return recents.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     {recents.map((appointment) => (
                       <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div>
@@ -3509,14 +3509,14 @@ const [socketReady, setSocketReady] = useState(false);
           ) : (
             <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
               <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-5">
-                <h3 className="text-xl font-bold text-white flex items-center">
+                <h3 className="text-base md:text-xl font-bold text-white flex items-center">
                   <span className="mr-2">📋</span>
                   Hospital Doctor Slots
                 </h3>
               </div>
               <div className="p-12 text-center">
                 <div className="text-6xl mb-6">⚙️</div>
-                <h3 className="text-2xl font-black text-gray-900 mb-2">Manage per Doctor</h3>
+                <h3 className="text-lg md:text-2xl font-black text-gray-900 mb-2">Manage per Doctor</h3>
                 <p className="text-gray-500 max-w-md mx-auto">
                   Hospital admins can manage individual doctor slot periods from the settings tab or by clicking on a doctor in the Appointments view.
                 </p>
@@ -3608,7 +3608,7 @@ const [socketReady, setSocketReady] = useState(false);
             <div id="walk-in-reservation-section" className="p-4 bg-gray-50/50">
               {user.role === 'DOCTOR' && (
                 <div className="bg-white border rounded-2xl shadow-sm mb-6">
-                  <div className="px-4 py-3 border-b bg-blue-50 flex items-center justify-between">
+                  <div className="px-3 py-2 md:px-4 md:py-3 border-b bg-blue-50 flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-blue-900">Walk-in Reservation</h4>
                     <div className="text-xs text-blue-700">Today</div>
                   </div>
@@ -3616,7 +3616,7 @@ const [socketReady, setSocketReady] = useState(false);
                 </div>
               )}
               {user.role === 'HOSPITAL_ADMIN' ? (
-                <div className="space-y-4">
+                <div className="space-y-3 md:space-y-4">
                   {/* ── HOSPITAL STATS ROW ── */}
                   {(() => {
                     const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -3639,7 +3639,7 @@ const [socketReady, setSocketReady] = useState(false);
                           <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-3 flex items-center gap-2`}>
                             <span className="text-lg">{s.icon}</span>
                             <div>
-                              <div className={`text-xl font-black ${s.color}`}>{s.value}</div>
+                              <div className={`text-base md:text-xl font-black ${s.color}`}>{s.value}</div>
                               <div className="text-[10px] text-gray-500 font-medium leading-tight">{s.label}</div>
                             </div>
                           </div>
@@ -3698,15 +3698,15 @@ const [socketReady, setSocketReady] = useState(false);
                       return apptDate === selectedHospitalDate || fmtD.format(getAppointmentISTDate(a)) === selectedHospitalDate;
                     });
                     return (
-                      <div className="space-y-4">
+                      <div className="space-y-3 md:space-y-4">
                         {/* Back + Doctor header */}
                         <div className="flex items-center gap-3">
                           <button onClick={() => setSelectedDoctorView(null)}
                             className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold">
                             ← Back
                           </button>
-                          <div className="flex-1 bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4 shadow-sm">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-xl flex-shrink-0">👨‍⚕️</div>
+                          <div className="flex-1 bg-white border border-gray-200 rounded-xl p-2.5 md:p-4 flex items-center gap-4 shadow-sm">
+                            <div className="w-9 h-9 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-xl flex-shrink-0">👨‍⚕️</div>
                             <div className="flex-1 min-w-0">
                               <h3 className="text-sm font-bold text-gray-900">{doc.doctorProfile?.clinicName || getDoctorLabel(doc)}</h3>
                               <p className="text-xs text-gray-500">{doc.doctorProfile?.specialization || 'General'} · {(doc as any).departmentName || 'Unassigned'}</p>
@@ -3728,7 +3728,7 @@ const [socketReady, setSocketReady] = useState(false);
 
                         {/* Appointments on selected date */}
                         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                          <div className="px-3 py-2 md:px-4 md:py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
                             <h4 className="text-sm font-bold text-gray-800">Appointments on {selectedHospitalDate}</h4>
                             <span className="text-xs text-gray-500">{onDate.length} booked</span>
                           </div>
@@ -3737,7 +3737,7 @@ const [socketReady, setSocketReady] = useState(false);
                           ) : (
                             <div className="divide-y divide-gray-50">
                               {onDate.sort((a, b) => getAppointmentISTDate(a).getTime() - getAppointmentISTDate(b).getTime()).map(appt => (
-                                <div key={appt.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                <div key={appt.id} className="px-3 py-2 md:px-4 md:py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                   <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-sm flex-shrink-0">👤</div>
                                     <div>
@@ -3770,7 +3770,7 @@ const [socketReady, setSocketReady] = useState(false);
                         {/* Upcoming appointments */}
                         {upcoming.length > 0 && (
                           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                            <div className="px-3 py-2 md:px-4 md:py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                               <h4 className="text-sm font-bold text-gray-800">All Appointments ({items.length})</h4>
                               <span className="text-xs text-gray-500">Pending: {items.filter(a => a.status === 'PENDING').length}</span>
                             </div>
@@ -3822,7 +3822,7 @@ const [socketReady, setSocketReady] = useState(false);
                     });
                     const deptList = Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
                     return (
-                      <div className="space-y-4">
+                      <div className="space-y-3 md:space-y-4">
                         {deptList.map(([deptName, docs]) => {
                           const deptAppts = docs.flatMap(d => doctorAppointmentsMap[d.id] || []);
                           const todayCount = deptAppts.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr).length;
@@ -3831,7 +3831,7 @@ const [socketReady, setSocketReady] = useState(false);
                           return (
                             <div key={deptName} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                               {/* Department header */}
-                              <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100 flex items-center justify-between cursor-pointer"
+                              <div className="px-3 py-2 md:px-4 md:py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100 flex items-center justify-between cursor-pointer"
                                 onClick={() => setDeptCollapsed(prev => ({ ...prev, [deptName]: !prev[deptName] }))}>
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -3946,7 +3946,7 @@ const [socketReady, setSocketReady] = useState(false);
                     const todayStr = fmtD.format(getISTNow());
                     return (
                       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                        <div className="px-3 py-2 md:px-4 md:py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                           <h3 className="text-sm font-bold text-gray-800">All Doctors ({filteredHospitalDoctors.length})</h3>
                           <span className="text-xs text-gray-400">Date: {selectedHospitalDate}</span>
                         </div>
@@ -3957,7 +3957,7 @@ const [socketReady, setSocketReady] = useState(false);
                             const onDate = items.filter(a => fmtD.format(getAppointmentISTDate(a)) === selectedHospitalDate).length;
                             const pending = items.filter(a => a.status === 'PENDING').length;
                             return (
-                              <div key={doc.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                              <div key={doc.id} className="px-3 py-2 md:px-4 md:py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center gap-3 min-w-0">
                                   <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                                     {(doc.doctorProfile?.clinicName || getDoctorLabel(doc)).charAt(0).toUpperCase()}
@@ -3995,7 +3995,7 @@ const [socketReady, setSocketReady] = useState(false);
                 </div>
               ) : appointments.length > 0 ? (
                 user.role === 'DOCTOR' ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     {/* ── STATS ROW ── */}
                     {(() => {
                       const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -4005,7 +4005,7 @@ const [socketReady, setSocketReady] = useState(false);
                       const upcoming = appointments.filter(a => getAppointmentISTDate(a).getTime() >= getISTNow().getTime()).length;
                       const cancelled = todayAppts.filter(a => a.status === 'CANCELLED').length;
                       return (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
                           {[
                             { label: "Today's", value: todayAppts.length, icon: '📅', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
                             { label: 'Completed', value: completed, icon: '✅', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
@@ -4015,7 +4015,7 @@ const [socketReady, setSocketReady] = useState(false);
                             <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-3 flex items-center gap-3`}>
                               <span className="text-xl">{s.icon}</span>
                               <div>
-                                <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
+                                <div className={`text-lg md:text-2xl font-black ${s.color}`}>{s.value}</div>
                                 <div className="text-[11px] text-gray-500 font-medium">{s.label}</div>
                               </div>
                             </div>
@@ -4111,7 +4111,7 @@ const [socketReady, setSocketReady] = useState(false);
                           }
 
                           return (
-                            <div className="space-y-4">
+                            <div className="space-y-3 md:space-y-4">
                               {displayDates.map((dateKey) => {
                                 const dayDate = new Date(`${dateKey}T00:00:00`);
                                 const isToday = dateKey === todayStr;
@@ -4281,7 +4281,7 @@ const [socketReady, setSocketReady] = useState(false);
                               {expiredAppointments.length > 0 && (
                                 <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
                                   <button onClick={() => setShowExpiredSlots(!showExpiredSlots)}
-                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition-colors">
+                                    className="w-full px-3 py-2 md:px-4 md:py-3 flex items-center justify-between hover:bg-gray-100 transition-colors">
                                     <div className="flex items-center gap-2">
                                       <Clock className="w-4 h-4 text-gray-400" />
                                       <span className="text-sm font-semibold text-gray-600">Past Appointments ({expiredAppointments.length})</span>
@@ -4557,7 +4557,7 @@ const [socketReady, setSocketReady] = useState(false);
                             .filter((a) => doctorStatusFilter === 'ALL' || a.status === doctorStatusFilter)
                             .sort((a, b) => getAppointmentISTDate(a).getTime() - getAppointmentISTDate(b).getTime())
                             .map((appointment) => (
-                              <li key={appointment.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
+                              <li key={appointment.id} className="flex items-center justify-between px-3 py-2 md:px-4 md:py-3 hover:bg-gray-50 transition-colors cursor-pointer"
                                 onClick={() => setSelectedAppointmentForPopup(appointment)}>
                                 <div className="flex items-center gap-3 min-w-0">
                                   <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-sm flex-shrink-0">👤</div>
@@ -4658,7 +4658,7 @@ const [socketReady, setSocketReady] = useState(false);
         {activeTab === 'patients' && isDoctorLike && (
           <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
             <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-5">
-              <h3 className="text-xl font-bold text-white flex items-center">
+              <h3 className="text-base md:text-xl font-bold text-white flex items-center">
                 <span className="mr-2">👥</span>
                 Patients
               </h3>
@@ -4719,7 +4719,7 @@ const [socketReady, setSocketReady] = useState(false);
           <div className="space-y-8">
             <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
               <div className="bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-5">
-                <h3 className="text-xl font-bold text-white flex items-center">
+                <h3 className="text-base md:text-xl font-bold text-white flex items-center">
                   <span className="mr-2">🌐</span>
                   Website Management
                 </h3>
@@ -5022,7 +5022,7 @@ function DoctorSettings() {
   return (
     <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
       <div className="bg-gradient-to-r from-orange-500 to-red-600 px-6 py-5">
-        <h3 className="text-xl font-bold text-white flex items-center">
+        <h3 className="text-base md:text-xl font-bold text-white flex items-center">
           <span className="mr-2">⚙️</span>
           Settings
         </h3>
@@ -5046,7 +5046,7 @@ function DoctorSettings() {
                 type="file"
                 accept="image/*"
                 onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-                className="border-2 border-gray-300 rounded-xl px-4 py-3 w-full focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                className="border-2 border-gray-300 rounded-xl px-3 py-2 md:px-4 md:py-3 w-full focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
               />
               <button
                 onClick={async () => {
@@ -5142,7 +5142,7 @@ function DoctorSettings() {
           {message && (
             <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 text-yellow-900 font-medium shadow-sm">{message}</div>
           )}
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
               <label className="block text-sm font-bold text-gray-700 mb-2">Current Slot Admin</label>
               <div className="text-gray-800">
@@ -5345,7 +5345,7 @@ function SlotSettingsTab({ doctorProfile, onPeriodUpdated, onWorkingHoursUpdated
                     }`}>
                       {patientsPerHour === val && <div className="w-2 h-2 rounded-full bg-blue-600" />}
                     </div>
-                    <div className="text-xl font-black text-gray-900 mt-1">{val}</div>
+                    <div className="text-base md:text-xl font-black text-gray-900 mt-1">{val}</div>
                     <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Patients</div>
                     <div className={`mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
                       val === 4 ? 'bg-emerald-100 text-emerald-700' :
@@ -5695,7 +5695,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
           {message && (
             <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
           )}
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Current Doctors Management</label>
               <div className="text-gray-800">
@@ -5747,7 +5747,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
             <p className="text-sm text-gray-600 mb-4">
               Choose how your schedule groups bookings. Patients select an hour; you can view bookings as shorter slots. This preference affects dashboard display only.
             </p>
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {doctors.map((d) => {
                 const form = doctorPeriodForm[d.id] || { minutes: 15, loading: false, message: '' };
                 const capacity = Math.max(1, Math.floor(60 / Math.max(1, form.minutes)));
@@ -5803,7 +5803,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
           {doctors.length === 0 ? (
             <p className="text-sm text-gray-500">No linked doctors found.</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {doctors.map((d) => {
                 const form = doctorAdminForm[d.id] || { email: '', password: '', currentEmail: null, loading: false, message: null };
                 return (
