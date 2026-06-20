@@ -321,10 +321,10 @@ export const CommentForm: React.FC<CommentFormProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Leave a Review</h3>
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <h3 className="text-sm font-semibold text-gray-900 mb-3">Leave a Review</h3>
       
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
         {/* Signed-in user */}
         <div className="text-sm text-gray-600">
           {user ? (
@@ -363,9 +363,9 @@ export const CommentForm: React.FC<CommentFormProps> = ({
           <textarea
             value={formData.comment}
             onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
-            className="w-full p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full p-2.5 border border-gray-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             placeholder="Share your experience..."
-            rows={4}
+            rows={2}
             required
           />
         </div>
@@ -374,7 +374,7 @@ export const CommentForm: React.FC<CommentFormProps> = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
         >
           {isSubmitting ? 'Posting Review...' : 'Post Review'}
         </button>
@@ -417,7 +417,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
         setTotalPages(result.pagination.totalPages);
         setPage(pageNum);
       } else {
-        setError('Failed to load comments');
+        if (pageNum === 1) setError('Reviews temporarily unavailable');
       }
     } catch (err) {
       setError('Failed to load comments');
@@ -521,19 +521,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-xl font-bold text-gray-900">
-            Patient Reviews
-          </h3>
-          {entityName && (
-            <div className="text-sm text-gray-600 mt-1">
-              Reviews for {entityName}
-            </div>
-          )}
+          <h3 className="text-sm font-bold text-gray-900">Patient Reviews</h3>
+          {entityName && <div className="text-xs text-gray-500">{entityName}</div>}
         </div>
-        <div className="bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 shadow-sm">
+        <div className="bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
           <EnhancedRatingDisplay entityType={entityType} entityId={entityId} size="md" showDistribution={false} />
         </div>
       </div>

@@ -89,76 +89,74 @@ export default function HospitalDoctorsByDepartment({ doctors, hospitalName }: P
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 justify-center mb-8">
-        <button
-          type="button"
-          onClick={() => updateDept(allDept)}
-          className={`px-4 py-2 rounded-full border ${selected === allDept ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-800 border-gray-300"}`}
-        >
-          {allDept} ({total})
-        </button>
-        {depts.map((d) => (
-          <button
-            key={d}
-            type="button"
-            onClick={() => updateDept(d)}
-            className={`px-4 py-2 rounded-full border ${selected === d ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-800 border-gray-300"}`}
-          >
-            {d} ({departmentCounts.get(d) || 0})
+      {depts.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 justify-center mb-5">
+          <button type="button" onClick={() => updateDept(allDept)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${selected === allDept ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"}`}>
+            All ({total})
           </button>
-        ))}
-      </div>
+          {depts.map((d) => (
+            <button key={d} type="button" onClick={() => updateDept(d)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${selected === d ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"}`}>
+              {d} ({departmentCounts.get(d) || 0})
+            </button>
+          ))}
+        </div>
+      )}
 
       {filtered.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((link, index) => {
             const doctor = link.doctor;
             const profile = doctor.doctorProfile;
             if (!profile) return null;
             const raw = doctor.email.split("@")[0];
-            const name = profile.slug ? toTitleCase(profile.slug) : raw;
+            const derivedName = (() => {
+              // Try email handle first — strip number IDs and format nicely
+              const fromEmail = raw.replace(/[\-_\.]+/g, ' ').replace(/\d{5,}/g, '').trim();
+              if (fromEmail.length > 2) return toTitleCase(fromEmail);
+              // Try slug but strip long IDs
+              if (profile.slug) {
+                const cleaned = profile.slug.replace(/[\-_]\d{5,}/g, '').replace(/[\-_]+/g, ' ').trim();
+                if (cleaned.length > 2) return toTitleCase(cleaned);
+              }
+              return 'Doctor';
+            })();
+            const name = derivedName;
             return (
-              <div key={`${doctor.id}-${index}`} className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100">
-                <div className="text-center mb-6">
-                  <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+              <div key={`${doctor.id}-${index}`} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-200 transition-all">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-14 h-14 flex-shrink-0 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center overflow-hidden">
                     {profile.profileImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={profile.profileImage} alt={name} className="w-20 h-20 rounded-full object-cover" />
+                      <img src={profile.profileImage} alt={name} className="w-14 h-14 rounded-xl object-cover" />
                     ) : (
-                      <span className="text-4xl">👨‍⚕️</span>
+                      <span className="text-2xl">👨‍⚕️</span>
                     )}
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Dr. {name}</h3>
-                  <p className="text-lg text-blue-600 font-semibold mb-3">{profile.specialization}</p>
-                  {profile.qualifications && <p className="text-gray-600 text-sm mb-4">{profile.qualifications}</p>}
-                </div>
-                <div className="space-y-4 mb-6">
-                  <div className="flex items-center justify-center">
-                    <EnhancedRatingDisplay entityType="doctor" entityId={String(doctor.id)} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-gray-900 truncate">Dr. {name}</h3>
+                    <p className="text-sm text-blue-600 font-medium">{profile.specialization}</p>
+                    {link.department && <p className="text-xs text-gray-400">{link.department.name}</p>}
                   </div>
-                  {profile.experience && (
-                    <div className="flex items-center justify-center"><span className="text-blue-600 mr-2">⏰</span><span className="text-gray-700">{profile.experience}+ Years Experience</span></div>
-                  )}
-                  {profile.consultationFee && (
-                    <div className="flex items-center justify-center"><span className="text-green-600 mr-2">💰</span><span className="text-gray-700">₹{profile.consultationFee} Consultation</span></div>
-                  )}
-                  {link.department && (
-                    <div className="flex items-center justify-center"><span className="text-purple-600 mr-2">🏥</span><span className="text-gray-700">{link.department.name}</span></div>
-                  )}
                 </div>
-                {profile.about && <p className="text-gray-600 text-sm mb-6 leading-relaxed line-clamp-3">{profile.about}</p>}
-                <div className="text-center">
-                  <DoctorBookingCTA doctorId={doctor.id} clinicName={profile.clinicName || hospitalName || "Clinic"} />
+                <div className="flex items-center gap-3 mb-4 text-xs text-gray-600">
+                  <EnhancedRatingDisplay entityType="doctor" entityId={String(doctor.id)} size="sm" />
+                  {profile.experience && <span>• {profile.experience}yr exp</span>}
+                  {profile.consultationFee && <span>• ₹{profile.consultationFee}</span>}
                 </div>
+                {profile.about && <p className="text-gray-500 text-xs mb-4 line-clamp-2">{profile.about}</p>}
+                <DoctorBookingCTA doctorId={doctor.id} clinicName={profile.clinicName || hospitalName || "Clinic"}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm text-center transition-colors" label="Book Appointment" />
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">👩‍⚕️</div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">No Doctors Available</h3>
-          <p className="text-gray-600">Try a different department.</p>
+        <div className="text-center py-8">
+          <div className="text-3xl mb-2">👩‍⚕️</div>
+          <h3 className="text-sm font-bold text-gray-700">No Doctors Available</h3>
+          <p className="text-xs text-gray-500">Try a different department.</p>
         </div>
       )}
     </div>

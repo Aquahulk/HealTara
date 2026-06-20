@@ -333,11 +333,26 @@ const corsOptions = {
       'https://api.healtara.com',
       'https://healtara.onrender.com'
     ];
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (!origin) {
       callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return;
     }
+    // Allow exact matches
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    // Allow any subdomain of localhost:3000 (e.g. hola.localhost:3000)
+    if (/^https?:\/\/[a-z0-9-]+\.localhost(:\d+)?$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+    // Allow any subdomain of healtara.com
+    if (/^https?:\/\/[a-z0-9-]+\.healtara\.com$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 };

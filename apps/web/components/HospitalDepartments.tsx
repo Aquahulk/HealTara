@@ -70,141 +70,68 @@ export default function HospitalDepartments({ departments, doctors, hospitalName
   }, [params, departments]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {departments.map((dept, index) => {
-        const icon = index % 6 === 0
-          ? "🫀"
-          : index % 6 === 1
-          ? "🧠"
-          : index % 6 === 2
-          ? "🦴"
-          : index % 6 === 3
-          ? "👁️"
-          : index % 6 === 4
-          ? "🦷"
-          : "👶";
+        const icons = ['🫀','🧠','🦴','👁️','🦷','👶','💊','🩺'];
+        const icon = icons[index % icons.length];
         const key = (dept.name || "").toLowerCase();
         const isOpen = active === key;
         const deptDoctors = doctorsByDepartment.get(key) || [];
 
         return (
-          <div
-            key={index}
-            className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-2xl transition-all duration-300 group"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                const next = isOpen ? null : key;
-                setActive(next);
-                try {
-                  const sp = new URLSearchParams(window.location.search);
-                  if (next) sp.set("dept", dept.name);
-                  else sp.delete("dept");
-                  const path = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
-                  router.replace(path);
-                } catch {}
-              }}
-              className="w-full text-left"
-            >
-              <div className="text-center mb-6">
-                <div className="text-6xl mb-2">{icon}</div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">{dept.name}</h3>
-                <div className="inline-flex items-center text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-                  👩‍⚕️ {deptDoctors.length} {deptDoctors.length === 1 ? 'Doctor' : 'Doctors'}
+          <div key={index} className={`bg-white rounded-xl border overflow-hidden transition-all ${isOpen ? 'border-blue-300 shadow-md' : 'border-gray-100 shadow-sm hover:border-blue-200 hover:shadow-md'}`}>
+            <button type="button" onClick={() => {
+              const next = isOpen ? null : key;
+              setActive(next);
+              try { const sp = new URLSearchParams(window.location.search); if (next) sp.set("dept", dept.name); else sp.delete("dept"); router.replace(`${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ""}`); } catch {}
+            }} className="w-full text-left p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{icon}</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-gray-900 truncate">{dept.name}</h3>
+                  <span className="text-[10px] text-gray-500">👨‍⚕️ {deptDoctors.length} doctor{deptDoctors.length !== 1 ? 's' : ''}</span>
                 </div>
               </div>
-              {dept.description && (
-                <p className="text-gray-600 mb-6 leading-relaxed">{dept.description}</p>
-              )}
+              {dept.description && <p className="text-xs text-gray-500 mb-2 line-clamp-2">{dept.description}</p>}
               {dept.services && dept.services.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Key Services:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {dept.services.slice(0, 4).map((service, i) => (
-                      <span
-                        key={i}
-                        className="inline-block bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full"
-                      >
-                        {service}
-                      </span>
-                    ))}
-                    {dept.services.length > 4 && (
-                      <span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
-                        +{dept.services.length - 4} more
-                      </span>
-                    )}
-                  </div>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {dept.services.slice(0, 3).map((s, i) => (
+                    <span key={i} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{s}</span>
+                  ))}
+                  {dept.services.length > 3 && <span className="text-[10px] text-gray-400">+{dept.services.length - 3}</span>}
                 </div>
               )}
-              {dept.conditions && dept.conditions.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Conditions Treated:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {dept.conditions.slice(0, 3).map((condition, i) => (
-                      <span
-                        key={i}
-                        className="inline-block bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full"
-                      >
-                        {condition}
-                      </span>
-                    ))}
-                    {dept.conditions.length > 3 && (
-                      <span className="inline-block bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
-                        +{dept.conditions.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="text-center">
-                <span className="btn-brand text-white font-semibold px-6 py-3 rounded-xl inline-block">
-                  {isOpen ? "Hide Doctors" : "View Doctors"}
-                </span>
-              </div>
+              <span className={`text-xs font-medium ${isOpen ? 'text-blue-600' : 'text-gray-500'}`}>
+                {isOpen ? '▲ Hide' : '▼ View Doctors'}
+              </span>
             </button>
 
             {isOpen && (
-              <div className="mt-8 pt-6 border-t">
-                <h4 className="text-xl font-bold text-gray-900 mb-4">Doctors in {dept.name}</h4>
+              <div className="px-4 pb-4 pt-2 border-t border-gray-100">
                 {deptDoctors.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-2">
                     {deptDoctors.map((link, di) => {
                       const dp = link.doctor.doctorProfile || undefined;
                       const raw = link.doctor.email.split("@")[0];
-                      const name = dp?.slug ? toTitleCase(dp.slug) : raw;
+                      const derivedName = raw.replace(/[\-_\.]+/g, ' ').replace(/\d{5,}/g, '').trim();
+                      const docName = derivedName.length > 2 ? toTitleCase(derivedName) : 'Doctor';
                       return (
-                        <div key={di} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6">
-                          <div className="flex items-start gap-4">
-                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-3xl">
-                              {dp?.profileImage ? (
-                                <img
-                                  src={dp.profileImage}
-                                  alt={name}
-                                  className="w-14 h-14 rounded-full object-cover"
-                                />
-                              ) : (
-                                <span>👨‍⚕️</span>
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <div className="font-semibold text-gray-900">Dr. {name}</div>
-                              <div className="text-sm text-blue-600">{dp?.specialization || "Specialist"}</div>
-                              {dp?.qualifications && (
-                                <div className="text-xs text-gray-600 mt-1">{dp.qualifications}</div>
-                              )}
-                              <div className="mt-3">
-                                <DoctorBookingCTA doctorId={link.doctor.id} clinicName={dp?.clinicName || hospitalName || dept.name} />
-                              </div>
-                            </div>
+                        <div key={di} className="flex items-center gap-3 bg-gray-50 rounded-lg p-2.5">
+                          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {dp?.profileImage ? <img src={dp.profileImage} alt={docName} className="w-9 h-9 rounded-lg object-cover" /> : <span className="text-sm">👨‍⚕️</span>}
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-gray-900 truncate">Dr. {docName}</div>
+                            <div className="text-[10px] text-gray-500">{dp?.specialization || 'Specialist'}</div>
+                          </div>
+                          <DoctorBookingCTA doctorId={link.doctor.id} clinicName={dp?.clinicName || hospitalName || dept.name}
+                            className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1.5 rounded-lg" label="Book" />
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="text-gray-600 text-sm">No doctors are linked to this department yet.</div>
+                  <p className="text-xs text-gray-400">No doctors linked yet.</p>
                 )}
               </div>
             )}

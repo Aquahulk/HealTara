@@ -3688,9 +3688,15 @@ const [socketReady, setSocketReady] = useState(false);
                     const items = doctorAppointmentsMap[doc.id] || [];
                     const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
                     const todayStr = fmtD.format(getISTNow());
-                    const todayAppts = items.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr);
-                    const upcoming = items.filter(a => getAppointmentISTDate(a).getTime() >= getISTNow().getTime());
-                    const onDate = items.filter(a => fmtD.format(getAppointmentISTDate(a)) === selectedHospitalDate);
+                    const todayAppts = items.filter(a => {
+                      const apptDate = a.date.slice(0, 10);
+                      return apptDate === todayStr || fmtD.format(getAppointmentISTDate(a)) === todayStr;
+                    });
+                    const upcoming = items.filter(a => getAppointmentISTDate(a).getTime() >= getISTNow().getTime() || a.status === 'PENDING');
+                    const onDate = items.filter(a => {
+                      const apptDate = a.date.slice(0, 10);
+                      return apptDate === selectedHospitalDate || fmtD.format(getAppointmentISTDate(a)) === selectedHospitalDate;
+                    });
                     return (
                       <div className="space-y-4">
                         {/* Back + Doctor header */}
@@ -3765,20 +3771,34 @@ const [socketReady, setSocketReady] = useState(false);
                         {upcoming.length > 0 && (
                           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                              <h4 className="text-sm font-bold text-gray-800">Upcoming (next 14 days)</h4>
-                              <span className="text-xs text-gray-500">{upcoming.length}</span>
+                              <h4 className="text-sm font-bold text-gray-800">All Appointments ({items.length})</h4>
+                              <span className="text-xs text-gray-500">Pending: {items.filter(a => a.status === 'PENDING').length}</span>
                             </div>
                             <div className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
-                              {upcoming.slice(0, 20).map(appt => (
+                              {items.sort((a, b) => getAppointmentISTDate(b).getTime() - getAppointmentISTDate(a).getTime()).slice(0, 30).map(appt => (
                                 <div key={appt.id} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50">
-                                  <div>
-                                    <p className="text-xs font-semibold text-gray-900">{getPatientLabel(appt.patient as any, appt.patientId)}</p>
-                                    <p className="text-[10px] text-gray-400">{formatIST(getAppointmentISTDate(appt), { dateStyle: 'medium', timeStyle: 'short', hour12: false })}</p>
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-[10px]">👤</div>
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-900">{getPatientLabel(appt.patient as any, appt.patientId)}</p>
+                                      <p className="text-[10px] text-gray-400">{appt.date.slice(0,10)} · {appt.time || formatISTTime(getAppointmentISTDate(appt))}</p>
+                                    </div>
                                   </div>
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                    appt.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700' :
-                                    appt.status === 'PENDING' ? 'bg-amber-50 text-amber-700' :
-                                    'bg-gray-100 text-gray-600'}`}>{appt.status}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                      appt.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700' :
+                                      appt.status === 'PENDING' ? 'bg-amber-50 text-amber-700' :
+                                      appt.status === 'COMPLETED' ? 'bg-blue-50 text-blue-600' :
+                                      'bg-red-50 text-red-600'}`}>{appt.status}</span>
+                                    <select className="border border-gray-200 rounded text-[10px] px-1.5 py-1 text-gray-700 bg-white focus:outline-none"
+                                      value={appt.status}
+                                      onChange={e => updateDoctorAppointmentStatus(doc.id, appt.id, e.target.value)}>
+                                      <option value="PENDING">Pending</option>
+                                      <option value="CONFIRMED">Confirmed</option>
+                                      <option value="COMPLETED">Completed</option>
+                                      <option value="CANCELLED">Cancelled</option>
+                                    </select>
+                                  </div>
                                 </div>
                               ))}
                             </div>
