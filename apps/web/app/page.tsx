@@ -363,7 +363,7 @@ export default function HomePage() {
         setLoading(true);
         const cachedData = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache') : null;
         const cacheTimestamp = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache_timestamp') : null;
-        const CACHE_DURATION = 5 * 60 * 1000;
+        const CACHE_DURATION = 30 * 1000; // 30 seconds — keeps homepage fast but shows approvals quickly
         if (cachedData && cacheTimestamp && (Date.now() - parseInt(cacheTimestamp)) < CACHE_DURATION) {
           const parsed = JSON.parse(cachedData);
           const ch = Array.isArray(parsed?.hospitals) ? parsed.hospitals : [];

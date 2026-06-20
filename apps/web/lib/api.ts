@@ -789,7 +789,8 @@ class ApiClient {
   }
 
   async getHospitalSlotAdmin(doctorId?: number): Promise<{ slotAdmin?: { email: string } }> {
-    const query = new URLSearchParams({ doctorId: String(doctorId || '') }).toString();
+    if (!doctorId || !Number.isFinite(doctorId)) return { slotAdmin: undefined };
+    const query = new URLSearchParams({ doctorId: String(doctorId) }).toString();
     return this.request(`/api/hospitals/slot-admin?${query}`);
   }
 

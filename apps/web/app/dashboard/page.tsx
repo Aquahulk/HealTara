@@ -271,6 +271,9 @@ interface DoctorProfile {
   profileImage: string;
   // Whether the doctor's microsite is enabled (approved by admin)
   micrositeEnabled?: boolean;
+  // Verification status from admin
+  verificationStatus?: string;
+  verificationSubmitted?: boolean;
   // Period length in minutes for booking slot subdivisions
   slotPeriodMinutes?: number;
   slotPeriodUpdatedAt?: string | null;
@@ -1987,67 +1990,106 @@ const [socketReady, setSocketReady] = useState(false);
     return result;
   };
 
-  // Check if it's user's first time and needs verification
-  const isFirstTimeUser = user && (
-    (user.role === 'DOCTOR' && (!doctorProfile || doctorProfile.micrositeEnabled === false)) ||
-    (user.role === 'HOSPITAL_ADMIN' && (!hospitalProfile || (hospitalProfile as any)?.profile?.serviceStatus === 'PENDING'))
-  );
+  // ── VERIFICATION GATE ──
+  // Doctors: blocked until verificationStatus === 'APPROVED'
+  // Hospital Admins: blocked until hospital verificationStatus === 'APPROVED'
+  const doctorVerificationStatus = doctorProfile?.verificationStatus ?? 'PENDING';
+  const hospitalVerificationStatus = (hospitalProfile as any)?.verificationStatus ?? 'PENDING';
+  const isVerificationPending =
+    (user?.role === 'DOCTOR' && doctorVerificationStatus !== 'APPROVED') ||
+    (user?.role === 'HOSPITAL_ADMIN' && hospitalVerificationStatus !== 'APPROVED');
 
-  // Show registration/verification flow for first-time users
-  if (isFirstTimeUser) {
+  if (user && isVerificationPending) {
+    const isDoctor = user.role === 'DOCTOR';
+    const vStatus = isDoctor ? doctorVerificationStatus : hospitalVerificationStatus;
+    const hasSubmitted = isDoctor
+      ? (doctorProfile?.verificationSubmitted ?? false)
+      : ((hospitalProfile as any)?.verificationSubmitted ?? false);
+    const isRejected = vStatus === 'REJECTED';
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-10 px-6">
-        <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-8">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 0l6 6v6m0 6h6m-6 0l6 6M3 5h14a2 2 0 0-2 2M7 11a2 2 0 0-2 2M21 12a2 2 0 0-2 2M9 5l7 7 0 0-2 2m3 3a2 2 0 0-2 2" />
-              </svg>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-8">
+          {/* Status icon */}
+          <div className="text-center mb-6">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isRejected ? 'bg-red-100' : hasSubmitted ? 'bg-amber-100' : 'bg-blue-100'}`}>
+              <span className="text-3xl">{isRejected ? '❌' : hasSubmitted ? '⏳' : '📋'}</span>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {user.role === 'DOCTOR' ? 'Complete Your Doctor Profile' : 'Complete Your Hospital Profile'}
+            <h1 className="text-2xl font-bold text-gray-900">
+              {isRejected
+                ? 'Verification Rejected'
+                : hasSubmitted
+                ? 'Awaiting Admin Approval'
+                : isDoctor ? 'Complete Your Doctor Profile' : 'Complete Your Hospital Profile'}
             </h1>
-            <p className="text-gray-600 mb-6">
-              {user.role === 'DOCTOR' 
-                ? 'To access your dashboard, please complete your profile and submit verification details. After admin approval, you can manage appointments and patients.'
-                : 'To access your dashboard, please complete your hospital profile and submit verification details. After admin approval, you can manage doctors and appointments.'
-              }
+            <p className="text-gray-500 text-sm mt-2">
+              {isRejected
+                ? 'Your verification was rejected. Please update your details and resubmit.'
+                : hasSubmitted
+                ? 'Your details have been submitted and are under review. You will gain full access once an admin approves your account.'
+                : isDoctor
+                ? 'Submit your registration details to get verified and appear on the platform.'
+                : 'Submit your hospital registration details for admin verification.'}
             </p>
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-              <h2 className="font-semibold text-gray-900 mb-2">
-                {user.role === 'DOCTOR' ? 'Doctor Verification Checklist' : 'Hospital Verification Checklist'}
-              </h2>
-              <ul className="list-disc ml-6 text-gray-800">
-                {user.role === 'DOCTOR' ? (
-                  <>
-                    <li>Registration Number</li>
-                    <li>Clinic Details</li>
-                    <li>Mobile Number</li>
-                    <li>Specialization</li>
-                  </>
-                ) : (
-                  <>
-                    <li>Hospital Registration Number</li>
-                    <li>Contact Details</li>
-                    <li>Address Information</li>
-                  </>
-                )}
+          </div>
+
+          {/* Progress steps */}
+          <div className="flex items-center justify-center gap-2 mb-6">
+            {[
+              { label: 'Registered', done: true },
+              { label: 'Details Submitted', done: hasSubmitted },
+              { label: 'Admin Review', done: vStatus === 'APPROVED' || isRejected },
+              { label: 'Approved', done: vStatus === 'APPROVED' },
+            ].map((step, i, arr) => (
+              <div key={i} className="flex items-center gap-1">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${step.done ? isRejected && i >= 2 ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                  {step.done ? (isRejected && i >= 2 ? '✕' : '✓') : i+1}
+                </div>
+                <span className="text-[10px] text-gray-500 hidden sm:inline">{step.label}</span>
+                {i < arr.length - 1 && <div className={`w-5 h-px flex-shrink-0 ${step.done && !isRejected ? 'bg-emerald-400' : 'bg-gray-200'}`} />}
+              </div>
+            ))}
+          </div>
+
+          {/* What's needed */}
+          {!hasSubmitted && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+              <p className="text-xs font-bold text-blue-800 mb-2">What you need to submit:</p>
+              <ul className="space-y-1">
+                {isDoctor ? [
+                  '✦ Medical Registration Number (MCI/State Council)',
+                  '✦ Specialization & Qualifications',
+                  '✦ Clinic Name & Address',
+                  '✦ Consultation Fee',
+                  '✦ Contact Phone Number',
+                ] : [
+                  '✦ Hospital Government Registration Number',
+                  '✦ Hospital Name & Full Address',
+                  '✦ City & State',
+                  '✦ Contact Phone Number',
+                ].map(item => (
+                  <li key={item} className="text-xs text-blue-700">{item}</li>
+                ))}
               </ul>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Link 
-                href={user.role === 'DOCTOR' ? "/dashboard/profile" : "/hospital-admin/profile"}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold"
-              >
-                {user.role === 'DOCTOR' ? 'Go to Profile' : 'Go to Hospital Profile'}
-              </Link>
-              
-              {(doctorProfile?.micrositeEnabled === false || (hospitalProfile as any)?.profile?.serviceStatus === 'PENDING') && (
-                <span className="text-sm text-gray-600">Waiting for admin confirmation…</span>
-              )}
+          )}
+
+          {isRejected && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5">
+              <p className="text-xs text-red-700">Your submission was rejected. Please update your profile with accurate information and resubmit for review.</p>
             </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            <Link
+              href={isDoctor ? '/dashboard/profile' : '/hospital-admin/profile'}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-3 rounded-xl text-center transition-colors"
+            >
+              {isRejected ? 'Update & Resubmit' : hasSubmitted ? 'View / Update Profile' : 'Complete Profile & Submit →'}
+            </Link>
+            {hasSubmitted && !isRejected && (
+              <p className="text-center text-xs text-gray-400">Typically reviewed within 24 hours. Contact support if you need urgent assistance.</p>
+            )}
           </div>
         </div>
       </div>
@@ -5461,13 +5503,8 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
     const load = async () => {
       try {
         setLoading(true);
-        const res = await apiClient.getHospitalSlotAdmin();
-        if (res?.slotAdmin) {
-          setCurrentSlotAdminEmail(res.slotAdmin.email);
-          setEmail(res.slotAdmin.email);
-        } else {
-          setCurrentSlotAdminEmail(null);
-        }
+        // No-op: slot admin is loaded per-doctor below
+        setCurrentSlotAdminEmail(null);
       } catch (e: any) {
         setMessage(sanitizeMessage(e?.message) || 'Failed to load Slot Admin info');
       } finally {

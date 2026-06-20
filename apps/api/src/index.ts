@@ -39,10 +39,11 @@ async function getDoctorCandidates(prismaClient: PrismaClient): Promise<any[]> {
   }
   try {
     const doctors = await prismaClient.user.findMany({
-      where: { role: 'DOCTOR' },
+      where: { role: 'DOCTOR', status: 'ACTIVE' },
       include: { doctorProfile: { include: { workingHours: true } } },
     });
-    cachedDoctors = doctors.filter((d: any) => !!d.doctorProfile);
+    // Only expose approved doctors publicly
+    cachedDoctors = doctors.filter((d: any) => !!d.doctorProfile && d.doctorProfile.verificationStatus === 'APPROVED');
     lastDoctorsFetch = now;
     return cachedDoctors;
   } catch (error: any) {
@@ -95,7 +96,7 @@ async function getHospitalCandidates(prismaClient: PrismaClient): Promise<any[]>
         (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true) as review_count,
         (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'hospital' AND entity_id = CAST(h.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
       FROM "hospitals" h
-      WHERE h.status IN ('ACTIVE', 'PENDING')
+      WHERE h.status = 'ACTIVE' AND h.verification_status = 'APPROVED'
       ORDER BY h.id ASC
     `;
 
@@ -1211,7 +1212,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
         (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
       FROM "users" u
         JOIN "doctor_profiles" dp ON u.id = dp.user_id
-        WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING') ${whereClause}
+        WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' AND dp.verification_status = 'APPROVED' ${whereClause}
         ORDER BY 
           ${sort === 'trending' ? 'appt_count DESC,' : ''}
           ${sort === 'experience' ? 'dp.experience DESC,' : ''}
@@ -1220,7 +1221,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
       `;
   
       const rows = await prisma.$queryRawUnsafe(doctorsSql, pageSize, skip);
-      const totalCountSql = `SELECT COUNT(*)::int as count FROM "users" u JOIN "doctor_profiles" dp ON u.id = dp.user_id WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING') ${whereClause}`;
+      const totalCountSql = `SELECT COUNT(*)::int as count FROM "users" u JOIN "doctor_profiles" dp ON u.id = dp.user_id WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' AND dp.verification_status = 'APPROVED' ${whereClause}`;
     const totalCountRow: any[] = await prisma.$queryRawUnsafe(totalCountSql);
     const totalCount = totalCountRow[0]?.count || 0;
 
@@ -1539,7 +1540,7 @@ app.get('/api/search/doctors', async (req: Request, res: Response) => {
           (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count
         FROM "users" u
         JOIN "doctor_profiles" dp ON u.id = dp.user_id
-        WHERE u.role = 'DOCTOR' AND u.status IN ('ACTIVE', 'PENDING')
+        WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' AND dp.verification_status = 'APPROVED'
       )
       SELECT *,
         -- Final Hybrid Rank Calculation
@@ -2810,7 +2811,7 @@ app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware
     try {
       await prisma.doctorProfile.update({
         where: { userId: doctorId },
-        data: { verificationStatus: status === 'ACTIVE' ? 'APPROVED' : 'PENDING' }
+        data: { verificationStatus: status === 'ACTIVE' ? 'APPROVED' : 'REJECTED' }
       });
     } catch {}
 
@@ -2823,6 +2824,10 @@ app.patch('/api/admin/doctors/:doctorId/status', authMiddleware, adminMiddleware
         details: `Doctor status updated to ${status}`
       }
     }).catch(() => {});
+
+    // Clear doctor cache so homepage reflects the change immediately
+    cachedDoctors = [];
+    lastDoctorsFetch = 0;
 
     res.status(200).json({ message: `Doctor ${status.toLowerCase()}ed successfully`, user: updated });
   } catch (error) {
@@ -2891,6 +2896,9 @@ app.patch('/api/admin/verifications/doctor/:doctorId', authMiddleware, adminMidd
       await prisma.user.update({ where: { id: doctorId }, data: { status: 'SUSPENDED' } });
       await prisma.doctorProfile.update({ where: { userId: doctorId }, data: { verificationStatus: 'REJECTED' } });
     }
+    // Clear doctor cache so homepage reflects the change immediately
+    cachedDoctors = [];
+    lastDoctorsFetch = 0;
     res.status(200).json({ success: true });
   } catch (error) {
     console.error(error);
@@ -2909,6 +2917,9 @@ app.patch('/api/admin/verifications/hospital/:hospitalId', authMiddleware, admin
     } else {
       await prisma.hospital.update({ where: { id: hospitalId }, data: { status: 'SUSPENDED', verificationStatus: 'REJECTED' } });
     }
+    // Clear hospital cache so homepage reflects the change immediately
+    cachedHospitals = [];
+    lastHospitalsFetch = 0;
     res.status(200).json({ success: true });
   } catch (error) {
     console.error(error);
@@ -2928,11 +2939,11 @@ app.patch('/api/admin/hospitals/:hospitalId/status', authMiddleware, adminMiddle
       where: { id: hospitalId },
       data: { status }
     });
-    // Update verification status
+    // Update verification status - suspended means REJECTED, active means APPROVED
     try {
       await prisma.hospital.update({
         where: { id: hospitalId },
-        data: { verificationStatus: status === 'ACTIVE' ? 'APPROVED' : 'PENDING' }
+        data: { verificationStatus: status === 'ACTIVE' ? 'APPROVED' : 'REJECTED' }
       });
     } catch {}
 
@@ -2945,6 +2956,10 @@ app.patch('/api/admin/hospitals/:hospitalId/status', authMiddleware, adminMiddle
         details: `Hospital status updated to ${status}`
       }
     }).catch(() => {});
+
+    // Clear hospital cache so homepage reflects the change immediately
+    cachedHospitals = [];
+    lastHospitalsFetch = 0;
 
     res.status(200).json({ message: `Hospital ${status.toLowerCase()}ed successfully`, hospital: updated });
   } catch (error) {
@@ -4499,6 +4514,9 @@ app.get('/api/me/hospital', authMiddleware, async (req: Request, res: Response) 
       state: hospital.state ?? undefined,
       phone: hospital.phone ?? undefined,
       subdomain: hospital.subdomain ?? undefined,
+      status: hospital.status,
+      verificationStatus: hospital.verificationStatus,
+      verificationSubmitted: hospital.verificationSubmitted,
     });
   } catch (error) {
     console.error(error);
