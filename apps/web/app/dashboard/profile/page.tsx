@@ -116,7 +116,7 @@ export default function DoctorProfilePage() {
         const { name, value } = e.target;
         setPatient((prev) => ({
           ...prev,
-          [name]: name === 'age' ? parseInt(value) || 0 : value,
+          [name]: name === 'age' ? (value === '' ? '' : parseInt(value) || '') : value,
         }));
       };
       const onSubmit = async (e: React.FormEvent) => {

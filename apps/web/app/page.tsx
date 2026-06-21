@@ -335,9 +335,38 @@ export default function HomePage() {
       setMapLoading(true); setMapError(null);
       const allPins: typeof mapPins = [];
 
-      // Add doctor pins using stored coordinates or geocoded city
+      // Build a set of doctor IDs that belong to hospitals (from hospitals._count or doctor list)
+      // Hospitals already represent grouped locations — show hospitals as primary pins
+      const hospitalCities = new Set<string>();
       const citiesToGeocode = new Set<string>();
+
+      // Add hospital pins first (they represent groups of doctors)
+      hospitals.forEach((h: any) => {
+        const lat = h.latitude;
+        const lon = h.longitude;
+        const city = ((h.city) || '').toLowerCase().trim();
+        if (city) hospitalCities.add(city);
+        const doctorCount = h._count?.doctors || h.doc_count || 0;
+
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          allPins.push({
+            id: h.id + 100000,
+            lat: lat,
+            lon: lon,
+            title: `🏥 ${h.name || 'Hospital'}`,
+            subtitle: `${h.city || ''}${doctorCount > 0 ? ` • ${doctorCount} doctors` : ''}`
+          });
+        } else if (city) {
+          citiesToGeocode.add(city);
+        }
+      });
+
+      // Only add independent doctors (those NOT in a hospital city)
       doctors.forEach((d: any) => {
+        const dCity = ((d.doctorProfile?.city || d.city) || '').toLowerCase().trim();
+        // Skip if this doctor's city has a hospital (they'll be covered by the hospital pin)
+        if (dCity && hospitalCities.has(dCity)) return;
+
         const lat = d.doctorProfile?.latitude;
         const lon = d.doctorProfile?.longitude;
         if (Number.isFinite(lat) && Number.isFinite(lon)) {
@@ -348,30 +377,12 @@ export default function HomePage() {
             title: `Dr. ${(d.email || '').split('@')[0].replace(/[._-]/g,' ').replace(/\d{5,}/g,'').trim()}`,
             subtitle: d.doctorProfile?.specialization || 'Doctor'
           });
-        } else {
-          const city = ((d.doctorProfile?.city || d.city) || '').trim();
-          if (city) citiesToGeocode.add(city.toLowerCase());
+        } else if (dCity) {
+          citiesToGeocode.add(dCity);
         }
       });
 
-      hospitals.forEach((h: any) => {
-        const lat = h.latitude;
-        const lon = h.longitude;
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          allPins.push({
-            id: h.id + 100000,
-            lat: lat,
-            lon: lon,
-            title: `🏥 ${h.name || 'Hospital'}`,
-            subtitle: h.city || ''
-          });
-        } else {
-          const city = ((h.city) || '').trim();
-          if (city) citiesToGeocode.add(city.toLowerCase());
-        }
-      });
-
-      // Geocode remaining cities that don't have stored coordinates
+      // Geocode remaining cities
       const cityCoords = new Map<string, {lat:number;lon:number}>();
       for (const city of Array.from(citiesToGeocode).slice(0, 8)) {
         try {
@@ -383,11 +394,29 @@ export default function HomePage() {
         } catch {}
       }
 
-      // Add remaining doctors without stored coordinates
-      doctors.forEach((d: any) => {
-        if (Number.isFinite(d.doctorProfile?.latitude)) return; // already added
-        const city = ((d.doctorProfile?.city || d.city) || '').toLowerCase().trim();
+      // Add hospitals without stored coordinates
+      hospitals.forEach((h: any) => {
+        if (Number.isFinite(h.latitude)) return;
+        const city = ((h.city) || '').toLowerCase().trim();
         const coords = cityCoords.get(city);
+        if (coords) {
+          const doctorCount = h._count?.doctors || h.doc_count || 0;
+          allPins.push({
+            id: h.id + 100000,
+            lat: coords.lat + (Math.random() - 0.5) * 0.003,
+            lon: coords.lon + (Math.random() - 0.5) * 0.003,
+            title: `🏥 ${h.name || 'Hospital'}`,
+            subtitle: `${h.city || ''}${doctorCount > 0 ? ` • ${doctorCount} doctors` : ''}`
+          });
+        }
+      });
+
+      // Add independent doctors without stored coordinates
+      doctors.forEach((d: any) => {
+        const dCity = ((d.doctorProfile?.city || d.city) || '').toLowerCase().trim();
+        if (dCity && hospitalCities.has(dCity)) return; // skip hospital-grouped
+        if (Number.isFinite(d.doctorProfile?.latitude)) return; // already added
+        const coords = cityCoords.get(dCity);
         if (coords) {
           allPins.push({
             id: d.id,
@@ -399,29 +428,12 @@ export default function HomePage() {
         }
       });
 
-      // Add remaining hospitals without stored coordinates
-      hospitals.forEach((h: any) => {
-        if (Number.isFinite(h.latitude)) return; // already added
-        const city = ((h.city) || '').toLowerCase().trim();
-        const coords = cityCoords.get(city);
-        if (coords) {
-          allPins.push({
-            id: h.id + 100000,
-            lat: coords.lat + (Math.random() - 0.5) * 0.003,
-            lon: coords.lon + (Math.random() - 0.5) * 0.003,
-            title: `🏥 ${h.name || 'Hospital'}`,
-            subtitle: h.city || ''
-          });
-        }
-      });
-
       if (allPins.length > 0) {
         const avgLat = allPins.reduce((s, p) => s + p.lat, 0) / allPins.length;
         const avgLon = allPins.reduce((s, p) => s + p.lon, 0) / allPins.length;
         setMapCenter({ lat: avgLat, lon: avgLon });
         setMapPins(allPins);
       } else {
-        // Default to India center
         setMapCenter({ lat: 20.5937, lon: 78.9629 });
         setMapPins([]);
       }
@@ -467,12 +479,32 @@ export default function HomePage() {
       const lon = Number(gj.lon);
       setMapCenter({ lat, lon });
 
-      // Filter loaded doctors/hospitals by city name match
+      // Filter loaded hospitals by city name match first
       const cityLower = city.trim().toLowerCase();
       const pins: typeof mapPins = [];
+      const hospitalCitiesMatched = new Set<string>();
 
+      hospitals.forEach((h: any) => {
+        const hCity = ((h.city) || '').toLowerCase();
+        if (hCity.includes(cityLower) || cityLower.includes(hCity)) {
+          hospitalCitiesMatched.add(hCity);
+          const hLat = h.latitude;
+          const hLon = h.longitude;
+          const doctorCount = h._count?.doctors || h.doc_count || 0;
+          pins.push({
+            id: h.id + 100000,
+            lat: Number.isFinite(hLat) ? hLat : lat + (Math.random() - 0.5) * 0.008,
+            lon: Number.isFinite(hLon) ? hLon : lon + (Math.random() - 0.5) * 0.008,
+            title: `🏥 ${h.name || 'Hospital'}`,
+            subtitle: `${h.city || ''}${doctorCount > 0 ? ` • ${doctorCount} doctors` : ''}`
+          });
+        }
+      });
+
+      // Only add independent doctors (not in a matched hospital city)
       doctors.forEach((d: any) => {
         const dCity = ((d.doctorProfile?.city || d.city) || '').toLowerCase();
+        if (hospitalCitiesMatched.has(dCity)) return; // covered by hospital pin
         if (dCity.includes(cityLower) || cityLower.includes(dCity)) {
           const dLat = d.doctorProfile?.latitude;
           const dLon = d.doctorProfile?.longitude;
@@ -482,21 +514,6 @@ export default function HomePage() {
             lon: Number.isFinite(dLon) ? dLon : lon + (Math.random() - 0.5) * 0.01,
             title: `Dr. ${(d.email || '').split('@')[0].replace(/[._-]/g,' ').replace(/\d{5,}/g,'').trim()}`,
             subtitle: d.doctorProfile?.specialization || 'Doctor'
-          });
-        }
-      });
-
-      hospitals.forEach((h: any) => {
-        const hCity = ((h.city) || '').toLowerCase();
-        if (hCity.includes(cityLower) || cityLower.includes(hCity)) {
-          const hLat = h.latitude;
-          const hLon = h.longitude;
-          pins.push({
-            id: h.id + 100000,
-            lat: Number.isFinite(hLat) ? hLat : lat + (Math.random() - 0.5) * 0.008,
-            lon: Number.isFinite(hLon) ? hLon : lon + (Math.random() - 0.5) * 0.008,
-            title: `🏥 ${h.name || 'Hospital'}`,
-            subtitle: h.city || ''
           });
         }
       });
