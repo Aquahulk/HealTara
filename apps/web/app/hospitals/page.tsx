@@ -15,8 +15,17 @@ import { apiClient } from '@/lib/api';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import SearchBar from '@/components/SearchBar';
+import { Suspense } from 'react';
 
 export default function HospitalsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+      <HospitalsPageContent />
+    </Suspense>
+  );
+}
+
+function HospitalsPageContent() {
   const router = useRouter();
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [filteredHospitals, setFilteredHospitals] = useState<any[]>([]);
