@@ -4379,6 +4379,11 @@ app.post('/api/doctors/:doctorId/tokens/start', authMiddleware, async (req: Requ
       select: { id: true, patientId: true, time: true },
       orderBy: [{ time: 'asc' }, { id: 'asc' }]
     });
+
+    if (appts.length === 0) {
+      return res.status(400).json({ message: 'No appointments today. Cannot start token queue.' });
+    }
+
     const tokens = appts.map((a: any, idx: number) => ({
       token: idx + 1,
       appointmentId: a.id,

@@ -10,6 +10,9 @@ import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import SaveButton from '@/components/SaveButton';
 import { apiClient } from '@/lib/api';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
+import MapSidebar from '@/components/MapSidebar';
+import DesktopSidebar from '@/components/DesktopSidebar';
+import SearchBar from '@/components/SearchBar';
 
 export default function HospitalsPage() {
   const router = useRouter();
@@ -101,52 +104,23 @@ export default function HospitalsPage() {
     <>
       <div className="min-h-screen bg-gray-50">
         <Header />
+        <DesktopSidebar />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-20 md:pb-8">{/* Add bottom padding on mobile for nav */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-20 md:pb-8 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">{/* Add bottom padding on mobile for nav */}
           <div className="mb-6 md:mb-8 text-center">
             <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Hospitals</h1>
             <p className="text-base md:text-lg text-gray-600">Browse verified hospitals and visit their websites</p>
           </div>
 
           {/* Search & City Filter */}
-          <div className="mb-6 md:mb-8">
-            <div className="max-w-2xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  placeholder="Search hospitals by name or location..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                />
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Filter by city (e.g., Mumbai)"
-                    value={cityFilter}
-                    onChange={(e) => setCityFilter(e.target.value)}
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                  />
-                  <button
-                    onClick={async () => {
-                      try {
-                        setLoading(true);
-                        const items = await apiClient.getHospitals({ page: 1, limit: 50, city: cityFilter || undefined, q: searchQuery || undefined });
-                        setHospitals(items || []);
-                        setFilteredHospitals(items || []);
-                      } catch (e: any) {
-                        setError(e?.message || 'Failed to load hospitals');
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm md:text-base"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </div>
+          <div className="mb-4">
+            <SearchBar
+              variant="hospitals"
+              onSearch={(q, filters) => {
+                setSearchQuery(q);
+                setCityFilter(filters.city);
+              }}
+            />
           </div>
 
           {loading && (
@@ -197,82 +171,106 @@ export default function HospitalsPage() {
             <div className="space-y-6 md:space-y-10">
               <HorizontalHospitalScroll hospitals={filteredHospitals} />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                {filteredHospitals.map((h) => {
-                  const name = h.name || 'Hospital';
-                  const city = h.city || '';
-                  const state = h.state || '';
-                  const location = [city, state].filter(Boolean).join(', ');
-                  const logoUrl = h.profile && typeof h.profile === 'object' && 'logoUrl' in h.profile ? (h.profile as any).logoUrl : null;
-                  return (
-                    <div key={h.id} className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow relative">
-                      <div className="absolute top-2 right-2 z-10">
-                        <SaveButton entityType="hospital" entityId={h.id} />
-                      </div>
-                      <div className="p-4 md:p-5 flex items-center gap-3 md:gap-4">
-                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                          {logoUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={logoUrl} alt={name} className="w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl object-cover" />
-                          ) : (
-                            <span className="text-xl md:text-2xl">🏥</span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">{/* min-w-0 for text truncation */}
-                          <h3 className="text-base md:text-lg font-semibold text-gray-900 truncate">{name}</h3>
-                          <p className="text-sm text-gray-600 truncate mb-2">{location}</p>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center text-xs text-gray-500">
-                              <Building2 className="w-3 h-3 mr-1 text-blue-500" />
-                              <span>{h._count?.departments || 0} Depts</span>
+              {/* Two-column layout: Hospital cards + Map Sidebar */}
+              <div className="flex gap-6">
+                {/* Left: Hospital cards grid */}
+                <div className="flex-1 min-w-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+                    {filteredHospitals.map((h) => {
+                      const name = h.name || 'Hospital';
+                      const city = h.city || '';
+                      const state = h.state || '';
+                      const location = [city, state].filter(Boolean).join(', ');
+                      const logoUrl = h.profile && typeof h.profile === 'object' && 'logoUrl' in h.profile ? (h.profile as any).logoUrl : null;
+                      return (
+                        <div key={h.id} className="bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow relative">
+                          <div className="absolute top-2 right-2 z-10">
+                            <SaveButton entityType="hospital" entityId={h.id} />
+                          </div>
+                          <div className="p-4 md:p-5 flex items-center gap-3 md:gap-4">
+                            <div className="w-14 h-14 md:w-16 md:h-16 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+                              {logoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={logoUrl} alt={name} className="w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl object-cover" />
+                              ) : (
+                                <span className="text-xl md:text-2xl">🏥</span>
+                              )}
                             </div>
-                            <div className="flex items-center text-xs text-gray-500">
-                              <Users className="w-3 h-3 mr-1 text-green-500" />
-                              <span>{h._count?.doctors || 0} Doctors</span>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-base md:text-lg font-semibold text-gray-900 truncate">{name}</h3>
+                              <p className="text-sm text-gray-600 truncate mb-2">{location}</p>
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center text-xs text-gray-500">
+                                  <Building2 className="w-3 h-3 mr-1 text-blue-500" />
+                                  <span>{h._count?.departments || 0} Depts</span>
+                                </div>
+                                <div className="flex items-center text-xs text-gray-500">
+                                  <Users className="w-3 h-3 mr-1 text-green-500" />
+                                  <span>{h._count?.doctors || 0} Doctors</span>
+                                </div>
+                              </div>
                             </div>
                           </div>
+                          <div className="px-4 md:px-5 pb-2">
+                            <EnhancedRatingDisplay entityType="hospital" entityId={String(h.id)} size="sm" />
+                          </div>
+                          <div className="p-4 md:p-5 border-t border-gray-200 flex gap-3">
+                            <a
+                              href={`/hospital-site/${h.id}`}
+                              className="flex-1 text-center bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-3 rounded-lg transition-colors min-h-[44px] flex items-center justify-center touch-manipulation"
+                              onMouseEnter={() => {
+                                try {
+                                  if (shouldUseSubdomainNav()) {
+                                    const sub = (h as any).subdomain as string | undefined;
+                                    const url = sub && sub.length > 1 ? customSubdomainUrl(sub) : (h.name ? hospitalMicrositeUrl(h.name) : '');
+                                    if (url) import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
+                                  }
+                                } catch {}
+                              }}
+                              onClick={(e) => {
+                                try {
+                                  if (shouldUseSubdomainNav()) {
+                                    e.preventDefault();
+                                    const sub = (h as any).subdomain as string | undefined;
+                                    if (sub && sub.length > 1) {
+                                      window.location.href = customSubdomainUrl(sub);
+                                    } else if (h.name) {
+                                      window.location.href = hospitalMicrositeUrl(h.name);
+                                    } else {
+                                      router.push(`/hospital-site/${h.id}`);
+                                    }
+                                  } else {
+                                    router.push(`/hospital-site/${h.id}`);
+                                  }
+                                } catch {}
+                              }}
+                            >
+                              Visit Website
+                            </a>
+                          </div>
                         </div>
-                      </div>
-                      <div className="px-4 md:px-5 pb-2">
-                        <EnhancedRatingDisplay entityType="hospital" entityId={String(h.id)} size="sm" />
-                      </div>
-                      <div className="p-4 md:p-5 border-t border-gray-200 flex gap-3">
-                        <a
-                          href={`/hospital-site/${h.id}`}
-                          className="flex-1 text-center bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-900 font-medium py-3 rounded-lg transition-colors min-h-[44px] flex items-center justify-center touch-manipulation"
-                          onMouseEnter={() => {
-                            try {
-                              if (shouldUseSubdomainNav()) {
-                                const sub = (h as any).subdomain as string | undefined;
-                                const url = sub && sub.length > 1 ? customSubdomainUrl(sub) : (h.name ? hospitalMicrositeUrl(h.name) : '');
-                                if (url) import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
-                              }
-                            } catch {}
-                          }}
-                          onClick={(e) => {
-                            try {
-                              if (shouldUseSubdomainNav()) {
-                                e.preventDefault();
-                                const sub = (h as any).subdomain as string | undefined;
-                                if (sub && sub.length > 1) {
-                                  window.location.href = customSubdomainUrl(sub);
-                                } else if (h.name) {
-                                  window.location.href = hospitalMicrositeUrl(h.name);
-                                } else {
-                                  router.push(`/hospital-site/${h.id}`);
-                                }
-                              } else {
-                                router.push(`/hospital-site/${h.id}`);
-                              }
-                            } catch {}
-                          }}
-                        >
-                          Visit Website
-                        </a>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Right: Map Sidebar (hidden on mobile) */}
+                <div className="hidden lg:block w-[380px] xl:w-[420px] flex-shrink-0">
+                  <MapSidebar
+                    variant="hospitals"
+                    title="Hospitals on Map"
+                    emptyMessage="No hospital locations available. Hospitals with coordinates will appear here."
+                    pins={filteredHospitals
+                      .filter((h: any) => h.latitude && h.longitude)
+                      .map((h: any) => ({
+                        id: h.id,
+                        lat: h.latitude,
+                        lon: h.longitude,
+                        title: h.name || 'Hospital',
+                        subtitle: [h.city, h.state].filter(Boolean).join(', '),
+                      }))}
+                  />
+                </div>
               </div>
             </div>
           )}

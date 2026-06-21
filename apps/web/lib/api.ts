@@ -76,6 +76,8 @@ export interface DoctorProfile {
   previousSlotPeriodMinutes?: number | null;               // Previous slot period before update
   slotPeriodUpdatedAt?: string | null;                     // When the slot period was last updated
   profileImage?: string;                                   // URL to doctor's profile image
+  latitude?: number;                                       // Clinic latitude coordinate
+  longitude?: number;                                      // Clinic longitude coordinate
   createdAt: string;                                       // When profile was created
   updatedAt: string;                                       // When profile was last updated
 }

@@ -8,6 +8,9 @@ import DoctorOyoCard from '@/components/DoctorOyoCard';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
 import Header from '@/components/Header';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
+import MapSidebar from '@/components/MapSidebar';
+import DesktopSidebar from '@/components/DesktopSidebar';
+import SearchBar from '@/components/SearchBar';
 import { Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -155,140 +158,27 @@ function DoctorsPageContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+      <DesktopSidebar />
       
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 md:py-8 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">
         <div className="mb-6 md:mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3 md:mb-4">Find Doctors</h1>
           <p className="text-base md:text-lg text-gray-600">Search and book appointments with verified healthcare professionals</p>
         </div>
 
-        {/* Search and Filters - Mobile optimized */}
-        <div className="bg-white rounded-lg shadow p-3 md:p-6 mb-4 md:mb-8">
-          {/* Compact Search Bar with Filter Button */}
-          <div className="flex gap-2 mb-3">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Search doctors..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 md:px-4 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-              />
-            </div>
-            <button
-              onClick={() => {
-                const filtersDiv = document.getElementById('filters-section');
-                if (filtersDiv) {
-                  filtersDiv.classList.toggle('hidden');
-                }
-              }}
-              className="px-3 py-2 md:px-4 md:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 text-sm md:text-base whitespace-nowrap"
-            >
-              🔍 Filters
-            </button>
-          </div>
-
-          {/* Collapsible Filters Section */}
-          <div id="filters-section" className="hidden">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-3 border-t border-gray-200">
-              <div>
-                <select
-                  value={selectedSpecialization}
-                  onChange={(e) => setSelectedSpecialization(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                >
-                  <option value="">All Specializations</option>
-                  <option value="Cardiology">Cardiology</option>
-                  <option value="Dermatology">Dermatology</option>
-                  <option value="Neurology">Neurology</option>
-                  <option value="Orthopedics">Orthopedics</option>
-                  <option value="Pediatrics">Pediatrics</option>
-                </select>
-              </div>
-              <div>
-                <select
-                  value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                >
-                  <option value="">All Cities</option>
-                  <option value="Mumbai">Mumbai</option>
-                  <option value="Delhi">Delhi</option>
-                  <option value="Bangalore">Bangalore</option>
-                  <option value="Chennai">Chennai</option>
-                </select>
-              </div>
-              <div>
-                <select
-                  value={sortBy}
-                  onChange={(e) => { setSortBy(e.target.value as any); setPage(1); }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-                >
-                  <option value="trending">Popularity</option>
-                  <option value="recent">Recently Updated</option>
-                  <option value="default">Default</option>
-                </select>
-              </div>
-              <div>
-                <label className="flex items-center justify-center h-full px-3 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-all">
-                  <input
-                    type="checkbox"
-                    checked={availabilityOnly}
-                    onChange={(e) => setAvailabilityOnly(e.target.checked)}
-                    className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-900 font-medium text-sm md:text-base">Availability Only</span>
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 flex-1 text-sm"
-                >
-                  Prev
-                </button>
-                <span className="text-xs md:text-sm text-gray-600 whitespace-nowrap">Page {page}</span>
-                <button
-                  onClick={() => hasMore && setPage((p) => p + 1)}
-                  disabled={!hasMore}
-                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 flex-1 text-sm"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {availabilityOnly && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden mt-3 pt-3 border-t border-gray-100"
-                >
-                  <p className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> Select Preferred Time
-                  </p>
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide no-scrollbar -mx-1 px-1">
-                    {["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM", "07:00 PM", "08:00 PM"].map((slot) => (
-                      <button
-                        key={slot}
-                        onClick={() => setSelectedTimeSlot(selectedTimeSlot === slot ? '' : slot)}
-                        className={`flex-shrink-0 px-4 py-2 text-xs font-bold rounded-full border transition-all ${
-                          selectedTimeSlot === slot
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105'
-                            : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                        }`}
-                      >
-                        {slot}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+        {/* Search and Filters */}
+        <div className="mb-4">
+          <SearchBar
+            initialQuery={initialQuery}
+            variant="doctors"
+            onSearch={(q, filters) => {
+              setSearchQuery(q);
+              setSelectedSpecialization(filters.specialization);
+              setSelectedCity(filters.city);
+              setAvailabilityOnly(filters.availabilityOnly);
+              setPage(1);
+            }}
+          />
         </div>
 
         {/* Results */}
@@ -301,25 +191,48 @@ function DoctorsPageContent() {
           )}
         </div>
 
-        {/* Doctors List - OYO style rows - Mobile optimized */}
-        <div className="space-y-4 md:space-y-6 pb-20 md:pb-0">{/* Add bottom padding on mobile for nav */}
-          {filteredDoctors.map((doctor: any) => (
-            <DoctorOyoCard
-              key={doctor.id}
-              doctor={doctor}
-              onBookAppointment={() => handleBookAppointment(doctor)}
-              searchQuery={searchQuery}
-            />
-          ))}
-        </div>
+        {/* Two-column layout: Doctor list + Map Sidebar */}
+        <div className="flex gap-4 pb-20 md:pb-0">
+          {/* Left: Doctors List (constrained width) */}
+          <div className="flex-1 min-w-0 max-w-2xl">
+            <div className="space-y-4 md:space-y-6">
+              {filteredDoctors.map((doctor: any) => (
+                <DoctorOyoCard
+                  key={doctor.id}
+                  doctor={doctor}
+                  onBookAppointment={() => handleBookAppointment(doctor)}
+                  searchQuery={searchQuery}
+                />
+              ))}
+            </div>
 
-        {filteredDoctors.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No doctors found</h3>
-            <p className="text-gray-600">Try adjusting your search criteria</p>
+            {filteredDoctors.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-gray-400 text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No doctors found</h3>
+                <p className="text-gray-600">Try adjusting your search criteria</p>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Right: Map Sidebar (hidden on mobile) */}
+          <div className="hidden lg:block w-[380px] xl:w-[420px] flex-shrink-0">
+            <MapSidebar
+              variant="doctors"
+              title="Doctors Near You"
+              emptyMessage="No doctor locations available. Doctors with set coordinates will appear here."
+              pins={filteredDoctors
+                .filter((d: any) => d.doctorProfile?.latitude && d.doctorProfile?.longitude)
+                .map((d: any) => ({
+                  id: d.id,
+                  lat: d.doctorProfile.latitude,
+                  lon: d.doctorProfile.longitude,
+                  title: d.email?.split('@')[0] || 'Doctor',
+                  subtitle: d.doctorProfile?.specialization || '',
+                }))}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Booking Modal */}

@@ -3595,7 +3595,18 @@ const [socketReady, setSocketReady] = useState(false);
                         try {
                           const r = await apiClient.startDoctorToken(user.id);
                           setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : doctorTokenToday.total });
-                        } catch {}
+                        } catch (e: any) {
+                          console.error('Token start failed:', e?.message);
+                          // Show inline feedback
+                          const msg = e?.message || 'Failed to start token queue';
+                          if (msg.includes('already started')) {
+                            // Refresh state
+                            try {
+                              const r = await apiClient.getDoctorTokensToday(user.id);
+                              setDoctorTokenToday({ currentToken: Number(r.currentToken || 0), total: Array.isArray(r.tokens) ? r.tokens.length : 0 });
+                            } catch {}
+                          }
+                        }
                       }}>Start</button>
                   )}
                   <button className="px-2 py-0.5 text-xs font-semibold bg-white border border-blue-200 text-blue-600 rounded-md hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
