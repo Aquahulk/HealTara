@@ -1,8 +1,11 @@
 "use client";
 
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import { useRouter } from 'next/navigation';
+
+const MapSidebar = dynamic(() => import('@/components/MapSidebar'), { ssr: false });
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
 import { Building2, Users } from 'lucide-react';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
@@ -10,7 +13,6 @@ import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import SaveButton from '@/components/SaveButton';
 import { apiClient } from '@/lib/api';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
-import MapSidebar from '@/components/MapSidebar';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import SearchBar from '@/components/SearchBar';
 
@@ -266,8 +268,9 @@ export default function HospitalsPage() {
                         id: h.id,
                         lat: h.latitude,
                         lon: h.longitude,
-                        title: h.name || 'Hospital',
+                        title: `🏥 ${h.name || 'Hospital'}`,
                         subtitle: [h.city, h.state].filter(Boolean).join(', '),
+                        extra: { slug: String(h.id), city: h.city },
                       }))}
                   />
                 </div>

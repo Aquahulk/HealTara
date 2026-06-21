@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -8,11 +9,12 @@ import DoctorOyoCard from '@/components/DoctorOyoCard';
 import BookAppointmentModal from '@/components/BookAppointmentModal';
 import Header from '@/components/Header';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
-import MapSidebar from '@/components/MapSidebar';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import SearchBar from '@/components/SearchBar';
 import { Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const MapSidebar = dynamic(() => import('@/components/MapSidebar'), { ssr: false });
 
 export default function DoctorsPage() {
   return (
@@ -227,8 +229,9 @@ function DoctorsPageContent() {
                   id: d.id,
                   lat: d.doctorProfile.latitude,
                   lon: d.doctorProfile.longitude,
-                  title: d.email?.split('@')[0] || 'Doctor',
+                  title: `Dr. ${(d.email || '').split('@')[0].replace(/[._-]/g,' ').replace(/\d{5,}/g,'').trim()}`,
                   subtitle: d.doctorProfile?.specialization || '',
+                  extra: { fee: d.doctorProfile?.consultationFee, experience: d.doctorProfile?.experience, slug: d.doctorProfile?.slug, city: d.doctorProfile?.city },
                 }))}
             />
           </div>
