@@ -16,7 +16,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useInstantNav } from '@/hooks/useInstantNav';
-import { apiClient } from '@/lib/api';
+import { apiClient, API_BASE_URL } from '@/lib/api';
 
 // ============================================================================
 // 🎨 HEADER COMPONENT - Main navigation bar component
@@ -33,7 +33,11 @@ export default function Header() {
 
   useEffect(() => {
     apiClient.getHomepageContent?.().then((c: any) => {
-      if (c?.logo) setLogoUrl(c.logo);
+      if (c?.logo) {
+        // If logo is a relative path (e.g. /uploads/...), prefix with API base URL
+        const url = c.logo.startsWith('/') ? `${API_BASE_URL}${c.logo}` : c.logo;
+        setLogoUrl(url);
+      }
     }).catch(() => {});
   }, []);
   // Modal removed in favor of separate login pages

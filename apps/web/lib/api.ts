@@ -28,7 +28,7 @@ export const API_BASE_URL = (() => {
     if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
       return 'https://healtara.onrender.com';
     }
-    return 'https://api.healtara.com';
+    return 'https://healtara.onrender.com';
   }
 
   // 3. Development/Local logic

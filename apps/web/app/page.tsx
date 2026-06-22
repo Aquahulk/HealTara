@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useAuth } from '@/context/AuthContext';
-import { apiClient } from '@/lib/api';
+import { apiClient, API_BASE_URL } from '@/lib/api';
 import { PerformanceMonitor, CacheManager } from '@/lib/performance';
 import { useHomepageContent } from '@/hooks/useHomepageContent';
 import Header from '@/components/Header';
@@ -1160,7 +1160,8 @@ export default function HomePage() {
                               <div className="relative flex-shrink-0">
                                 <div className="w-14 h-14 rounded-xl overflow-hidden shadow-md ring-2 ring-white group-hover:ring-blue-300 transition-all bg-gradient-to-br from-blue-400 to-purple-500">
                                   {(() => {
-                                    const logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || null;
+                                    let logoUrl = (hospital as any).profile?.general?.logoUrl || (hospital as any).logoUrl || null;
+                                    if (logoUrl && logoUrl.startsWith('/')) logoUrl = `${API_BASE_URL}${logoUrl}`;
                                     if (logoUrl && logoUrl.startsWith('http')) {
                                       return <Image src={logoUrl} alt={name} width={56} height={56} className="w-full h-full object-contain p-1.5 bg-white" loading="lazy" />;
                                     }

@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
     
     // IN PRODUCTION: Ensure we use a secure live URL
     if (isProd) {
-      const prodApi = apiBase || 'https://api.healtara.com';
+      const prodApi = apiBase || 'https://healtara.onrender.com';
       return [
         {
           source: "/api/:path*",
