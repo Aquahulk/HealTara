@@ -108,8 +108,8 @@ const getIconComponent = (iconName: string, className: string = "w-5 h-5") => {
 };
 
 // ─── Hook: detect if a section overlaps the fixed map panel ─────────────────
-// Map panel: fixed top-[48px], height 360px → bottom at 408px from viewport top.
-const MAP_PANEL_BOTTOM = 408; // 48px header + 360px map
+// Map panel: fixed top-[48px], height 440px → bottom at 488px from viewport top.
+const MAP_PANEL_BOTTOM = 488; // 48px header + 440px map
 
 function useSectionOverlapsMap() {
   const [overlaps, setOverlaps] = useState(false);
@@ -271,7 +271,8 @@ export default function HomePage() {
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
   const [selectedEntityType, setSelectedEntityType] = useState<'doctor' | 'hospital' | null>(null);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
-  const [activeGrid, setActiveGrid] = useState<'doctors' | 'hospitals'>('hospitals');
+  const [activeGrid, setActiveGrid] = useState<'doctors' | 'hospitals' | 'coming-soon'>('hospitals');
+  const [activeCategory, setActiveCategory] = useState(0); // index of selected category
   const [isMobile, setIsMobile] = useState(false);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>(null);
   const [mapPins, setMapPins] = useState<Array<{ id: number; lat: number; lon: number; title: string; subtitle?: string }>>([]);
@@ -290,8 +291,8 @@ export default function HomePage() {
   const ctaSection = useSectionOverlapsMap();
 
   const isPopupOpen = !!selectedEntity;
-  const mapHeight = isPopupOpen ? 280 : 360;
-  const innerMapHeight = isPopupOpen ? 160 : 240;
+  const mapHeight = isPopupOpen ? 320 : 440;
+  const innerMapHeight = isPopupOpen ? 200 : 320;
   const popupTop = 48 + mapHeight;
 
   // Auto-open booking modal if bookDoctorId is in URL
@@ -660,7 +661,7 @@ export default function HomePage() {
 
   const categories = [
     { title: "Hospitals", description: "Multi-specialty hospitals", icon: Hospital, color: "from-blue-500 to-cyan-500", link: "/hospitals" },
-    { title: "Single Doctors", description: "Individual practitioners", icon: UserCheck, color: "from-emerald-500 to-teal-500", link: "/doctors" },
+    { title: "Doctors", description: "Individual practitioners", icon: UserCheck, color: "from-emerald-500 to-teal-500", link: "/doctors" },
     { title: "Multi-Doctor Clinics", description: "Group practices", icon: Building2, color: "from-purple-500 to-pink-500", link: "/clinics" },
     { title: "Online Consultation", description: "Virtual appointments", icon: Video, color: "from-orange-500 to-red-500", link: "/online-consultation" },
     { title: "Labs & Diagnostics", description: "Medical testing", icon: Microscope, color: "from-indigo-500 to-purple-500", link: "/labs" },
@@ -710,10 +711,10 @@ export default function HomePage() {
       <Header />
       <DesktopSidebar />
 
-      <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,16rem)]">
+      <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,14rem)]">
 
         {/* ── HERO + SEARCH ────────────────────────────────────────────── */}
-        <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out ${heroSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
+        <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out ${heroSection.overlaps ? 'lg:mr-[26rem]' : 'lg:mr-0'}`}>
           <div className="relative">
             {/* Hero */}
             <div className="relative h-[180px] md:h-[260px] overflow-hidden">
@@ -860,7 +861,7 @@ export default function HomePage() {
         </section>
 
         {/* ── FIXED MAP PANEL — right side, fixed height, like sidebar ── */}
-        <div className="hidden lg:flex fixed right-0 top-[48px] w-[22rem] z-30 flex-col bg-gradient-to-br from-emerald-50 to-teal-50 border-l border-gray-200 shadow-lg rounded-bl-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
+        <div className="hidden lg:flex fixed right-0 top-[48px] w-[26rem] z-30 flex-col bg-gradient-to-br from-emerald-50 to-teal-50 border-l border-gray-200 shadow-lg rounded-bl-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
           {/* Header */}
           <div className="px-4 pt-3 pb-2 border-b border-gray-200/60 flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -956,77 +957,71 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── QUICK ACCESS ──────────────────────────────────────────────── */}
-        <section ref={quickAccessSection.ref} className={`py-3 md:py-5 px-3 md:px-4 bg-white transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[22rem]' : 'lg:mr-0'}`}>
-          <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-2 md:mb-4">
-              <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">Explore Healthcare Services</h2>
-              <p className="text-sm text-gray-400">Everything you need for your health, all in one place</p>
-            </div>
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-2 transition-all duration-500">
-              {categories.map((cat, i) => (
-                <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} whileHover={{ y: -3 }} className="group cursor-pointer">
-                  <Link href={cat.link} prefetch className="block">
-                    <div className="relative bg-white rounded-xl p-3 text-center shadow-sm hover:shadow-md transition-all border border-gray-100 overflow-hidden">
+        {/* ── EXPLORE + CARDS (seamless tab-switch) ──────────────────── */}
+        <section ref={quickAccessSection.ref} className={`transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[26rem]' : 'lg:mr-0'}`}>
+
+          {/* Category boxes — white background, original grid */}
+          <div className="px-3 md:px-4 pt-4 md:pt-5 pb-0 bg-white">
+            <div className="max-w-5xl mx-auto">
+              {/* Section heading — centered */}
+              <div className="mb-3 md:mb-4 text-center">
+                <h2 className="text-base md:text-lg font-bold text-gray-900">Browse Healthcare Services</h2>
+                <p className="text-[11px] md:text-xs text-gray-500 mt-0.5">Choose a category to explore</p>
+              </div>
+              {/* Category grid — original box sizes, no bottom gap */}
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-2 transition-all duration-500">
+                {categories.map((cat, i) => {
+                  const isActive = activeCategory === i;
+                  const comingSoon = cat.title !== 'Hospitals' && cat.title !== 'Doctors';
+                  return (
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} whileHover={{ y: -3 }} className="group cursor-pointer">
+                    <div onClick={() => {
+                      setActiveCategory(i);
+                      if (cat.title === 'Hospitals') setActiveGrid('hospitals');
+                      else if (cat.title === 'Doctors') setActiveGrid('doctors');
+                      else setActiveGrid('coming-soon');
+                    }}
+                      className={`relative p-3 text-center transition-all border overflow-hidden ${
+                        isActive
+                          ? 'rounded-t-xl rounded-b-none border-transparent shadow-lg z-10 relative'
+                          : 'bg-white rounded-xl border-gray-100 shadow-sm hover:shadow-md'
+                      }`}
+                      style={isActive ? {
+                        background: cat.title === 'Hospitals'
+                          ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                          : cat.title === 'Doctors'
+                            ? 'linear-gradient(135deg, #3b3baa 0%, #1e1e96 40%, #00c4e8 100%)'
+                            : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                      } : undefined}>
                       <div className={`w-9 h-9 bg-gradient-to-br ${cat.color} rounded-lg flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform shadow-sm`}>
                         <cat.icon className="w-4.5 h-4.5 text-white" />
                       </div>
-                      <h3 className="text-xs font-bold text-gray-900 leading-tight">{cat.title}</h3>
-                      <p className="text-[10px] text-gray-400 leading-tight hidden md:block mt-0.5">{cat.description}</p>
+                      <h3 className={`text-xs font-bold leading-tight ${isActive ? 'text-white' : 'text-gray-900'}`}>{cat.title}</h3>
+                      <p className={`text-[10px] leading-tight hidden md:block mt-0.5 ${isActive ? 'text-white/70' : 'text-gray-400'}`}>{cat.description}</p>
                     </div>
-                  </Link>
-                </motion.div>
-              ))}
+                  </motion.div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </section>
 
-        {/* ── DOCTORS & HOSPITALS DISCOVERY ─────────────────────────────── */}
-        <section ref={discoverySection.ref} className="py-3 md:py-6 px-3 md:px-4 transition-all duration-500 ease-in-out lg:mr-[22rem]"
-          style={{ background: activeGrid === 'doctors' ? 'linear-gradient(135deg, #3b3baa 0%, #1e1e96 40%, #00c4e8 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-          <div className="max-w-5xl mx-auto">
+          {/* Cards content — colored gradient, directly touching boxes above */}
+          <div ref={discoverySection.ref} className="px-3 md:px-4 pt-3 pb-4 md:pb-5"
+            style={{ background: activeGrid === 'doctors' ? 'linear-gradient(135deg, #3b3baa 0%, #1e1e96 40%, #00c4e8 100%)' : activeGrid === 'hospitals' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
+            <div className="max-w-5xl mx-auto">
 
-            {/* Toggle */}
-            <div className="flex items-center justify-center gap-2 mb-5">
-              {(['doctors', 'hospitals'] as const).map((tab) => (
-                <button key={tab} onClick={() => setActiveGrid(tab)}
-                  className={`relative px-5 py-2 rounded-xl font-bold text-xs shadow-md transition-all overflow-hidden ${activeGrid === tab ? 'text-white scale-105' : 'bg-white/90 text-gray-800 hover:scale-105'}`}>
-                  <span className="relative z-10 capitalize">{tab}</span>
-                  {activeGrid === tab && (
-                    <motion.div layoutId="activeTabDiscovery"
-                      className={`absolute inset-0 ${tab === 'doctors' ? 'bg-gradient-to-r from-blue-600 to-purple-600' : 'bg-gradient-to-r from-purple-600 to-pink-600'}`}
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.5 }} />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Section heading */}
-            <div className="text-center mb-2 md:mb-4">
-              <h2 className="text-xl md:text-2xl font-black text-white mb-1.5 drop-shadow">
-                {activeGrid === 'doctors' ? 'Doctors' : 'Hospitals'}
-              </h2>
-              <div className="w-12 h-0.5 bg-white/50 mx-auto mb-2 rounded-full" />
-              <p className="text-xs text-white/80 max-w-md mx-auto">
-                {activeGrid === 'doctors'
-                  ? 'Top-rated doctors near you, verified for excellence in care'
-                  : 'Discover hospitals offering world-class healthcare services'}
-              </p>
-              {activeGrid === 'doctors' && (() => {
-                const q = searchQuery.trim().toLowerCase();
-                if (!q) return null;
-                const tokens = q.split(/\s+/).filter(Boolean);
-                const mapped = Array.from(new Set(tokens.flatMap((t) => (diseaseToSpecializations as any)[t] || [])));
-                if (mapped.length === 0) return null;
-                return (
-                  <div className="mt-3 inline-flex items-center gap-2 bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl border border-white/30 text-xs">
-                    <span className="opacity-80">Smart match:</span>
-                    <span className="font-bold">{tokens.join(' ')}</span>
-                    <span className="opacity-80">→ {mapped.join(', ')}</span>
-                  </div>
-                );
-              })()}
-            </div>
+            {/* ── COMING SOON ── */}
+            {activeGrid === 'coming-soon' && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+                className="flex flex-col items-center justify-center py-12 md:py-16 text-center">
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4">
+                  <Zap className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold text-white mb-2">Coming Soon</h3>
+                <p className="text-sm text-white/80 max-w-md">We&apos;re working hard to bring this feature to you. Stay tuned for updates!</p>
+              </motion.div>
+            )}
 
             {/* ── DOCTOR CARDS ── */}
             {activeGrid === 'doctors' && (
@@ -1238,10 +1233,11 @@ export default function HomePage() {
               </motion.div>
             )}
           </div>
+          </div>
         </section>
 
         {/* ── STATS ─────────────────────────────────────────────────────── */}
-        <section ref={statsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={statsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[26rem]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.trustedBy?.title || "Trusted by Thousands"}</h2>
@@ -1286,7 +1282,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
-        <section ref={howItWorksSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={howItWorksSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[26rem]">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.howItWorks?.title || "How It Works"}</h2>
@@ -1321,7 +1317,7 @@ export default function HomePage() {
         </section>
 
         {/* ── WHY CHOOSE US ─────────────────────────────────────────────── */}
-        <section ref={whyChooseSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={whyChooseSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[26rem]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.whyChooseUs?.title || "Why Choose Us"}</h2>
@@ -1347,7 +1343,7 @@ export default function HomePage() {
         </section>
 
         {/* ── TESTIMONIALS ──────────────────────────────────────────────── */}
-        <section ref={testimonialsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={testimonialsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[26rem]">
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.testimonials?.title || "What Our Users Say"}</h2>
@@ -1379,7 +1375,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HEALTH TIPS ───────────────────────────────────────────────── */}
-        <section ref={healthTipsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={healthTipsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[26rem]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-5">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.healthTips?.title || "Health Tips from Our Doctors"}</h2>
@@ -1415,7 +1411,7 @@ export default function HomePage() {
         </section>
 
         {/* ── CTA BANNERS ───────────────────────────────────────────────── */}
-        <section ref={ctaSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[22rem]">
+        <section ref={ctaSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[26rem]">
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
             <motion.div initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
               <div className="bg-white rounded-xl p-5 text-center shadow-md">
@@ -1470,7 +1466,7 @@ export default function HomePage() {
       </AnimatePresence>
 
       {/* ── FOOTER ────────────────────────────────────────────────────── */}
-      <footer className="bg-gray-900 text-white py-4 md:py-8 px-3 md:px-4 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">
+      <footer className="bg-gray-900 text-white py-4 md:py-8 px-3 md:px-4 md:ml-[var(--sidebar-width,14rem)] transition-all duration-300">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
             <div>

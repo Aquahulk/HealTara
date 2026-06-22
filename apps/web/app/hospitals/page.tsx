@@ -117,7 +117,7 @@ function HospitalsPageContent() {
         <Header />
         <DesktopSidebar />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-20 md:pb-8 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">{/* Add bottom padding on mobile for nav */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 pb-20 md:pb-8 md:ml-[var(--sidebar-width,16rem)] lg:mr-[390px] transition-all duration-300">{/* Add bottom padding on mobile for nav */}
           <div className="mb-6 md:mb-8 text-center">
             <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-3">Hospitals</h1>
             <p className="text-base md:text-lg text-gray-600">Browse verified hospitals and visit their websites</p>
@@ -182,11 +182,8 @@ function HospitalsPageContent() {
             <div className="space-y-6 md:space-y-10">
               <HorizontalHospitalScroll hospitals={filteredHospitals} />
 
-              {/* Two-column layout: Hospital cards + Map Sidebar */}
-              <div className="flex gap-6">
-                {/* Left: Hospital cards grid */}
-                <div className="flex-1 min-w-0">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+              {/* Hospital cards grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                     {filteredHospitals.map((h) => {
                       const name = h.name || 'Hospital';
                       const city = h.city || '';
@@ -263,10 +260,9 @@ function HospitalsPageContent() {
                       );
                     })}
                   </div>
-                </div>
 
-                {/* Right: Map Sidebar (hidden on mobile) */}
-                <div className="hidden lg:block w-[380px] xl:w-[420px] flex-shrink-0">
+                {/* Right: Map Sidebar (fixed, hidden on mobile) */}
+                <div className="hidden lg:block">
                   <MapSidebar
                     variant="hospitals"
                     title="Hospitals on Map"
@@ -283,7 +279,6 @@ function HospitalsPageContent() {
                       }))}
                   />
                 </div>
-              </div>
             </div>
           )}
 

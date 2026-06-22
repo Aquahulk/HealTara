@@ -3388,6 +3388,16 @@ app.put('/api/admin/hospitals/:hospitalId/profile', authMiddleware, adminMiddlew
   }
 });
 
+// --- Admin: Upload site logo ---
+app.post('/api/admin/upload-logo', authMiddleware, adminMiddleware, upload.single('logo'), async (req: Request, res: Response) => {
+  const uploadedFile = (req as any).file;
+  if (!uploadedFile) {
+    return res.status(400).json({ message: 'Logo file is required' });
+  }
+  const url = `/uploads/${uploadedFile.filename}`;
+  return res.status(200).json({ url });
+});
+
 // --- Admin: Upload hospital logo ---
 app.post('/api/admin/hospitals/:hospitalId/logo', authMiddleware, adminMiddleware, upload.single('logo'), async (req: Request, res: Response) => {
   const id = Number(req.params.hospitalId);

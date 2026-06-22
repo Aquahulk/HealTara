@@ -62,9 +62,9 @@ export default function SearchBar({ initialQuery = "", onSearch, variant = "doct
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 md:p-3">
-      <div className="space-y-1.5">
-        {/* Search input */}
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-2.5">
+      <div className="space-y-2">
+        {/* Search input row */}
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
@@ -75,10 +75,10 @@ export default function SearchBar({ initialQuery = "", onSearch, variant = "doct
             onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm"
+            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
           />
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-40 overflow-auto">
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-36 overflow-auto">
               {suggestions.map((s, i) => (
                 <button key={i} className="w-full text-left px-3 py-1.5 text-xs text-gray-800 hover:bg-blue-50 transition-colors"
                   onMouseDown={() => handleSuggestionClick(s)}>
@@ -92,7 +92,7 @@ export default function SearchBar({ initialQuery = "", onSearch, variant = "doct
         {/* Filters row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
           <select value={specialization} onChange={(e) => { setSpecialization(e.target.value); onSearch?.(query, { specialization: e.target.value, city, availability, availabilityOnly }); }}
-            className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            className="px-2 py-1.5 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="">Specialization</option>
             <option value="Cardiology">Cardiology</option>
             <option value="Dermatology">Dermatology</option>
@@ -102,7 +102,7 @@ export default function SearchBar({ initialQuery = "", onSearch, variant = "doct
             <option value="General Medicine">General Medicine</option>
           </select>
           <select value={city} onChange={(e) => { setCity(e.target.value); onSearch?.(query, { specialization, city: e.target.value, availability, availabilityOnly }); }}
-            className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            className="px-2 py-1.5 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="">City / Town</option>
             <option value="Mumbai">Mumbai</option>
             <option value="Delhi">Delhi</option>
@@ -112,23 +112,17 @@ export default function SearchBar({ initialQuery = "", onSearch, variant = "doct
             <option value="Satna">Satna</option>
           </select>
           <select value={availability} onChange={(e) => { setAvailability(e.target.value); onSearch?.(query, { specialization, city, availability: e.target.value, availabilityOnly }); }}
-            className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            className="px-2 py-1.5 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="">Availability</option>
             <option value="today">Today</option>
             <option value="tomorrow">Tomorrow</option>
             <option value="week">This Week</option>
           </select>
-          <label className="flex items-center justify-center px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 gap-1.5">
-            <input type="checkbox" checked={availabilityOnly} onChange={(e) => { setAvailabilityOnly(e.target.checked); onSearch?.(query, { specialization, city, availability, availabilityOnly: e.target.checked }); }} className="w-3 h-3 text-blue-600 focus:ring-blue-500" />
+          <label className="flex items-center justify-center px-2 py-1.5 text-[11px] bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 gap-1">
+            <input type="checkbox" checked={availabilityOnly} onChange={(e) => { setAvailabilityOnly(e.target.checked); onSearch?.(query, { specialization, city, availability, availabilityOnly: e.target.checked }); }} className="w-3 h-3 text-blue-600" />
             <span className="text-gray-700 font-medium">Available Only</span>
           </label>
         </div>
-
-        {/* Search button */}
-        <button onClick={handleSubmit}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-xs transition-colors">
-          {variant === "hospitals" ? "Find Hospitals" : "Find a Doctor Now"}
-        </button>
       </div>
     </div>
   );

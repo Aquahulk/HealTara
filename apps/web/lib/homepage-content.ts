@@ -5,6 +5,7 @@
 // Content is stored in localStorage and used by both admin panel and homepage
 
 export interface HomepageContent {
+  logo?: string; // URL to the site logo (uploaded by admin)
   hero: {
     slides: Array<{
       title: string;

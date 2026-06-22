@@ -162,14 +162,14 @@ function DoctorsPageContent() {
       <Header />
       <DesktopSidebar />
       
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 md:py-8 md:ml-[var(--sidebar-width,16rem)] transition-all duration-300">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 md:py-8 md:ml-[var(--sidebar-width,16rem)] lg:mr-[390px] transition-all duration-300">
         <div className="mb-6 md:mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3 md:mb-4">Find Doctors</h1>
           <p className="text-base md:text-lg text-gray-600">Search and book appointments with verified healthcare professionals</p>
         </div>
 
         {/* Search and Filters */}
-        <div className="mb-4">
+        <div className="mb-4 max-w-2xl">
           <SearchBar
             initialQuery={initialQuery}
             variant="doctors"
@@ -194,9 +194,9 @@ function DoctorsPageContent() {
         </div>
 
         {/* Two-column layout: Doctor list + Map Sidebar */}
-        <div className="flex gap-4 pb-20 md:pb-0">
-          {/* Left: Doctors List (constrained width) */}
-          <div className="flex-1 min-w-0 max-w-2xl">
+        <div className="pb-20 md:pb-0">
+          {/* Doctors List (constrained width) */}
+          <div className="max-w-2xl">
             <div className="space-y-4 md:space-y-6">
               {filteredDoctors.map((doctor: any) => (
                 <DoctorOyoCard
@@ -217,8 +217,8 @@ function DoctorsPageContent() {
             )}
           </div>
 
-          {/* Right: Map Sidebar (hidden on mobile) */}
-          <div className="hidden lg:block w-[380px] xl:w-[420px] flex-shrink-0">
+          {/* Right: Map Sidebar (fixed top-right, hidden on mobile) */}
+          <div className="hidden lg:block">
             <MapSidebar
               variant="doctors"
               title="Doctors Near You"

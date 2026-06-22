@@ -45,7 +45,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
     // Update CSS variable for main content margin
     document.documentElement.style.setProperty(
       '--sidebar-width',
-      isCollapsed ? '5rem' : '16rem'
+      isCollapsed ? '4rem' : '14rem'
     );
   }, [isCollapsed, onCollapseChange]);
 
@@ -151,7 +151,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
   return (
     <aside 
       className={`hidden md:flex flex-col bg-gradient-to-b from-blue-600 to-blue-800 border-r border-blue-900 shadow-lg transition-all duration-300 fixed left-0 top-0 h-screen z-40 ${
-        isCollapsed ? "w-20" : "w-64"
+        isCollapsed ? "w-16" : "w-56"
       } ${className}`}
     >
       {/* Sidebar Header */}

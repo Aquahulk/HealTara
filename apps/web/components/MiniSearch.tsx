@@ -30,8 +30,8 @@ export default function MiniSearch({ initialQuery = "" }: MiniSearchProps) {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
       transition={{ duration: 0.5, ease: "easeInOut" }}
-      className="hidden lg:block fixed right-0 w-[22rem] z-30 bg-white border-l border-b border-gray-200 shadow-lg rounded-bl-2xl overflow-hidden p-4"
-      style={{ top: '408px' }}
+      className="hidden lg:block fixed right-0 w-[26rem] z-30 bg-white border-l border-b border-gray-200 shadow-lg rounded-bl-2xl overflow-hidden p-4"
+      style={{ top: '488px' }}
     >
       <div className="mb-3">
         <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">

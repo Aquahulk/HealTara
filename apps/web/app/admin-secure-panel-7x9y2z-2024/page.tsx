@@ -2010,13 +2010,52 @@ export default function SecureAdminPanel() {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Site Logo */}
+                <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">🖼️ Site Logo</h3>
+                  <p className="text-xs text-gray-500 mb-3">Upload a logo — this appears in the header across all pages.</p>
+                  <div className="flex items-center gap-3">
+                    {(homepageContent as any)?.logo && (
+                      <img src={(homepageContent as any).logo} alt="Current logo" className="h-10 w-auto rounded border" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const formData = new FormData();
+                          formData.append('logo', file);
+                          const token = localStorage.getItem('authToken');
+                          const res = await fetch('/api/admin/upload-logo', {
+                            method: 'POST',
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                            body: formData,
+                          });
+                          const data = await res.json();
+                          if (data?.url) {
+                            setHomepageContent({ ...homepageContent!, logo: data.url } as any);
+                            showToast('Logo uploaded successfully', 'success');
+                          } else {
+                            showToast(data?.message || 'Upload failed', 'error');
+                          }
+                        } catch (err: any) {
+                          showToast(err?.message || 'Upload failed', 'error');
+                        }
+                      }}
+                      className="flex-1 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                  </div>
+                </div>
+
                 {/* Hero Carousel Section */}
                 <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-xl p-6 border-2 border-blue-200">
                   <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">🎯</span> Hero Carousel Slides
                   </h3>
                   <div className="space-y-4">
-                    {homepageContent.hero.slides.map((slide, index) => (
+                    {(homepageContent?.hero?.slides || []).map((slide, index) => (
                       <div key={index} className="bg-white rounded-xl p-4 border border-gray-200 shadow-md">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-bold text-gray-900">Slide {index + 1}</h4>
@@ -2080,10 +2119,10 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
                       <input
                         type="text"
-                        value={homepageContent.trustedBy.title}
+                        value={(homepageContent?.trustedBy as any)?.title || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          trustedBy: { ...homepageContent.trustedBy, title: e.target.value }
+                          trustedBy: { ...(homepageContent?.trustedBy || {}), title: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                       />
@@ -2092,10 +2131,10 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Subtitle</label>
                       <input
                         type="text"
-                        value={homepageContent.trustedBy.subtitle}
+                        value={(homepageContent?.trustedBy as any)?.subtitle || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          trustedBy: { ...homepageContent.trustedBy, subtitle: e.target.value }
+                          trustedBy: { ...(homepageContent?.trustedBy || {}), subtitle: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                       />
@@ -2106,12 +2145,12 @@ export default function SecureAdminPanel() {
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Doctors</label>
                       <input
                         type="number"
-                        value={homepageContent.trustedBy.stats.doctors}
+                        value={(homepageContent as any)?.trustedBy?.stats.doctors}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
                           trustedBy: {
-                            ...homepageContent.trustedBy,
-                            stats: { ...homepageContent.trustedBy.stats, doctors: parseInt(e.target.value) || 0 }
+                            ...(homepageContent?.trustedBy || {}),
+                            stats: { ...(homepageContent as any)?.trustedBy?.stats, doctors: parseInt(e.target.value) || 0 }
                           }
                         })}
                         className="w-full px-2 py-1 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
@@ -2121,12 +2160,12 @@ export default function SecureAdminPanel() {
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Patients</label>
                       <input
                         type="number"
-                        value={homepageContent.trustedBy.stats.patients}
+                        value={(homepageContent as any)?.trustedBy?.stats.patients}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
                           trustedBy: {
-                            ...homepageContent.trustedBy,
-                            stats: { ...homepageContent.trustedBy.stats, patients: parseInt(e.target.value) || 0 }
+                            ...(homepageContent?.trustedBy || {}),
+                            stats: { ...(homepageContent as any)?.trustedBy?.stats, patients: parseInt(e.target.value) || 0 }
                           }
                         })}
                         className="w-full px-2 py-1 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
@@ -2136,12 +2175,12 @@ export default function SecureAdminPanel() {
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Cities</label>
                       <input
                         type="number"
-                        value={homepageContent.trustedBy.stats.cities}
+                        value={(homepageContent as any)?.trustedBy?.stats.cities}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
                           trustedBy: {
-                            ...homepageContent.trustedBy,
-                            stats: { ...homepageContent.trustedBy.stats, cities: parseInt(e.target.value) || 0 }
+                            ...(homepageContent?.trustedBy || {}),
+                            stats: { ...(homepageContent as any)?.trustedBy?.stats, cities: parseInt(e.target.value) || 0 }
                           }
                         })}
                         className="w-full px-2 py-1 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
@@ -2151,12 +2190,12 @@ export default function SecureAdminPanel() {
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Reviews</label>
                       <input
                         type="number"
-                        value={homepageContent.trustedBy.stats.reviews}
+                        value={(homepageContent as any)?.trustedBy?.stats.reviews}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
                           trustedBy: {
-                            ...homepageContent.trustedBy,
-                            stats: { ...homepageContent.trustedBy.stats, reviews: parseInt(e.target.value) || 0 }
+                            ...(homepageContent?.trustedBy || {}),
+                            stats: { ...(homepageContent as any)?.trustedBy?.stats, reviews: parseInt(e.target.value) || 0 }
                           }
                         })}
                         className="w-full px-2 py-1 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
@@ -2175,10 +2214,10 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
                       <input
                         type="text"
-                        value={homepageContent.howItWorks.title}
+                        value={(homepageContent?.howItWorks as any)?.title || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          howItWorks: { ...homepageContent.howItWorks, title: e.target.value }
+                          howItWorks: { ...(homepageContent?.howItWorks || {}), title: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                       />
@@ -2187,17 +2226,17 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Subtitle</label>
                       <input
                         type="text"
-                        value={homepageContent.howItWorks.subtitle}
+                        value={(homepageContent?.howItWorks as any)?.subtitle || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          howItWorks: { ...homepageContent.howItWorks, subtitle: e.target.value }
+                          howItWorks: { ...(homepageContent?.howItWorks || {}), subtitle: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {homepageContent.howItWorks.steps.map((step, index) => (
+                    {(homepageContent?.howItWorks?.steps || []).map((step, index) => (
                       <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">{step.step}</span>
@@ -2211,7 +2250,7 @@ export default function SecureAdminPanel() {
                             newSteps[index] = { ...step, title: e.target.value };
                             setHomepageContent({
                               ...homepageContent,
-                              howItWorks: { ...homepageContent.howItWorks, steps: newSteps }
+                              howItWorks: { ...(homepageContent?.howItWorks || {}), steps: newSteps }
                             });
                           }}
                           placeholder="Title"
@@ -2224,7 +2263,7 @@ export default function SecureAdminPanel() {
                             newSteps[index] = { ...step, description: e.target.value };
                             setHomepageContent({
                               ...homepageContent,
-                              howItWorks: { ...homepageContent.howItWorks, steps: newSteps }
+                              howItWorks: { ...(homepageContent?.howItWorks || {}), steps: newSteps }
                             });
                           }}
                           placeholder="Description"
@@ -2246,10 +2285,10 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
                       <input
                         type="text"
-                        value={homepageContent.whyChooseUs.title}
+                        value={(homepageContent?.whyChooseUs as any)?.title || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          whyChooseUs: { ...homepageContent.whyChooseUs, title: e.target.value }
+                          whyChooseUs: { ...(homepageContent?.whyChooseUs || {}), title: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
                       />
@@ -2258,17 +2297,17 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Subtitle</label>
                       <input
                         type="text"
-                        value={homepageContent.whyChooseUs.subtitle}
+                        value={(homepageContent?.whyChooseUs as any)?.subtitle || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          whyChooseUs: { ...homepageContent.whyChooseUs, subtitle: e.target.value }
+                          whyChooseUs: { ...(homepageContent?.whyChooseUs || {}), subtitle: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {homepageContent.whyChooseUs.features.map((feature, index) => (
+                    {(homepageContent?.whyChooseUs?.features || []).map((feature, index) => (
                       <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
                         <input
                           type="text"
@@ -2278,7 +2317,7 @@ export default function SecureAdminPanel() {
                             newFeatures[index] = { ...feature, title: e.target.value };
                             setHomepageContent({
                               ...homepageContent,
-                              whyChooseUs: { ...homepageContent.whyChooseUs, features: newFeatures }
+                              whyChooseUs: { ...(homepageContent?.whyChooseUs || {}), features: newFeatures }
                             });
                           }}
                           placeholder="Feature Title"
@@ -2291,7 +2330,7 @@ export default function SecureAdminPanel() {
                             newFeatures[index] = { ...feature, description: e.target.value };
                             setHomepageContent({
                               ...homepageContent,
-                              whyChooseUs: { ...homepageContent.whyChooseUs, features: newFeatures }
+                              whyChooseUs: { ...(homepageContent?.whyChooseUs || {}), features: newFeatures }
                             });
                           }}
                           placeholder="Feature Description"
@@ -2313,10 +2352,10 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
                       <input
                         type="text"
-                        value={homepageContent.testimonials.title}
+                        value={(homepageContent?.testimonials as any)?.title || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          testimonials: { ...homepageContent.testimonials, title: e.target.value }
+                          testimonials: { ...(homepageContent?.testimonials || {}), title: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
                       />
@@ -2325,17 +2364,17 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Subtitle</label>
                       <input
                         type="text"
-                        value={homepageContent.testimonials.subtitle}
+                        value={(homepageContent?.testimonials as any)?.subtitle || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          testimonials: { ...homepageContent.testimonials, subtitle: e.target.value }
+                          testimonials: { ...(homepageContent?.testimonials || {}), subtitle: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
                       />
                     </div>
                   </div>
                   <div className="space-y-3">
-                    {homepageContent.testimonials.reviews.map((review, index) => (
+                    {(homepageContent?.testimonials?.reviews || []).map((review, index) => (
                       <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <input
@@ -2346,7 +2385,7 @@ export default function SecureAdminPanel() {
                               newReviews[index] = { ...review, name: e.target.value };
                               setHomepageContent({
                                 ...homepageContent,
-                                testimonials: { ...homepageContent.testimonials, reviews: newReviews }
+                                testimonials: { ...(homepageContent?.testimonials || {}), reviews: newReviews }
                               });
                             }}
                             placeholder="Name"
@@ -2360,7 +2399,7 @@ export default function SecureAdminPanel() {
                               newReviews[index] = { ...review, role: e.target.value };
                               setHomepageContent({
                                 ...homepageContent,
-                                testimonials: { ...homepageContent.testimonials, reviews: newReviews }
+                                testimonials: { ...(homepageContent?.testimonials || {}), reviews: newReviews }
                               });
                             }}
                             placeholder="Role"
@@ -2374,7 +2413,7 @@ export default function SecureAdminPanel() {
                               newReviews[index] = { ...review, avatar: e.target.value };
                               setHomepageContent({
                                 ...homepageContent,
-                                testimonials: { ...homepageContent.testimonials, reviews: newReviews }
+                                testimonials: { ...(homepageContent?.testimonials || {}), reviews: newReviews }
                               });
                             }}
                             placeholder="Avatar (emoji)"
@@ -2387,7 +2426,7 @@ export default function SecureAdminPanel() {
                               newReviews[index] = { ...review, content: e.target.value };
                               setHomepageContent({
                                 ...homepageContent,
-                                testimonials: { ...homepageContent.testimonials, reviews: newReviews }
+                                testimonials: { ...(homepageContent?.testimonials || {}), reviews: newReviews }
                               });
                             }}
                             placeholder="Review Content"
@@ -2410,10 +2449,10 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
                       <input
                         type="text"
-                        value={homepageContent.healthTips.title}
+                        value={(homepageContent?.healthTips as any)?.title || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          healthTips: { ...homepageContent.healthTips, title: e.target.value }
+                          healthTips: { ...(homepageContent?.healthTips || {}), title: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                       />
@@ -2422,17 +2461,17 @@ export default function SecureAdminPanel() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Subtitle</label>
                       <input
                         type="text"
-                        value={homepageContent.healthTips.subtitle}
+                        value={(homepageContent?.healthTips as any)?.subtitle || ''}
                         onChange={(e) => setHomepageContent({
                           ...homepageContent,
-                          healthTips: { ...homepageContent.healthTips, subtitle: e.target.value }
+                          healthTips: { ...(homepageContent?.healthTips || {}), subtitle: e.target.value }
                         })}
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                       />
                     </div>
                   </div>
                   <div className="space-y-3">
-                    {homepageContent.healthTips.tips.map((tip, index) => (
+                    {(homepageContent?.healthTips?.tips || []).map((tip, index) => (
                       <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <input
@@ -2443,7 +2482,7 @@ export default function SecureAdminPanel() {
                               newTips[index] = { ...tip, title: e.target.value };
                               setHomepageContent({
                                 ...homepageContent,
-                                healthTips: { ...homepageContent.healthTips, tips: newTips }
+                                healthTips: { ...(homepageContent?.healthTips || {}), tips: newTips }
                               });
                             }}
                             placeholder="Tip Title"
@@ -2457,7 +2496,7 @@ export default function SecureAdminPanel() {
                               newTips[index] = { ...tip, category: e.target.value };
                               setHomepageContent({
                                 ...homepageContent,
-                                healthTips: { ...homepageContent.healthTips, tips: newTips }
+                                healthTips: { ...(homepageContent?.healthTips || {}), tips: newTips }
                               });
                             }}
                             placeholder="Category"
@@ -2470,7 +2509,7 @@ export default function SecureAdminPanel() {
                               newTips[index] = { ...tip, description: e.target.value };
                               setHomepageContent({
                                 ...homepageContent,
-                                healthTips: { ...homepageContent.healthTips, tips: newTips }
+                                healthTips: { ...(homepageContent?.healthTips || {}), tips: newTips }
                               });
                             }}
                             placeholder="Tip Description"

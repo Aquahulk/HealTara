@@ -11,11 +11,12 @@
 // ============================================================================
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
-'use client';                                              // Enable React hooks and client-side features
-import { useState } from 'react';                           // React hook for managing local state
-import Link from 'next/link';                               // Next.js component for client-side navigation
-import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
+'use client';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 import { useInstantNav } from '@/hooks/useInstantNav';
+import { apiClient } from '@/lib/api';
 
 // ============================================================================
 // 🎨 HEADER COMPONENT - Main navigation bar component
@@ -27,7 +28,14 @@ export default function Header() {
   const { user, logout } = useAuth();                      // Get user info and logout function from auth context
   const [isMenuOpen, setIsMenuOpen] = useState(false);     // Control mobile menu visibility
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false); // Control user dropdown menu visibility
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const { getNavProps } = useInstantNav();
+
+  useEffect(() => {
+    apiClient.getHomepageContent?.().then((c: any) => {
+      if (c?.logo) setLogoUrl(c.logo);
+    }).catch(() => {});
+  }, []);
   // Modal removed in favor of separate login pages
 
   // ============================================================================
@@ -46,24 +54,23 @@ export default function Header() {
       {/* ============================================================================
           📱 RESPONSIVE CONTAINER - Main header wrapper with responsive design
           ============================================================================ */}
-      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+      <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6">
         <div className="flex justify-between items-center h-12 md:h-16">
           
-          {/* ============================================================================
-              🏥 LOGO SECTION - Company branding and home link
-              ============================================================================ */}
+          {/* 🏥 LOGO SECTION - Company branding (LEFT) */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-1 md:space-x-2" prefetch={true} {...getNavProps("/")}>
-              <div className="text-lg md:text-2xl">🏥</div>
+            <Link href="/" className="flex items-center space-x-1.5 md:space-x-2" prefetch={true} {...getNavProps("/")}>
+              {logoUrl ? (
+                <img src={logoUrl} alt="Healtara" className="h-7 md:h-9 w-auto rounded" />
+              ) : (
+                <img src="/logo.png" alt="Healtara" className="h-7 md:h-9 w-auto" onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).style.display = 'none'; }} />
+              )}
               <span className="text-base md:text-xl font-bold text-white">Healtara</span>
             </Link>
           </div>
 
-          {/* Desktop navigation removed per request (Home, Find Doctors, Hospitals, Clinics, Reviews) */}
-          <nav className="hidden lg:flex space-x-8" />
-
           {/* ============================================================================
-              👤 USER SECTION - Authentication and user menu
+              👤 USER SECTION - Authentication and user menu (RIGHT)
               ============================================================================ */}
           <div className="flex items-center space-x-1 md:space-x-4">
             

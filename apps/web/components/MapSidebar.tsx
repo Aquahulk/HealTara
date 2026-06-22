@@ -139,30 +139,30 @@ export default function MapSidebar({
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 sticky top-20 ${expanded ? "h-[calc(100vh-6rem)]" : "h-[500px] lg:h-[600px]"}`}>
+    <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 fixed right-0 top-[64px] z-30 ${expanded ? "h-[calc(100vh-64px)] w-[400px]" : "h-[480px] w-[380px]"}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 bg-gray-50">
-        <div className="flex items-center gap-2">
-          <MapPinIcon className="w-4 h-4 text-blue-600" />
-          <h3 className="text-xs font-semibold text-gray-900">{title}</h3>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
+        <div className="flex items-center gap-1.5">
+          <MapPinIcon className="w-3.5 h-3.5 text-blue-600" />
+          <h3 className="text-[11px] font-semibold text-gray-900">{title}</h3>
           {pins.length > 0 && (
-            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
+            <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
               {pins.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon)).length}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={handleLocateMe} className="p-1 rounded-lg hover:bg-gray-200 transition-colors" title="My location">
-            <Navigation className="w-3.5 h-3.5 text-gray-600" />
+        <div className="flex items-center gap-0.5">
+          <button onClick={handleLocateMe} className="p-1 rounded hover:bg-gray-200 transition-colors" title="My location">
+            <Navigation className="w-3 h-3 text-gray-600" />
           </button>
-          <button onClick={() => setExpanded(!expanded)} className="p-1 rounded-lg hover:bg-gray-200 transition-colors">
-            {expanded ? <Minimize2 className="w-3.5 h-3.5 text-gray-600" /> : <Maximize2 className="w-3.5 h-3.5 text-gray-600" />}
+          <button onClick={() => setExpanded(!expanded)} className="p-1 rounded hover:bg-gray-200 transition-colors">
+            {expanded ? <Minimize2 className="w-3 h-3 text-gray-600" /> : <Maximize2 className="w-3 h-3 text-gray-600" />}
           </button>
         </div>
       </div>
 
       {/* Map Container */}
-      <div className="relative flex-1 h-[calc(100%-40px)]">
+      <div className="relative h-[calc(100%-32px)]">
         {!userLocation ? (
           <div className="flex items-center justify-center h-full bg-blue-50">
             <div className="text-center">
@@ -174,55 +174,47 @@ export default function MapSidebar({
           <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: "100%" }} />
         )}
 
-        {/* Selected Pin Info Card — overlays the map bottom center */}
-        {selectedPin && (
-          <div className="absolute bottom-3 left-3 right-3 z-[1000] animate-in slide-in-from-bottom-2">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 relative">
-              <button onClick={() => setSelectedPin(null)} className="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-100 transition-colors">
-                <X className="w-3.5 h-3.5 text-gray-500" />
-              </button>
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-lg">{variant === "hospitals" ? "🏥" : "👨‍⚕️"}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-bold text-gray-900 truncate">{selectedPin.title.replace('🏥 ', '')}</h4>
-                  {selectedPin.subtitle && <p className="text-xs text-gray-500 truncate">{selectedPin.subtitle}</p>}
-                  {selectedPin.extra?.fee && <p className="text-xs text-emerald-600 font-medium mt-0.5">₹{selectedPin.extra.fee} consultation</p>}
-                  {selectedPin.extra?.experience && <p className="text-[10px] text-gray-400">{selectedPin.extra.experience} yrs experience</p>}
-                </div>
-              </div>
-              <div className="flex gap-2 mt-2.5 pt-2 border-t border-gray-100">
-                <a
-                  href={getGoogleMapsUrl(selectedPin)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors"
-                >
-                  <Navigation className="w-3 h-3" />
-                  Get Directions
-                </a>
-                {selectedPin.extra?.slug && (
-                  <a
-                    href={variant === "hospitals" ? `/hospital-site/${selectedPin.id}` : `/doctor-site/${selectedPin.extra.slug}`}
-                    className="flex items-center justify-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2 px-3 rounded-lg transition-colors"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    View
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Empty state */}
         {userLocation && pins.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon)).length === 0 && !selectedPin && (
-          <div className="absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-            <p className="text-xs text-gray-500 text-center">{emptyMessage}</p>
+          <div className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm border border-gray-100">
+            <p className="text-[10px] text-gray-500 text-center">{emptyMessage}</p>
           </div>
         )}
       </div>
+
+      {/* Selected Pin Info Card — shows BELOW the map panel */}
+      {selectedPin && (
+        <div className="fixed right-0 top-[calc(64px+480px+4px)] w-[380px] z-30 px-2 animate-in slide-in-from-top-2">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 relative">
+            <button onClick={() => setSelectedPin(null)} className="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-100 transition-colors">
+              <X className="w-3.5 h-3.5 text-gray-500" />
+            </button>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-lg">{variant === "hospitals" ? "🏥" : "👨‍⚕️"}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-bold text-gray-900 truncate">{selectedPin.title.replace('🏥 ', '')}</h4>
+                {selectedPin.subtitle && <p className="text-xs text-gray-500 truncate">{selectedPin.subtitle}</p>}
+                {selectedPin.extra?.fee && <p className="text-xs text-emerald-600 font-medium mt-0.5">₹{selectedPin.extra.fee} consultation</p>}
+                {selectedPin.extra?.experience && <p className="text-[10px] text-gray-400">{selectedPin.extra.experience} yrs experience</p>}
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2.5 pt-2 border-t border-gray-100">
+              <a href={getGoogleMapsUrl(selectedPin)} target="_blank" rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors">
+                <Navigation className="w-3 h-3" /> Get Directions
+              </a>
+              {selectedPin.extra?.slug && (
+                <a href={variant === "hospitals" ? `/hospital-site/${selectedPin.id}` : `/doctor-site/${selectedPin.extra.slug}`}
+                  className="flex items-center justify-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2 px-3 rounded-lg transition-colors">
+                  <ExternalLink className="w-3 h-3" /> View Profile
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
