@@ -16,7 +16,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useInstantNav } from '@/hooks/useInstantNav';
-import { apiClient, API_BASE_URL } from '@/lib/api';
+import { apiClient } from '@/lib/api';
 
 // ============================================================================
 // 🎨 HEADER COMPONENT - Main navigation bar component
@@ -34,9 +34,15 @@ export default function Header() {
   useEffect(() => {
     apiClient.getHomepageContent?.().then((c: any) => {
       if (c?.logo) {
-        // If logo is a relative path (e.g. /uploads/...), prefix with API base URL
-        const url = c.logo.startsWith('/') ? `${API_BASE_URL}${c.logo}` : c.logo;
-        setLogoUrl(url);
+        let url = c.logo;
+        // Data URLs work directly, relative paths need the API base
+        if (url.startsWith('data:')) {
+          setLogoUrl(url);
+        } else if (url.startsWith('/')) {
+          setLogoUrl(`https://healtara.onrender.com${url}`);
+        } else {
+          setLogoUrl(url);
+        }
       }
     }).catch(() => {});
   }, []);
@@ -65,9 +71,9 @@ export default function Header() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-1.5 md:space-x-2" prefetch={true} {...getNavProps("/")}>
               {logoUrl ? (
-                <img src={logoUrl} alt="Healtara" className="h-7 md:h-9 w-auto rounded" />
+                <img src={logoUrl} alt="Healtara" className="h-7 md:h-9 w-auto rounded" onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }} />
               ) : (
-                <img src="/logo.png" alt="Healtara" className="h-7 md:h-9 w-auto" onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <img src="/logo.png" alt="Healtara" className="h-7 md:h-9 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
               )}
               <span className="text-base md:text-xl font-bold text-white">Healtara</span>
             </Link>

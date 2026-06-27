@@ -3394,8 +3394,22 @@ app.post('/api/admin/upload-logo', authMiddleware, adminMiddleware, upload.singl
   if (!uploadedFile) {
     return res.status(400).json({ message: 'Logo file is required' });
   }
-  const url = `/uploads/${uploadedFile.filename}`;
-  return res.status(200).json({ url });
+  // Convert to base64 data URL so it persists in the database (not ephemeral disk)
+  try {
+    const fs = await import('fs');
+    const filePath = uploadedFile.path;
+    const fileBuffer = fs.readFileSync(filePath);
+    const base64 = fileBuffer.toString('base64');
+    const mimeType = uploadedFile.mimetype || 'image/png';
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+    // Clean up the uploaded file from disk
+    try { fs.unlinkSync(filePath); } catch {}
+    return res.status(200).json({ url: dataUrl });
+  } catch (err: any) {
+    // Fallback to file path if base64 conversion fails
+    const url = `/uploads/${uploadedFile.filename}`;
+    return res.status(200).json({ url });
+  }
 });
 
 // --- Admin: Upload hospital logo ---
