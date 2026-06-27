@@ -28,21 +28,24 @@ export default function Header() {
   const { user, logout } = useAuth();                      // Get user info and logout function from auth context
   const [isMenuOpen, setIsMenuOpen] = useState(false);     // Control mobile menu visibility
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false); // Control user dropdown menu visibility
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string>('/logo.png');
   const { getNavProps } = useInstantNav();
 
   useEffect(() => {
     apiClient.getHomepageContent?.().then((c: any) => {
       if (c?.logo) {
-        let url = c.logo;
-        // Data URLs work directly, relative paths need the API base
-        if (url.startsWith('data:')) {
-          setLogoUrl(url);
-        } else if (url.startsWith('/')) {
-          setLogoUrl(`https://healtara.onrender.com${url}`);
-        } else {
-          setLogoUrl(url);
+        const raw = c.logo;
+        // Data URLs can be set directly
+        if (raw.startsWith('data:')) {
+          setLogoUrl(raw);
+          return;
         }
+        // For http/relative URLs, verify the image loads before showing it
+        const fullUrl = raw.startsWith('/') ? `https://healtara.onrender.com${raw}` : raw;
+        const img = new window.Image();
+        img.onload = () => setLogoUrl(fullUrl);
+        // On error, keep /logo.png (already set as default)
+        img.src = fullUrl;
       }
     }).catch(() => {});
   }, []);
@@ -70,11 +73,7 @@ export default function Header() {
           {/* 🏥 LOGO SECTION - Company branding (LEFT) */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-1.5 md:space-x-2" prefetch={true} {...getNavProps("/")}>
-              {logoUrl ? (
-                <img src={logoUrl} alt="Healtara" className="h-7 md:h-9 w-auto rounded" onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }} />
-              ) : (
-                <img src="/logo.png" alt="Healtara" className="h-7 md:h-9 w-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              )}
+              <img src={logoUrl} alt="Healtara" className="h-7 md:h-9 w-auto rounded" />
               <span className="text-base md:text-xl font-bold text-white">Healtara</span>
             </Link>
           </div>
