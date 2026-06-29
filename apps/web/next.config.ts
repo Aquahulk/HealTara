@@ -8,6 +8,16 @@ const nextConfig: NextConfig = {
     // In dev, do not block on type errors
     ignoreBuildErrors: isDev,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "3001",
+        pathname: "/uploads/**",
+      },
+    ],
+  },
   async rewrites() {
     // Proxy API routes using env var in production, localhost in dev
     const isProd = process.env.NODE_ENV === "production";

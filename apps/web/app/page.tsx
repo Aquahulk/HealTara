@@ -968,37 +968,36 @@ export default function HomePage() {
                 <h2 className="text-base md:text-lg font-bold text-gray-900">Browse Healthcare Services</h2>
                 <p className="text-[11px] md:text-xs text-gray-500 mt-0.5">Choose a category to explore</p>
               </div>
-              {/* Category grid — original box sizes, no bottom gap */}
-              <div className="grid grid-cols-3 md:grid-cols-5 gap-2 transition-all duration-500">
+              {/* Category grid — compact clickable buttons */}
+              <div className="grid grid-cols-5 gap-1.5 md:gap-2 transition-all duration-500">
                 {categories.map((cat, i) => {
                   const isActive = activeCategory === i;
                   const comingSoon = cat.title !== 'Hospitals' && cat.title !== 'Doctors';
+                  // Solid colors for seamless connection with cards below
+                  const activeBg = cat.title === 'Hospitals'
+                    ? '#5b4fcf'
+                    : cat.title === 'Doctors'
+                      ? '#2a2a9e'
+                      : '#d97706';
                   return (
-                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} whileHover={{ y: -3 }} className="group cursor-pointer">
-                    <div onClick={() => {
+                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} whileHover={{ y: -2 }} className="cursor-pointer">
+                    <button onClick={() => {
                       setActiveCategory(i);
                       if (cat.title === 'Hospitals') setActiveGrid('hospitals');
                       else if (cat.title === 'Doctors') setActiveGrid('doctors');
                       else setActiveGrid('coming-soon');
                     }}
-                      className={`relative p-3 text-center transition-all border overflow-hidden ${
+                      className={`relative w-full flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-center transition-all border overflow-hidden ${
                         isActive
-                          ? 'rounded-t-xl rounded-b-none border-transparent shadow-lg z-10 relative'
-                          : 'bg-white rounded-xl border-gray-100 shadow-sm hover:shadow-md'
+                          ? 'rounded-t-lg rounded-b-none border-transparent shadow-lg z-10'
+                          : 'bg-white rounded-lg border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 active:scale-95'
                       }`}
-                      style={isActive ? {
-                        background: cat.title === 'Hospitals'
-                          ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                          : cat.title === 'Doctors'
-                            ? 'linear-gradient(135deg, #3b3baa 0%, #1e1e96 40%, #00c4e8 100%)'
-                            : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-                      } : undefined}>
-                      <div className={`w-9 h-9 bg-gradient-to-br ${cat.color} rounded-lg flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform shadow-sm`}>
-                        <cat.icon className="w-4.5 h-4.5 text-white" />
+                      style={isActive ? { background: activeBg } : undefined}>
+                      <div className={`w-7 h-7 bg-gradient-to-br ${cat.color} rounded-md flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                        <cat.icon className="w-3.5 h-3.5 text-white" />
                       </div>
-                      <h3 className={`text-xs font-bold leading-tight ${isActive ? 'text-white' : 'text-gray-900'}`}>{cat.title}</h3>
-                      <p className={`text-[10px] leading-tight hidden md:block mt-0.5 ${isActive ? 'text-white/70' : 'text-gray-400'}`}>{cat.description}</p>
-                    </div>
+                      <span className={`text-[10px] md:text-xs font-bold leading-tight text-center ${isActive ? 'text-white' : 'text-gray-800'}`}>{cat.title}</span>
+                    </button>
                   </motion.div>
                   );
                 })}
@@ -1008,7 +1007,7 @@ export default function HomePage() {
 
           {/* Cards content — colored gradient, directly touching boxes above */}
           <div ref={discoverySection.ref} className="px-3 md:px-4 pt-3 pb-4 md:pb-5"
-            style={{ background: activeGrid === 'doctors' ? 'linear-gradient(135deg, #3b3baa 0%, #1e1e96 40%, #00c4e8 100%)' : activeGrid === 'hospitals' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
+            style={{ background: activeGrid === 'doctors' ? 'linear-gradient(180deg, #2a2a9e 0%, #1e1e96 30%, #00c4e8 100%)' : activeGrid === 'hospitals' ? 'linear-gradient(180deg, #5b4fcf 0%, #764ba2 50%, #667eea 100%)' : 'linear-gradient(180deg, #d97706 0%, #b45309 100%)' }}>
             <div className="max-w-5xl mx-auto">
 
             {/* ── COMING SOON ── */}
