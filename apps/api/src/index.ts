@@ -5210,8 +5210,9 @@ app.post('/api/hospitals/:hospitalId/doctors', authMiddleware, async (req: Reque
       resolvedDepartmentId = dep.id;
     }
     const base = (name || 'doctor').toString().trim().toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '');
-    const rnd = Math.floor(10000 + Math.random() * 90000);
-    const email = `${base || 'doctor'}+${hospitalId}.${rnd}@book.local`;
+    const hospitalSlug = (hospital.name || 'hospital').toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 15);
+    const rnd = Math.floor(1000 + Math.random() * 9000);
+    const email = `dr.${base || 'doctor'}@${hospitalSlug}.${rnd}`;
     const password = Math.random().toString(36).slice(2, 10);
     const hashed = await bcrypt.hash(password, 10);
     const createdUser = await prisma.user.create({ data: { email, password: hashed, role: 'DOCTOR', canLogin: false } });
@@ -5222,8 +5223,8 @@ app.post('/api/hospitals/:hospitalId/doctors', authMiddleware, async (req: Reque
         qualifications: subSpecialty || null,
         clinicName: name || null,
         clinicAddress: hospital.address || 'Not provided',
-        city: null,
-        state: null,
+        city: hospital.city || null,
+        state: hospital.state || null,
         phone: hospital.phone || 'N/A',
         consultationFee: 500,
         slotPeriodMinutes: 15,
@@ -5249,7 +5250,7 @@ app.post('/api/hospitals/:hospitalId/doctors', authMiddleware, async (req: Reque
       }
     } catch (_) {}
 
-    return res.status(201).json({ doctor: { id: createdUser.id, email: createdUser.email, profileId: profile.id }, departmentId: resolvedDepartmentId });
+    return res.status(201).json({ doctor: { id: createdUser.id, email: createdUser.email, name: name || null, profileId: profile.id }, departmentId: resolvedDepartmentId });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'An error occurred while creating and linking doctor.' });

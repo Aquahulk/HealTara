@@ -397,6 +397,7 @@ export default function DashboardPage() {
   const [deptCollapsed, setDeptCollapsed] = useState<Record<string, boolean>>({});
   const [deptSortMode, setDeptSortMode] = useState<'alpha' | 'activity'>('alpha');
   const [selectedDoctorView, setSelectedDoctorView] = useState<number | null>(null); // doctor id for detail panel
+  const [overviewDoctorAnalysis, setOverviewDoctorAnalysis] = useState<number | null>(null); // doctor id for inline overview analytics
   const [hospitalView, setHospitalView] = useState<'departments' | 'list' | 'doctor'>('departments'); // hospital appointments view mode
   const deferredHospitalDoctorSearch = useDeferredValue(hospitalDoctorSearch);
   const filteredHospitalDoctors = useMemo(() => {
@@ -2929,11 +2930,147 @@ const [socketReady, setSocketReady] = useState(false);
                               <span className="text-[9px] text-gray-400">{Math.round((data.completedAppts/Math.max(data.todayAppts,1))*100)}% done</span>
                             </div>
                           )}
+                          {/* More Details — per doctor */}
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {data.doctorList.map((d: any) => (
+                              <button key={d.id}
+                                onClick={() => setOverviewDoctorAnalysis(d.id)}
+                                className="text-[9px] font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md border border-indigo-200 transition-all flex items-center gap-1">
+                                <span>📊</span> {getDoctorLabel(d).replace('Dr. ', '')} Details
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       ));
                     })()}
                   </div>
                 </div>
+
+                {/* ── INLINE DOCTOR ANALYTICS PANEL ── */}
+                {overviewDoctorAnalysis && (() => {
+                  const doc = hospitalDoctors.find(d => d.id === overviewDoctorAnalysis);
+                  if (!doc) return null;
+                  const appts = doctorAppointmentsMap[doc.id] || [];
+                  const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                  const todayStr = fmtD.format(getISTNow());
+                  const todayAppts = appts.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr && a.status !== 'CANCELLED');
+                  const totalAll = appts.filter(a => a.status !== 'CANCELLED');
+                  const completed = totalAll.filter(a => a.status === 'COMPLETED');
+                  const pending = totalAll.filter(a => a.status === 'PENDING');
+                  const confirmed = totalAll.filter(a => a.status === 'CONFIRMED');
+                  const cancelled = appts.filter(a => a.status === 'CANCELLED');
+                  const fee = (doc as any).doctorProfile?.consultationFee || 0;
+                  const totalRevenue = completed.length * fee;
+                  const todayRevenue = todayAppts.filter(a => a.status === 'COMPLETED').length * fee;
+                  const period = hospitalDoctorPeriodMap[doc.id] || (doc as any).doctorProfile?.slotPeriodMinutes || 15;
+                  const capacity = Math.max(1, Math.floor(60 / period));
+                  const noShowRate = totalAll.length > 0 ? Math.round((cancelled.length / (totalAll.length + cancelled.length)) * 100) : 0;
+
+                  // Last 7 days trend
+                  const last7 = Array.from({ length: 7 }, (_, i) => {
+                    const d = new Date(getISTNow());
+                    d.setDate(d.getDate() - (6 - i));
+                    const ds = fmtD.format(d);
+                    const dayAppts = appts.filter(a => fmtD.format(getAppointmentISTDate(a)) === ds && a.status !== 'CANCELLED');
+                    return { day: ds.slice(5), count: dayAppts.length, completed: dayAppts.filter(a => a.status === 'COMPLETED').length };
+                  });
+
+                  return (
+                    <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl shadow-sm overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-indigo-200 flex items-center justify-between bg-white/60">
+                        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                          📊 {getDoctorLabel(doc)} — Analytics
+                        </h3>
+                        <button onClick={() => setOverviewDoctorAnalysis(null)} className="text-xs text-gray-500 hover:text-red-600 font-bold px-2 py-1 rounded hover:bg-red-50 transition-colors">✕ Close</button>
+                      </div>
+                      <div className="p-4 space-y-4">
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
+                            <div className="text-lg font-black text-blue-600">{todayAppts.length}</div>
+                            <div className="text-[9px] text-gray-500 font-bold uppercase">Today</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
+                            <div className="text-lg font-black text-emerald-600">{completed.length}</div>
+                            <div className="text-[9px] text-gray-500 font-bold uppercase">Completed</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
+                            <div className="text-lg font-black text-amber-600">{pending.length + confirmed.length}</div>
+                            <div className="text-[9px] text-gray-500 font-bold uppercase">Upcoming</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-gray-100 text-center">
+                            <div className="text-lg font-black text-green-600">₹{totalRevenue >= 1000 ? `${(totalRevenue/1000).toFixed(1)}k` : totalRevenue}</div>
+                            <div className="text-[9px] text-gray-500 font-bold uppercase">Revenue</div>
+                          </div>
+                        </div>
+
+                        {/* Details Row */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          <div className="bg-white rounded-lg p-2.5 border border-gray-100">
+                            <div className="text-[10px] text-gray-500 mb-0.5 font-bold">Specialization</div>
+                            <div className="text-xs font-bold text-gray-900">{(doc as any).doctorProfile?.specialization || 'General'}</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-gray-100">
+                            <div className="text-[10px] text-gray-500 mb-0.5 font-bold">Capacity</div>
+                            <div className="text-xs font-bold text-gray-900">{capacity} patients/hr ({period} min)</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-gray-100">
+                            <div className="text-[10px] text-gray-500 mb-0.5 font-bold">Consultation Fee</div>
+                            <div className="text-xs font-bold text-gray-900">₹{fee}</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-gray-100">
+                            <div className="text-[10px] text-gray-500 mb-0.5 font-bold">No-Show Rate</div>
+                            <div className={`text-xs font-bold ${noShowRate > 20 ? 'text-red-600' : noShowRate > 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{noShowRate}%</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-gray-100">
+                            <div className="text-[10px] text-gray-500 mb-0.5 font-bold">Today Revenue</div>
+                            <div className="text-xs font-bold text-green-700">₹{todayRevenue}</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2.5 border border-gray-100">
+                            <div className="text-[10px] text-gray-500 mb-0.5 font-bold">Total Bookings</div>
+                            <div className="text-xs font-bold text-gray-900">{totalAll.length}</div>
+                          </div>
+                        </div>
+
+                        {/* 7-Day Trend */}
+                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="text-[10px] text-gray-500 font-bold mb-2 uppercase">Last 7 Days Trend</div>
+                          <div className="flex items-end gap-1 h-16">
+                            {last7.map((d, i) => {
+                              const maxCount = Math.max(1, ...last7.map(x => x.count));
+                              const h = Math.max(4, (d.count / maxCount) * 100);
+                              return (
+                                <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                                  <div className="text-[8px] font-bold text-gray-500">{d.count}</div>
+                                  <div className="w-full rounded-t" style={{ height: `${h}%`, background: d.count > 0 ? 'linear-gradient(to top, #6366f1, #a5b4fc)' : '#e5e7eb' }} />
+                                  <div className="text-[8px] text-gray-400">{d.day}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Recent Appointments */}
+                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="text-[10px] text-gray-500 font-bold mb-2 uppercase">Recent Bookings</div>
+                          {appts.slice(0, 5).map((a, i) => (
+                            <div key={a.id || i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-1.5 h-1.5 rounded-full ${a.status === 'COMPLETED' ? 'bg-emerald-500' : a.status === 'CANCELLED' ? 'bg-red-400' : a.status === 'CONFIRMED' ? 'bg-blue-500' : 'bg-amber-400'}`} />
+                                <span className="text-[10px] text-gray-700">{getPatientLabel(a.patient as any, a.patientId)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] text-gray-400">{fmtD.format(getAppointmentISTDate(a))}</span>
+                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${a.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : a.status === 'CANCELLED' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'}`}>{a.status}</span>
+                              </div>
+                            </div>
+                          ))}
+                          {appts.length === 0 && <p className="text-[10px] text-gray-400 text-center py-2">No bookings yet</p>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* ── ROW 4: Doctor Utilization ── */}
                 <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
@@ -5811,7 +5948,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
                   <div key={d.id} className="border rounded-lg p-3 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-gray-900 truncate block">Dr. {(((d as any)?.doctorProfile?.slug) || (d.email || '').split('@')[0].replace(/[._-]/g, ' ').trim() || 'Doctor')}</span>
+                        <span className="text-xs font-bold text-gray-900 truncate block">{getDoctorLabel(d as any)}</span>
                         <span className="text-[10px] text-gray-400">{(d as any)?.doctorProfile?.specialization || 'General'}</span>
                       </div>
                       <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{capacity}/hr</span>
@@ -5876,7 +6013,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
                     <div className="flex justify-between items-center mb-3">
                       <div>
                         <p className="text-sm text-gray-600">Doctor</p>
-                        <p className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || 'Doctor')}</p>
+                        <p className="font-medium text-gray-900">{getDoctorLabel(d as any)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-gray-600">Current Slot Admin</p>

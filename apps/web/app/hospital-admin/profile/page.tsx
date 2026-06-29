@@ -307,7 +307,7 @@ export default function HospitalAdminProfilePage() {
           try { await apiClient.updateHospitalDoctorDepartment(myHospital.id, result.doctor.id, { departmentName: selectedDept }); } catch {}
         }
       }
-      alert(`Doctor made bookable: ${result?.doctor?.email || 'created'}`);
+      alert(`Doctor made bookable: Dr. ${d?.name || 'New Doctor'}`);
     } catch (e: any) {
       alert(e?.message || 'Failed to make doctor bookable');
     } finally {
