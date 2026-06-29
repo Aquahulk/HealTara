@@ -55,7 +55,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, customSubdomainUrl } from '@/lib/subdomain';
-import MapDoctors from '@/components/MapDoctors';
+import MapDoctors, { MapDoctorsHandle } from '@/components/MapDoctors';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import SaveButton from '@/components/SaveButton';
 import EntityInfoPopup from '@/components/EntityInfoPopup';
@@ -109,7 +109,7 @@ const getIconComponent = (iconName: string, className: string = "w-5 h-5") => {
 
 // ─── Hook: detect if a section overlaps the fixed map panel ─────────────────
 // Map panel: fixed top-[48px], height 440px → bottom at 488px from viewport top.
-const MAP_PANEL_BOTTOM = 488; // 48px header + 440px map
+const MAP_PANEL_BOTTOM = 504; // 64px header + 440px map
 
 function useSectionOverlapsMap() {
   const [overlaps, setOverlaps] = useState(false);
@@ -278,6 +278,7 @@ export default function HomePage() {
   const [mapPins, setMapPins] = useState<Array<{ id: number; lat: number; lon: number; title: string; subtitle?: string }>>([]);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const mapDoctorsRef = useRef<MapDoctorsHandle>(null);
 
   // Per-section overlap detection — MUST be before any early returns (Rules of Hooks)
   const heroSection = useSectionOverlapsMap();
@@ -293,7 +294,7 @@ export default function HomePage() {
   const isPopupOpen = !!selectedEntity;
   const mapHeight = isPopupOpen ? 320 : 440;
   const innerMapHeight = isPopupOpen ? 200 : 320;
-  const popupTop = 48 + mapHeight;
+  const popupTop = 64 + mapHeight;
 
   // Auto-open booking modal if bookDoctorId is in URL
   useEffect(() => {
@@ -860,44 +861,48 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── FIXED MAP PANEL — right side, fixed height, like sidebar ── */}
-        <div className="hidden lg:flex fixed right-0 top-[48px] w-[26rem] z-30 flex-col bg-gradient-to-br from-emerald-50 to-teal-50 border-l border-gray-200 shadow-lg rounded-bl-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
+        {/* ── FIXED MAP PANEL — right side, modern glass design ── */}
+        <div className="hidden lg:flex fixed right-0 top-[64px] w-[26rem] z-30 flex-col bg-white/95 backdrop-blur-md border-l border-gray-100 shadow-2xl rounded-bl-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
           {/* Header */}
-          <div className="px-4 pt-3 pb-2 border-b border-gray-200/60 flex-shrink-0">
+          <div className="px-4 pt-3 pb-2 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-emerald-50/80 to-blue-50/80">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  <div className="w-5 h-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-md flex items-center justify-center">
+                    <MapPin className="w-3 h-3 text-white" />
+                  </div>
                   Doctors Near You
                 </h3>
-                <p className="text-xs text-gray-400 mt-0.5">Find available doctors on the map</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 ml-6">Find healthcare providers on the map</p>
               </div>
               <button onClick={detectLocation} disabled={mapLoading}
-                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all shadow-sm">
-                <MapPin className="w-3.5 h-3.5" />
-                {mapLoading ? 'Finding…' : 'Detect'}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-md active:scale-95">
+                <MapPin className="w-3 h-3" />
+                {mapLoading ? '…' : 'Locate Me'}
               </button>
             </div>
           </div>
 
           {/* Map */}
           <div className="flex-1 px-3 pt-2 pb-1 min-h-0">
-            {mapError && <div className="text-xs text-red-500 mb-1 px-1">{mapError}</div>}
+            {mapError && <div className="text-xs text-red-500 mb-1 px-1 bg-red-50 rounded py-1">{mapError}</div>}
             {mapCenter ? (
-              <div className="h-full rounded-xl overflow-hidden shadow-sm">
-                <MapDoctors center={mapCenter} pins={mapPins} height={innerMapHeight} />
+              <div className="h-full rounded-xl overflow-hidden shadow-md ring-1 ring-black/5">
+                <MapDoctors ref={mapDoctorsRef} center={mapCenter} pins={mapPins} height={innerMapHeight} />
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center bg-white/70 rounded-xl border border-dashed border-emerald-200 text-center px-4">
-                <MapPin className="w-8 h-8 text-emerald-300 mb-2" />
-                <p className="text-sm font-semibold text-gray-500 mb-1">No location set</p>
-                <p className="text-xs text-gray-400">Click Detect or search a city below</p>
+              <div className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-dashed border-gray-200 text-center px-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-full flex items-center justify-center mb-2">
+                  <MapPin className="w-5 h-5 text-emerald-500" />
+                </div>
+                <p className="text-xs font-semibold text-gray-600 mb-0.5">No location set</p>
+                <p className="text-[10px] text-gray-400">Click "Locate Me" or search a city</p>
               </div>
             )}
           </div>
 
           {/* City search */}
-          <div className="px-3 pb-3 pt-1 flex-shrink-0">
+          <div className="px-3 pb-3 pt-1.5 flex-shrink-0">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -905,10 +910,10 @@ export default function HomePage() {
                 onChange={(e) => setSelectedCity(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') searchByCity(selectedCity); }}
                 placeholder="Search city (e.g. Mumbai)"
-                className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs"
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 text-xs transition-all"
               />
               <button onClick={() => searchByCity(selectedCity)} disabled={mapLoading}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-sm whitespace-nowrap">
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-all shadow-sm whitespace-nowrap active:scale-95">
                 {mapLoading ? '…' : 'Search'}
               </button>
             </div>
@@ -916,31 +921,35 @@ export default function HomePage() {
         </div>
 
         {/* ── MOBILE MAP SECTION (visible only on small screens) ── */}
-        <section className="lg:hidden py-4 px-4 bg-gradient-to-br from-emerald-50 to-teal-50">
+        <section className="lg:hidden py-4 px-4 bg-gradient-to-br from-white to-slate-50">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  <div className="w-5 h-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-md flex items-center justify-center">
+                    <MapPin className="w-3 h-3 text-white" />
+                  </div>
                   Doctors Near You
                 </h3>
-                <p className="text-[10px] text-gray-400">Find healthcare providers on the map</p>
+                <p className="text-[10px] text-gray-400 ml-6">Find healthcare providers nearby</p>
               </div>
               <button onClick={detectLocation} disabled={mapLoading}
-                className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-all">
+                className="flex items-center gap-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white text-[10px] font-semibold px-2.5 py-1.5 rounded-lg transition-all shadow-sm active:scale-95">
                 <MapPin className="w-3 h-3" />
-                {mapLoading ? '…' : 'Detect'}
+                {mapLoading ? '…' : 'Locate Me'}
               </button>
             </div>
-            {mapError && <p className="text-xs text-red-500 mb-2">{mapError}</p>}
+            {mapError && <p className="text-xs text-red-500 mb-2 bg-red-50 px-2 py-1 rounded">{mapError}</p>}
             {mapCenter ? (
-              <div className="h-[200px] rounded-xl overflow-hidden shadow-sm border border-emerald-200">
+              <div className="h-[200px] rounded-xl overflow-hidden shadow-md ring-1 ring-black/5">
                 <MapDoctors center={mapCenter} pins={mapPins} height={200} />
               </div>
             ) : (
-              <div className="h-[140px] flex flex-col items-center justify-center bg-white/70 rounded-xl border border-dashed border-emerald-200 text-center">
-                <MapPin className="w-6 h-6 text-emerald-300 mb-1" />
-                <p className="text-xs font-medium text-gray-500">Tap "Detect" to find nearby doctors</p>
+              <div className="h-[140px] flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl border border-dashed border-gray-200 text-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-full flex items-center justify-center mb-1.5">
+                  <MapPin className="w-4 h-4 text-emerald-500" />
+                </div>
+                <p className="text-xs font-medium text-gray-500">Tap "Locate Me" to find nearby doctors</p>
               </div>
             )}
             {/* City search */}
@@ -948,9 +957,9 @@ export default function HomePage() {
               <input type="text" value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') searchByCity(selectedCity); }}
                 placeholder="Search city..."
-                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all" />
               <button onClick={() => searchByCity(selectedCity)} disabled={mapLoading}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap">
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap shadow-sm active:scale-95">
                 {mapLoading ? '…' : 'Search'}
               </button>
             </div>
@@ -1037,6 +1046,14 @@ export default function HomePage() {
                       onClick={() => {
                         setSelectedEntity(doctor);
                         setSelectedEntityType('doctor');
+                        // Zoom map to this doctor's location
+                        const lat = doctor.doctorProfile?.latitude;
+                        const lon = doctor.doctorProfile?.longitude;
+                        if (mapDoctorsRef.current && Number.isFinite(lat) && Number.isFinite(lon)) {
+                          mapDoctorsRef.current.zoomToCoords(lat, lon, 15);
+                        } else if (mapDoctorsRef.current) {
+                          mapDoctorsRef.current.zoomToPin(doctor.id);
+                        }
                       }}
                     >
                       <div className="relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
@@ -1148,6 +1165,14 @@ export default function HomePage() {
                         onClick={() => {
                           setSelectedEntity(hospital);
                           setSelectedEntityType('hospital');
+                          // Zoom map to this hospital's location
+                          const lat = hospital.latitude;
+                          const lon = hospital.longitude;
+                          if (mapDoctorsRef.current && Number.isFinite(lat) && Number.isFinite(lon)) {
+                            mapDoctorsRef.current.zoomToCoords(lat, lon, 15);
+                          } else if (mapDoctorsRef.current) {
+                            mapDoctorsRef.current.zoomToPin(hospital.id + 100000);
+                          }
                         }}
                       >
                         <div className="relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">

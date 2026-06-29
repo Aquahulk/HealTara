@@ -5112,40 +5112,48 @@ function DoctorSettings() {
           {savingBookable && <p className="text-xs text-blue-600 mt-2 font-medium">💾 Saving…</p>}
         </section>
         {/* Slot Period Preference */}
-        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
-            <span className="bg-purple-100 p-2 rounded-lg mr-2">⏱️</span>
-            Slot Period
-          </h4>
-          <p className="text-sm text-gray-600 mb-4">
-            Choose how your schedule groups bookings. Patients select an hour; you can view bookings as {slotPeriodMinutes}-minute slots. This preference affects dashboard display only.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Slot period (minutes)</label>
-              <select
-                value={slotPeriodMinutes}
-                onChange={async (e) => {
-                  const val = Number(e.target.value);
-                  setSlotPeriodMinutes(val);
-                  try {
-                    await apiClient.setDoctorSlotPeriod(val);
-                    setMessage('Slot period saved');
-                  } catch (err: any) {
-                    setMessage(err?.message || 'Failed to save slot period');
-                  }
+        <section className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+              <span className="bg-purple-100 p-1.5 rounded-md text-xs">⏱️</span>
+              Patients per Hour
+            </h4>
+            <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">{Math.floor(60 / slotPeriodMinutes)}/hr</span>
+          </div>
+          <div className="flex items-center gap-1.5 mb-2">
+            {[4, 6, 12].map((val) => {
+              const mins = Math.round(60 / val);
+              const isSelected = slotPeriodMinutes === mins;
+              return (
+                <button key={val}
+                  onClick={async () => {
+                    setSlotPeriodMinutes(mins);
+                    try { await apiClient.setDoctorSlotPeriod(mins); setMessage('✅ Saved'); } catch (err: any) { setMessage(err?.message || 'Failed'); }
+                  }}
+                  className={`flex-1 py-2 rounded-lg border-2 text-center transition-all ${
+                    isSelected ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600 hover:border-purple-200'
+                  }`}>
+                  <div className="text-sm font-black">{val}</div>
+                  <div className="text-[8px] font-bold text-gray-400 uppercase">patients</div>
+                </button>
+              );
+            })}
+            <div className="flex items-center gap-1">
+              <input
+                type="number" min={1} max={60}
+                value={Math.floor(60 / slotPeriodMinutes)}
+                onChange={(e) => {
+                  const val = Math.max(1, Math.min(60, Number(e.target.value) || 1));
+                  setSlotPeriodMinutes(Math.max(1, Math.round(60 / val)));
                 }}
-                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-medium"
-              >
-                {[10, 15, 20, 30, 60].map((m) => (
-                  <option key={m} value={m}>{m} minutes</option>
-                ))}
-              </select>
-            </div>
-            <div className="col-span-2 text-sm text-gray-600 bg-blue-50 p-4 rounded-xl border border-blue-200">
-              <span className="font-semibold text-blue-800">💡 Tip:</span> We currently assign patients to the next available 15‑minute slot inside the chosen hour. Custom periods will be honored in a future backend update.
+                onBlur={async () => { try { await apiClient.setDoctorSlotPeriod(slotPeriodMinutes); setMessage('✅ Saved'); } catch {} }}
+                onKeyDown={async (e) => { if (e.key === 'Enter') { try { await apiClient.setDoctorSlotPeriod(slotPeriodMinutes); setMessage('✅ Saved'); } catch {} } }}
+                className="w-12 px-1.5 py-2 border-2 border-gray-200 rounded-lg text-center text-sm font-bold focus:border-purple-500 outline-none"
+              />
+              <span className="text-[9px] text-gray-400">/hr</span>
             </div>
           </div>
+          <p className="text-[10px] text-gray-400">Each patient gets <span className="font-bold">{slotPeriodMinutes} min</span> · {Math.floor(60/slotPeriodMinutes)} bookings per hour</p>
         </section>
 
         {/* Doctors Management Credentials */}
@@ -5536,6 +5544,7 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
   const [hospitalLogoUrl, setHospitalLogoUrl] = useState<string | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -5657,17 +5666,24 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
     }
   };
 
+  const toggleSection = (key: string) => setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+
   return (
-    <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Settings</h3>
+    <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-lg overflow-hidden">
+      <div className="px-4 py-3 border-b border-sky-200 bg-white/70">
+        <h3 className="text-sm font-bold text-gray-900">Hospital Settings</h3>
       </div>
-      <div className="p-6 space-y-8">
+      <div className="p-4 space-y-3">
         {/* Hospital Logo Upload */}
         {user?.role === 'HOSPITAL_ADMIN' && (
-          <section>
-            <h4 className="text-md font-semibold text-gray-900 mb-2">Hospital Logo</h4>
-            <p className="text-sm text-gray-600 mb-4">Upload your hospital logo for branding across the site.</p>
+          <section className="bg-white rounded-lg border border-sky-200 overflow-hidden">
+            <button onClick={() => toggleSection('logo')} className="w-full flex items-center justify-between px-4 py-3 hover:bg-sky-50 transition-colors">
+              <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">🖼️ Hospital Logo</h4>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${collapsedSections['logo'] ? '-rotate-90' : ''}`} />
+            </button>
+            {!collapsedSections['logo'] && (
+            <div className="px-4 pb-3">
+            <p className="text-[11px] text-gray-500 mb-2">Upload your hospital logo for branding.</p>
             {hospitalLogoUrl && (
               <div className="mb-3">
                 <img src={hospitalLogoUrl} alt="Current logo" className="w-24 h-24 object-contain rounded bg-gray-50 border" />
@@ -5702,14 +5718,19 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
                 {uploadingLogo ? 'Uploading…' : 'Upload Logo'}
               </button>
             </div>
+            </div>
+            )}
           </section>
         )}
         {/* Slot Admin Credentials */}
-        <section>
-          <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Booking Admin</h4>
-          <p className="text-sm text-gray-600 mb-4">
-            Create or update a dedicated Slot Admin login for managing hospital slots.
-          </p>
+        <section className="bg-white rounded-lg border border-sky-200 overflow-hidden">
+          <button onClick={() => toggleSection('slotAdmin')} className="w-full flex items-center justify-between px-4 py-3 hover:bg-sky-50 transition-colors">
+            <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">🔐 Slot Booking Admin</h4>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${collapsedSections['slotAdmin'] ? '-rotate-90' : ''}`} />
+          </button>
+          {!collapsedSections['slotAdmin'] && (
+          <div className="px-4 pb-3">
+          <p className="text-[11px] text-gray-500 mb-2">Create or update a dedicated Slot Admin login.</p>
           {message && (
             <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
           )}
@@ -5756,70 +5777,96 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
               </button>
             </div>
           </div>
+          </div>
+          )}
         </section>
 
         {/* Slot Period per Doctor */}
         {user?.role === 'HOSPITAL_ADMIN' && doctors.length > 0 && (
-          <section className="pt-6 border-t border-gray-200">
-            <h4 className="text-md font-semibold text-gray-900 mb-2">Slot Period</h4>
-            <p className="text-sm text-gray-600 mb-4">
-              Choose how your schedule groups bookings. Patients select an hour; you can view bookings as shorter slots. This preference affects dashboard display only.
-            </p>
-            <div className="space-y-3 md:space-y-4">
+          <section className="bg-white rounded-lg border border-sky-200 overflow-hidden">
+            <button onClick={() => toggleSection('patientsPerHour')} className="w-full flex items-center justify-between px-4 py-3 hover:bg-sky-50 transition-colors">
+              <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">⏱️ Patients per Hour</h4>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${collapsedSections['patientsPerHour'] ? '-rotate-90' : ''}`} />
+            </button>
+            {!collapsedSections['patientsPerHour'] && (
+            <div className="px-4 pb-3">
+            <p className="text-[10px] text-gray-500 mb-2">Set capacity for each doctor.</p>
+            <div className="space-y-2">
               {doctors.map((d) => {
                 const form = doctorPeriodForm[d.id] || { minutes: 15, loading: false, message: '' };
                 const capacity = Math.max(1, Math.floor(60 / Math.max(1, form.minutes)));
+                const savePeriod = async (mins: number) => {
+                  if (!hospitalId) return;
+                  try {
+                    setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), minutes: mins, loading: true, message: '' } }));
+                    const res = await apiClient.setHospitalDoctorSlotPeriod(hospitalId, d.id, mins);
+                    const finalMins = Number(res?.slotPeriodMinutes) || mins;
+                    setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), minutes: finalMins, loading: false, message: 'Saved' } }));
+                    onPeriodUpdated && onPeriodUpdated(d.id, finalMins);
+                  } catch (err: any) {
+                    setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), loading: false, message: err?.message || 'Failed' } }));
+                  }
+                };
                 return (
-                  <div key={d.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <div className="text-sm text-gray-600">Doctor</div>
-                        <div className="font-medium text-gray-900">Dr. {(((d as any)?.doctorProfile?.slug) || 'Doctor')}</div>
+                  <div key={d.id} className="border rounded-lg p-3 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-gray-900 truncate block">Dr. {(((d as any)?.doctorProfile?.slug) || (d.email || '').split('@')[0].replace(/[._-]/g, ' ').trim() || 'Doctor')}</span>
+                        <span className="text-[10px] text-gray-400">{(d as any)?.doctorProfile?.specialization || 'General'}</span>
                       </div>
-                      <div className="text-sm text-gray-600">Capacity per hour: <span className="font-medium text-gray-900">{capacity}</span> • Period {form.minutes} min</div>
+                      <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{capacity}/hr</span>
                     </div>
-                    {form.message && (
-                      <div className="mb-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">{form.message}</div>
-                    )}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
-                      <label className="text-sm text-gray-700">Slot period (minutes)</label>
-                      <select
-                        value={String(form.minutes)}
-                        onChange={async (e) => {
-                          const val = Number(e.target.value);
-                          if (!hospitalId) return;
-                          try {
-                            setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), minutes: val, loading: true, message: '' } }));
-                            const res = await apiClient.setHospitalDoctorSlotPeriod(hospitalId, d.id, val);
-                            const mins = Number(res?.slotPeriodMinutes) || val;
-                            setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), minutes: mins, loading: false, message: 'Saved' } }));
-                            onPeriodUpdated && onPeriodUpdated(d.id, mins);
-                          } catch (err: any) {
-                            setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), loading: false, message: err?.message || 'Failed to save' } }));
-                          }
+                    {form.message && <div className={`text-[10px] px-2 py-1 rounded ${form.message === 'Saved' ? 'bg-emerald-50 text-emerald-700' : 'bg-yellow-50 text-yellow-700'}`}>{form.message}</div>}
+                    <div className="flex items-center gap-1.5">
+                      {[4, 6, 12].map((val) => {
+                        const mins = Math.round(60 / val);
+                        return (
+                          <button key={val} disabled={!hospitalId || form.loading}
+                            onClick={() => savePeriod(mins)}
+                            className={`flex-1 py-1.5 rounded text-center text-[10px] font-bold border transition-all ${
+                              form.minutes === mins ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-200'
+                            }`}>
+                            {val}
+                          </button>
+                        );
+                      })}
+                      <input
+                        type="number"
+                        min={1}
+                        value={capacity}
+                        onChange={(e) => {
+                          const val = Math.max(1, Number(e.target.value) || 1);
+                          const mins = Math.max(1, Math.round(60 / val));
+                          setDoctorPeriodForm((prev) => ({ ...prev, [d.id]: { ...(prev[d.id] || { minutes: 15, loading: false, message: '' }), minutes: mins } }));
                         }}
+                        onBlur={() => savePeriod(form.minutes)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } }}
                         disabled={!hospitalId || form.loading}
-                        className="w-full border rounded-lg px-3 py-2"
-                      >
-                        {[10, 15, 20, 30, 60].map((m) => (
-                          <option key={m} value={m}>{m} minutes</option>
-                        ))}
-                      </select>
-                      <div className="text-sm text-gray-600">Tip: We currently assign patients to the next available 15‑minute slot inside the chosen hour. Custom periods will be honored in a future backend update.</div>
+                        className="w-14 px-2 py-1.5 border rounded text-center text-xs font-bold text-gray-900 focus:border-blue-500 outline-none"
+                        placeholder="#"
+                      />
+                      <span className="text-[9px] text-gray-400 whitespace-nowrap">/hr</span>
                     </div>
                   </div>
                 );
               })}
             </div>
+            </div>
+            )}
           </section>
         )}
 
         {/* Doctor-specific Doctors Management */}
-        <section className="pt-6 border-t border-gray-200">
-          <h4 className="text-md font-semibold text-gray-900 mb-2">Doctor Management Credentials</h4>
-          <p className="text-sm text-gray-600 mb-4">View and set Doctors Management login per doctor.</p>
+        <section className="bg-white rounded-lg border border-sky-200 overflow-hidden">
+          <button onClick={() => toggleSection('doctorCreds')} className="w-full flex items-center justify-between px-4 py-3 hover:bg-sky-50 transition-colors">
+            <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">👨‍⚕️ Doctor Management Credentials</h4>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${collapsedSections['doctorCreds'] ? '-rotate-90' : ''}`} />
+          </button>
+          {!collapsedSections['doctorCreds'] && (
+          <div className="px-4 pb-3">
+          <p className="text-[11px] text-gray-500 mb-2">View and set Doctors Management login per doctor.</p>
           {doctors.length === 0 ? (
-            <p className="text-sm text-gray-500">No linked doctors found.</p>
+            <p className="text-xs text-gray-400">No linked doctors found.</p>
           ) : (
             <div className="space-y-3 md:space-y-4">
               {doctors.map((d) => {
@@ -5867,11 +5914,13 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
               })}
             </div>
           )}
+          </div>
+          )}
         </section>
         {/* Helpful Link */}
-        <section className="pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-600">
-            Share the login URL with your staff: <Link href="/slot-admin/login" className="text-blue-600 underline">Slot Admin Login</Link>
+        <section className="bg-white rounded-lg border border-sky-200 p-3">
+          <p className="text-xs text-gray-600">
+            Share the login URL with your staff: <Link href="/slot-admin/login" className="text-blue-600 underline font-medium">Slot Admin Login</Link>
           </p>
         </section>
       </div>

@@ -63,7 +63,7 @@ export default function Header() {
   // 🎯 MAIN RENDER - Display the header navigation
   // ============================================================================
   return (
-    <header className="bg-[#003a9f] text-white fixed top-0 left-0 right-0 z-50 w-full shadow">
+    <header className="bg-[#1282A2] text-white fixed top-0 left-0 right-0 z-50 w-full shadow">
       {/* ============================================================================
           📱 RESPONSIVE CONTAINER - Main header wrapper with responsive design
           ============================================================================ */}

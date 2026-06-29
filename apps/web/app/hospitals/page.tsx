@@ -6,8 +6,9 @@ import Header from '@/components/Header';
 import { useRouter } from 'next/navigation';
 
 const MapSidebar = dynamic(() => import('@/components/MapSidebar'), { ssr: false });
+const MapDoctors = dynamic(() => import('@/components/MapDoctors'), { ssr: false });
 import { hospitalMicrositeUrl, doctorMicrositeUrl, hospitalIdMicrositeUrl, shouldUseSubdomainNav, slugifyName, customSubdomainUrl } from '@/lib/subdomain';
-import { Building2, Users } from 'lucide-react';
+import { Building2, Users, MapPin } from 'lucide-react';
 import { EnhancedRatingDisplay } from '@/components/SimpleRatingDisplay';
 import HorizontalHospitalScroll from '@/components/HorizontalHospitalScroll';
 import SaveButton from '@/components/SaveButton';
@@ -33,6 +34,7 @@ function HospitalsPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cityFilter, setCityFilter] = useState<string>('');
+  const [showMobileMap, setShowMobileMap] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,7 +115,7 @@ function HospitalsPageContent() {
 
   return (
     <>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-blue-50/20">
         <Header />
         <DesktopSidebar />
 
@@ -132,6 +134,43 @@ function HospitalsPageContent() {
                 setCityFilter(filters.city);
               }}
             />
+          </div>
+
+          {/* Mobile Map Toggle */}
+          <div className="lg:hidden mb-4">
+            <button
+              onClick={() => setShowMobileMap(!showMobileMap)}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 border border-indigo-200 text-indigo-700 font-medium py-2.5 px-4 rounded-xl transition-all active:scale-[0.98]"
+            >
+              <MapPin className="w-4 h-4" />
+              <span className="text-sm">{showMobileMap ? 'Hide Map' : 'View on Map'}</span>
+              {!loading && filteredHospitals.filter((h: any) => h.latitude && h.longitude).length > 0 && (
+                <span className="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">
+                  {filteredHospitals.filter((h: any) => h.latitude && h.longitude).length}
+                </span>
+              )}
+            </button>
+            {showMobileMap && (
+              <div className="mt-3 rounded-xl overflow-hidden shadow-md ring-1 ring-black/5">
+                <MapDoctors
+                  center={
+                    filteredHospitals.find((h: any) => h.latitude && h.longitude)
+                      ? { lat: filteredHospitals.find((h: any) => h.latitude && h.longitude)!.latitude, lon: filteredHospitals.find((h: any) => h.latitude && h.longitude)!.longitude }
+                      : { lat: 20.5937, lon: 78.9629 }
+                  }
+                  pins={filteredHospitals
+                    .filter((h: any) => h.latitude && h.longitude)
+                    .map((h: any) => ({
+                      id: h.id,
+                      lat: h.latitude,
+                      lon: h.longitude,
+                      title: `🏥 ${h.name || 'Hospital'}`,
+                      subtitle: [h.city, h.state].filter(Boolean).join(', '),
+                    }))}
+                  height={220}
+                />
+              </div>
+            )}
           </div>
 
           {loading && (
@@ -260,25 +299,6 @@ function HospitalsPageContent() {
                       );
                     })}
                   </div>
-
-                {/* Right: Map Sidebar (fixed, hidden on mobile) */}
-                <div className="hidden lg:block">
-                  <MapSidebar
-                    variant="hospitals"
-                    title="Hospitals on Map"
-                    emptyMessage="No hospital locations available. Hospitals with coordinates will appear here."
-                    pins={filteredHospitals
-                      .filter((h: any) => h.latitude && h.longitude)
-                      .map((h: any) => ({
-                        id: h.id,
-                        lat: h.latitude,
-                        lon: h.longitude,
-                        title: `🏥 ${h.name || 'Hospital'}`,
-                        subtitle: [h.city, h.state].filter(Boolean).join(', '),
-                        extra: { slug: String(h.id), city: h.city },
-                      }))}
-                  />
-                </div>
             </div>
           )}
 
@@ -313,6 +333,25 @@ function HospitalsPageContent() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Right: Map Sidebar (fixed, hidden on mobile) */}
+        <div className="hidden lg:block">
+          <MapSidebar
+            variant="hospitals"
+            title="Hospitals on Map"
+            emptyMessage="No hospital locations available. Hospitals with coordinates will appear here."
+            pins={filteredHospitals
+              .filter((h: any) => h.latitude && h.longitude)
+              .map((h: any) => ({
+                id: h.id,
+                lat: h.latitude,
+                lon: h.longitude,
+                title: `🏥 ${h.name || 'Hospital'}`,
+                subtitle: [h.city, h.state].filter(Boolean).join(', '),
+                extra: { slug: String(h.id), city: h.city },
+              }))}
+          />
         </div>
       </div>
       

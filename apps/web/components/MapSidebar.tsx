@@ -139,7 +139,7 @@ export default function MapSidebar({
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 fixed right-0 top-[64px] z-30 ${expanded ? "h-[calc(100vh-64px)] w-[400px]" : "h-[480px] w-[380px]"}`}>
+    <div className={`bg-[#a8f9ff] rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 fixed right-0 top-[64px] z-30 ${expanded ? "h-[calc(100vh-64px)] w-[400px]" : "h-[480px] w-[380px]"}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
         <div className="flex items-center gap-1.5">

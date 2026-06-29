@@ -150,24 +150,24 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
 
   return (
     <aside 
-      className={`hidden md:flex flex-col bg-gradient-to-b from-blue-600 to-blue-800 border-r border-blue-900 shadow-lg transition-all duration-300 fixed left-0 top-0 h-screen z-40 ${
+      className={`hidden md:flex flex-col bg-[#a8f9ff] border-r border-cyan-200 shadow-lg transition-all duration-300 fixed left-0 top-0 h-screen z-40 ${
         isCollapsed ? "w-16" : "w-56"
       } ${className}`}
     >
       {/* Sidebar Header */}
-      <div className="flex items-center justify-between p-4 border-b border-blue-700">
+      <div className="flex items-center justify-between p-4 border-b border-cyan-200">
         {!isCollapsed && (
-          <h2 className="text-lg font-bold text-white">Navigation</h2>
+          <h2 className="text-lg font-bold text-gray-800">Navigation</h2>
         )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 rounded-lg hover:bg-blue-700 transition-colors ml-auto"
+          className="p-2 rounded-lg hover:bg-cyan-200/60 transition-colors ml-auto"
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? (
-            <ChevronRight className="w-5 h-5 text-white" />
+            <ChevronRight className="w-5 h-5 text-gray-700" />
           ) : (
-            <ChevronLeft className="w-5 h-5 text-white" />
+            <ChevronLeft className="w-5 h-5 text-gray-700" />
           )}
         </button>
       </div>
@@ -188,8 +188,8 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
                     w-full flex items-center gap-3 px-3 py-3 rounded-lg
                     transition-all duration-200
                     ${active 
-                      ? "bg-white text-blue-600 shadow-md" 
-                      : "text-blue-100 hover:bg-blue-700"
+                      ? "bg-white text-blue-700 shadow-md border border-cyan-200" 
+                      : "text-gray-700 hover:bg-cyan-100/60"
                     }
                     ${isCollapsed ? "justify-center" : ""}
                   `}
@@ -197,18 +197,18 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
                 >
                   <Icon 
                     className={`w-5 h-5 flex-shrink-0 ${
-                      active ? "text-blue-600" : "text-blue-200"
+                      active ? "text-blue-700" : "text-gray-600"
                     }`}
                   />
                   {!isCollapsed && (
                     <div className="flex-1 text-left">
                       <div className={`font-semibold text-sm ${
-                        active ? "text-blue-600" : "text-white"
+                        active ? "text-blue-700" : "text-gray-800"
                       }`}>
                         {item.label}
                       </div>
                       <div className={`text-xs ${
-                        active ? "text-blue-500" : "text-blue-200"
+                        active ? "text-blue-500" : "text-gray-500"
                       }`}>
                         {item.description}
                       </div>
@@ -223,15 +223,15 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
 
       {/* Sidebar Footer */}
       {!isCollapsed && (
-        <div className="p-4 border-t border-blue-700">
-          <div className="bg-blue-700 rounded-lg p-3 border border-blue-600 mb-2">
+        <div className="p-4 border-t border-cyan-200">
+          <div className="bg-cyan-100/60 rounded-lg p-3 border border-cyan-200 mb-2">
             <div className="flex items-start gap-2">
-              <FileText className="w-5 h-5 text-blue-200 flex-shrink-0 mt-0.5" />
+              <FileText className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-semibold text-white mb-1">
+                <h3 className="text-sm font-semibold text-gray-800 mb-1">
                   Quick Tip
                 </h3>
-                <p className="text-xs text-blue-100">
+                <p className="text-xs text-gray-600">
                   {user?.role === 'DOCTOR' 
                     ? "Update your working hours to stay available!" 
                     : user?.role === 'HOSPITAL_ADMIN'
@@ -245,7 +245,7 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
           {user && (
             <button
               onClick={logout}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-blue-100 hover:bg-blue-700 transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-cyan-100/60 transition-colors"
             >
               <LogOut className="w-5 h-5" />
               <span className="text-sm font-medium">Log Out</span>

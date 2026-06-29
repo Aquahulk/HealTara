@@ -2160,8 +2160,8 @@ app.patch('/api/doctor/slot-period', authMiddleware, async (req: Request, res: R
   }
   const { minutes } = req.body as { minutes?: number };
   const value = Math.floor(Number(minutes));
-  if (!Number.isFinite(value) || value < 1 || value > 60) {
-    return res.status(400).json({ message: 'Invalid minutes. Must be between 1 and 60.' });
+  if (!Number.isFinite(value) || value < 1) {
+    return res.status(400).json({ message: 'Invalid minutes. Must be at least 1.' });
   }
   try {
     const profile = await prisma.doctorProfile.findUnique({ where: { userId: user.userId }, select: { id: true, slotPeriodMinutes: true } });
@@ -5032,6 +5032,26 @@ app.get('/api/hospitals/:hospitalId/details', async (req: Request, res: Response
           phone: true,
           subdomain: true,
           profile: true,
+          doctors: {
+            select: {
+              doctor: {
+                select: {
+                  id: true,
+                  email: true,
+                  role: true,
+                  doctorProfile: {
+                    select: {
+                      slug: true,
+                      specialization: true,
+                      clinicName: true,
+                      city: true,
+                      slotPeriodMinutes: true,
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       });
     } catch (e: any) {
@@ -5363,10 +5383,9 @@ app.patch('/api/hospitals/:hospitalId/doctors/:doctorId/slot-period', authMiddle
     return res.status(403).json({ message: 'Forbidden: Hospital or slot admin required.' });
   }
   const { minutes } = req.body as { minutes?: number };
-  const allowed = [10, 15, 20, 30, 60];
-  const value = Number(minutes);
-  if (!Number.isFinite(value) || !allowed.includes(value)) {
-    return res.status(400).json({ message: 'Invalid minutes. Allowed: 10, 15, 20, 30, 60' });
+  const value = Math.floor(Number(minutes));
+  if (!Number.isFinite(value) || value < 1) {
+    return res.status(400).json({ message: 'Invalid minutes. Must be at least 1.' });
   }
   try {
     // Ensure doctor belongs to hospital
