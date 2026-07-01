@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
+import Header from '@/components/Header';
+import DesktopSidebar from '@/components/DesktopSidebar';
 
 type Mode = 'login' | 'register';
 type RegStep = 'form' | 'otp' | 'done';
@@ -148,7 +150,10 @@ export default function PatientLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <Header />
+      <DesktopSidebar />
+      <div className="flex items-center justify-center px-4 py-8 md:ml-[var(--sidebar-width,14rem)] min-h-[calc(100vh-64px)]">
       {/* Invisible reCAPTCHA */}
       <div id="recaptcha-container" />
 
@@ -315,6 +320,7 @@ export default function PatientLoginPage() {
           <Link href="/terms" className="text-blue-600 hover:underline">Terms</Link> and{' '}
           <Link href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</Link>.
         </p>
+      </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
+import DesktopSidebar from '@/components/DesktopSidebar';
 import DoctorGridCard from '@/components/DoctorGridCard';
 import SaveButton from '@/components/SaveButton';
 import { useRouter } from 'next/navigation';
@@ -58,8 +59,9 @@ export default function SavedPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20 md:pb-8">
       <Header />
+      <DesktopSidebar />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:ml-[var(--sidebar-width,14rem)]">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Saved Items</h1>
         
         {/* Tabs */}

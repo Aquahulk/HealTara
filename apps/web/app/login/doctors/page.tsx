@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import Header from '@/components/Header';
+import DesktopSidebar from '@/components/DesktopSidebar';
 
 export default function DoctorLoginPage() {
   const { login, register } = useAuth();
@@ -38,7 +40,10 @@ export default function DoctorLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <Header />
+      <DesktopSidebar />
+      <div className="flex items-center justify-center px-4 py-8 md:ml-[var(--sidebar-width,14rem)] min-h-[calc(100vh-64px)]">
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-6">
         <div className="text-center mb-6">
           <div className="text-4xl mb-2">👨‍⚕️</div>
@@ -148,6 +153,7 @@ export default function DoctorLoginPage() {
             {isLoading ? (mode === 'login' ? 'Signing in...' : 'Registering...') : (mode === 'login' ? 'Login' : 'Register')}
           </button>
         </form>
+      </div>
       </div>
     </div>
   );

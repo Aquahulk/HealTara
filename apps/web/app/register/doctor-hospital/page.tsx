@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useMemo, Suspense } from 'react';
 import Header from '@/components/Header';
+import DesktopSidebar from '@/components/DesktopSidebar';
 import { useAuth } from '@/context/AuthContext';
 import { useSearchParams, useRouter } from 'next/navigation';
 
@@ -65,7 +66,8 @@ function RegisterClient() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <section className="py-12">
+      <DesktopSidebar />
+      <section className="py-12 md:ml-[var(--sidebar-width,14rem)]">
         <div className="max-w-4xl mx-auto px-4">
           <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Register as Doctor or Hospital Admin</h1>
 

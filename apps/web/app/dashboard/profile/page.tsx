@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import LocationPicker from '@/components/LocationPicker';
+import Header from '@/components/Header';
+import DesktopSidebar from '@/components/DesktopSidebar';
 
 export default function DoctorProfilePage() {
   const { user } = useAuth();
@@ -133,8 +135,11 @@ export default function DoctorProfilePage() {
         }
       };
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+          <Header />
+          <DesktopSidebar />
+          <div className="py-8 px-4 sm:px-6 lg:px-8 md:ml-[var(--sidebar-width,14rem)]">
+            <div className="max-w-3xl mx-auto">
             <div className="mb-8 rounded-2xl overflow-hidden bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 p-8 shadow-xl">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-white text-2xl font-bold">
@@ -201,6 +206,7 @@ export default function DoctorProfilePage() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       );
@@ -218,7 +224,10 @@ export default function DoctorProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <Header />
+      <DesktopSidebar />
+      <div className="py-8 px-4 sm:px-6 lg:px-8 md:ml-[var(--sidebar-width,14rem)]">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-8 rounded-2xl overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 shadow-xl">
@@ -492,6 +501,7 @@ export default function DoctorProfilePage() {
             </button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );

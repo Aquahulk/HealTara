@@ -55,6 +55,8 @@ import { getSocket, joinDoctorRoom } from '@/lib/realtime';
 import { Clock, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import PatientDetailPopup from '@/components/PatientDetailPopup';
+import Header from '@/components/Header';
+import DesktopSidebar from '@/components/DesktopSidebar';
 
 function WalkInReserveBox({ userId }: { userId: number }) {
   const [name, setName] = useState('');
@@ -2107,120 +2109,12 @@ const [socketReady, setSocketReady] = useState(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* ============================================================================
-          📂 COLLAPSEABLE SIDEBAR - Navigation sidebar (Hidden on mobile)
-          ============================================================================ */}
-      <aside className={`fixed left-0 top-0 h-full bg-blue-900 border-r border-blue-800 transition-all duration-300 z-50 shadow-lg hidden md:flex md:flex-col ${sidebarCollapsed ? 'w-14' : 'w-52'}`}>
-        {/* Toggle Button */}
-        <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-3 top-5 bg-blue-800 border border-blue-700 text-white rounded-full p-1 shadow-md hover:bg-blue-700 transition-all"
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarCollapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
-          </svg>
-        </button>
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <DesktopSidebar />
 
-        {/* Logo/Brand */}
-        <div className={`flex items-center border-b border-blue-800 flex-shrink-0 ${sidebarCollapsed ? 'justify-center p-3' : 'gap-2 px-3 py-3'}`}>
-          <span className="text-lg flex-shrink-0">🏥</span>
-          {!sidebarCollapsed && (
-            <div className="min-w-0">
-              <h2 className="font-bold text-sm text-white leading-tight">Healtara</h2>
-              <p className="text-[10px] text-blue-300">Dashboard</p>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {(user?.role === 'PATIENT' ? [
-            { label: 'Home', tab: null, href: '/', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
-            { label: 'Find Doctors', tab: null, href: '/doctors', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg> },
-            { label: 'Hospitals', tab: null, href: '/hospitals', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
-            { label: 'My Bookings', tab: 'appointments', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
-            { label: 'Profile', tab: null, href: '/dashboard/profile', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
-            { label: 'Saved', tab: null, href: '/saved', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg> },
-          ] : [
-            { label: 'Dashboard', tab: null, href: '/dashboard', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
-            ...(user?.role === 'HOSPITAL_ADMIN' ? [{ label: 'Profile', tab: null, href: '/hospital-admin/profile', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> }] : []),
-            ...(user?.role === 'DOCTOR' ? [{ label: 'Profile', tab: null, href: '/dashboard/profile', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> }] : []),
-            { label: 'Appointments', tab: 'appointments', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
-            { label: 'Patients', tab: 'patients', icon: <UserGroupIcon className="w-4 h-4 flex-shrink-0" /> },
-            { label: 'Prescriptions', tab: 'prescriptions', icon: <ChartBarSquareIcon className="w-4 h-4 flex-shrink-0" /> },
-            { label: 'Analytics', tab: 'analytics', icon: <ChartBarIcon className="w-4 h-4 flex-shrink-0" /> },
-            { label: 'Messages', tab: 'messages', badge: '8', icon: <EnvelopeIcon className="w-4 h-4 flex-shrink-0" /> },
-            { label: 'Website', tab: 'website', icon: <GlobeAltIcon className="w-4 h-4 flex-shrink-0" /> },
-            { label: 'Settings', tab: 'settings', icon: <CogIcon className="w-4 h-4 flex-shrink-0" /> },
-          ]).map((item) => {
-            const isActive = item.tab ? activeTab === item.tab : false;
-            const cls = `w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-left ${isActive ? 'bg-blue-800 text-white' : 'text-blue-200 hover:bg-blue-800/60 hover:text-white'} ${sidebarCollapsed ? 'justify-center' : ''}`;
-            if (item.href) {
-              return (
-                <Link key={item.label} href={item.href} className={cls} title={sidebarCollapsed ? item.label : undefined}>
-                  {item.icon}
-                  {!sidebarCollapsed && <span className="text-xs font-medium truncate">{item.label}</span>}
-                </Link>
-              );
-            }
-            return (
-              <button key={item.label} onClick={() => item.tab && setActiveTab(item.tab as any)} className={cls} title={sidebarCollapsed ? item.label : undefined}>
-                <div className="relative flex-shrink-0">
-                  {item.icon}
-                  {item.badge && !sidebarCollapsed && <span className="absolute -top-1 -right-1.5 bg-blue-500 text-[7px] font-bold px-1 rounded-full border border-blue-900 leading-tight">{item.badge}</span>}
-                </div>
-                {!sidebarCollapsed && <span className="text-xs font-medium truncate">{item.label}</span>}
-                {item.badge && sidebarCollapsed && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-400 rounded-full" />}
-              </button>
-            );
-          })}
-
-          <button
-            onClick={logout}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-blue-200 hover:bg-red-700/60 hover:text-white ${sidebarCollapsed ? 'justify-center' : ''}`}
-            title={sidebarCollapsed ? 'Logout' : undefined}
-          >
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            {!sidebarCollapsed && <span className="text-xs font-medium">Logout</span>}
-          </button>
-        </nav>
-
-        {/* Pro upgrade card */}
-        {!sidebarCollapsed && (
-          <div className="px-2 py-2 flex-shrink-0">
-            <div className="bg-blue-800/50 rounded-xl p-3 border border-blue-700/50">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-sm">👑</span>
-                <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">Healtara Pro</h4>
-              </div>
-              <p className="text-[10px] text-blue-200 mb-2 leading-relaxed">Unlock advanced reports, patient insights and more.</p>
-              <button className="w-full py-1.5 bg-blue-500 hover:bg-blue-400 text-white text-[10px] font-bold rounded-lg transition-all">
-                Upgrade Now
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* User Info at Bottom */}
-        <div className={`flex-shrink-0 border-t border-blue-800 bg-blue-950 ${sidebarCollapsed ? 'p-2 flex justify-center' : 'px-3 py-2.5 flex items-center gap-2'}`}>
-          <div className="w-7 h-7 rounded-full bg-blue-700 text-blue-100 flex items-center justify-center font-bold text-xs flex-shrink-0">
-            {user?.email?.charAt(0).toUpperCase()}
-          </div>
-          {!sidebarCollapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold truncate text-white">{user?.email?.split('@')[0]}</p>
-              <p className="text-[10px] text-blue-300 uppercase tracking-wide">{user?.role}</p>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Main Content Area - Full width on mobile, margin on desktop */}
-      <div className={`flex-1 transition-all duration-300 overflow-x-hidden ${sidebarCollapsed ? 'md:ml-14' : 'md:ml-52'} ${selectedAppointmentForPopup ? 'lg:mr-[24rem]' : ''}`}>
-      {/* Removed TOP BAR header as per user request */}
+      {/* Main Content Area */}
+      <div className={`transition-all duration-300 overflow-x-hidden md:ml-[var(--sidebar-width,14rem)] ${selectedAppointmentForPopup ? 'lg:mr-[24rem]' : ''}`}>
 
       {/* ============================================================================
           📊 MAIN CONTENT - Dashboard content with tabs (with mobile bottom padding)

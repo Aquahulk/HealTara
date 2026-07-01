@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/lib/api";
 import LocationPicker from "@/components/LocationPicker";
+import Header from '@/components/Header';
+import DesktopSidebar from '@/components/DesktopSidebar';
 
 type HospitalProfile = {
   general?: {
@@ -561,7 +563,10 @@ export default function HospitalAdminProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <Header />
+      <DesktopSidebar />
+      <div className="py-8 px-4 sm:px-6 lg:px-8 md:ml-[var(--sidebar-width,14rem)]">
       <div className="max-w-7xl mx-auto">
         {/* Modern Header with Analytics */}
         <div className="mb-8">
@@ -1736,6 +1741,7 @@ export default function HospitalAdminProfilePage() {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   );
