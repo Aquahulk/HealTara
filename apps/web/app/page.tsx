@@ -712,7 +712,7 @@ export default function HomePage() {
       <Header />
       <DesktopSidebar />
 
-      <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,14rem)]">
+      <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,5rem)]">
 
         {/* ── HERO + SEARCH ────────────────────────────────────────────── */}
         <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out ${heroSection.overlaps ? 'lg:mr-[26rem]' : 'lg:mr-0'}`}>
@@ -722,142 +722,6 @@ export default function HomePage() {
               <HeroCarousel />
             </div>
 
-              {/* Search cutout — overlaps hero bottom */}
-              <div className="relative z-30 -mt-6 md:-mt-9 px-3 pb-2 md:pb-3">
-                <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-                  <div className="bg-white rounded-xl md:rounded-2xl shadow-lg md:shadow-xl border border-gray-100 p-2 md:p-3">
-                    <div className="space-y-1.5 md:space-y-2">
-
-                      {/* Search input */}
-                      <div className="relative z-30">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Search doctors, specialties…"
-                          value={searchQuery}
-                          onChange={async (e) => {
-                            const raw = e.target.value;
-                            setSearchQuery(raw);
-                            const q = raw.trim();
-                            if (!q) { const seeds = apiClient.getSeedSuggestions(); setSuggestions(seeds); setShowSuggestions(seeds.length > 0); return; }
-                            const cached = apiClient.peekCachedSearch(q);
-                            if (cached) {
-                              if (Array.isArray(cached.suggestions)) { setSuggestions(cached.suggestions.slice(0, 8)); setShowSuggestions(true); }
-                              if (Array.isArray(cached.doctors)) setDoctors(cached.doctors);
-                            } else {
-                              const local = apiClient.getLocalSuggestions(q).slice(0, 8);
-                              if (local.length > 0) { setSuggestions(local); setShowSuggestions(true); }
-                            }
-                            try {
-                              const resp = await apiClient.searchDoctors(q);
-                              const combined = resp.suggestions.slice(0, 8);
-                              setSuggestions(combined); setShowSuggestions(combined.length > 0);
-                              apiClient.trackSearchDebounced(q, { matchedSpecialties: resp.matchedSpecialties, matchedConditions: resp.matchedConditions, topDoctorIds: (resp.doctors || []).slice(0, 5).map((d: any) => d.id) });
-                            } catch { apiClient.trackSearchDebounced(q); }
-                          }}
-                          onFocus={() => setShowSuggestions(suggestions.length > 0)}
-                          onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const q = searchQuery.trim();
-                              if (q) { apiClient.trackSearch(q, { source: 'enter' }); setShowSuggestions(false); router.push(`/doctors?search=${encodeURIComponent(q)}`); }
-                            }
-                          }}
-                          className="w-full pl-8 pr-3 py-2 md:py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs md:text-sm transition-all"
-                        />
-                        {showSuggestions && suggestions.length > 0 && (
-                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-48 overflow-auto">
-                            {suggestions.map((s, i) => (
-                              <button key={i} className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-blue-50 transition-colors"
-                                onMouseDown={(ev) => {
-                                  const raw = searchQuery;
-                                  const inputEl = ev.currentTarget.ownerDocument.querySelector('input[type="text"]') as HTMLInputElement | null;
-                                  const caret = inputEl?.selectionStart ?? raw.length;
-                                  const start = Math.max(0, raw.lastIndexOf(' ', Math.max(0, (caret ?? raw.length) - 1)) + 1);
-                                  const nextSpace = raw.indexOf(' ', caret ?? raw.length);
-                                  const end = nextSpace === -1 ? raw.length : nextSpace;
-                                  const active = raw.substring(start, end).trim();
-                                  const picked = s.replace(/ \((specialization)\)$/i, '');
-                                  const newRaw = raw.slice(0, start) + picked + (end < raw.length ? raw.slice(end) : '');
-                                  const newQ = newRaw.trim();
-                                  setSearchQuery(newRaw); setShowSuggestions(false);
-                                  if (active) apiClient.addLocalSuggestion(active, picked);
-                                  apiClient.trackSearch(newQ, { source: 'suggestion_click', selectedSuggestion: picked });
-                                  router.push(`/doctors?search=${encodeURIComponent(newQ)}`);
-                                }}>{s}</button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Filters */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
-                        <select value={selectedSpecialization} onChange={(e) => setSelectedSpecialization(e.target.value)}
-                          className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
-                          <option value="">Specialization</option>
-                          <option value="cardiology">Cardiology</option>
-                          <option value="dermatology">Dermatology</option>
-                          <option value="neurology">Neurology</option>
-                          <option value="orthopedics">Orthopedics</option>
-                        </select>
-                        <select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}
-                          className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
-                          <option value="">City / Town</option>
-                          <option value="mumbai">Mumbai</option>
-                          <option value="delhi">Delhi</option>
-                          <option value="bangalore">Bangalore</option>
-                          <option value="chennai">Chennai</option>
-                        </select>
-                        <select value={selectedAvailability} onChange={(e) => setSelectedAvailability(e.target.value)}
-                          className="px-2 py-1.5 md:py-2 text-[11px] bg-gray-50 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
-                          <option value="">Availability</option>
-                          <option value="today">Today</option>
-                          <option value="tomorrow">Tomorrow</option>
-                          <option value="week">This Week</option>
-                        </select>
-                        <label className="flex items-center justify-center px-2.5 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 transition-all gap-1.5">
-                          <input type="checkbox" checked={availabilityOnly} onChange={(e) => setAvailabilityOnly(e.target.checked)} className="w-3 h-3 text-blue-600 focus:ring-blue-500" />
-                          <span className="text-gray-700 font-medium">Available Only</span>
-                        </label>
-                      </div>
-
-                      <AnimatePresence>
-                        {availabilityOnly && (
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                            <div className="pt-1.5 border-t border-gray-100">
-                              <p className="text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wider flex items-center gap-1"><Clock className="w-3 h-3" /> Preferred Time</p>
-                              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-                                {["09:00 AM","10:00 AM","11:00 AM","12:00 PM","01:00 PM","02:00 PM","03:00 PM","04:00 PM","05:00 PM","06:00 PM","07:00 PM","08:00 PM"].map((slot) => (
-                                  <button key={slot} onClick={() => setSelectedTimeSlot(selectedTimeSlot === slot ? '' : slot)}
-                                    className={`flex-shrink-0 px-2.5 py-1 text-xs font-semibold rounded-full border transition-all ${selectedTimeSlot === slot ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
-                                    {slot}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <button
-                        onClick={() => {
-                          const params = new URLSearchParams();
-                          if (searchQuery) params.set('search', searchQuery);
-                          if (selectedSpecialization) params.set('specialization', selectedSpecialization);
-                          if (selectedCity) params.set('city', selectedCity);
-                          if (selectedAvailability) params.set('availability', selectedAvailability);
-                          if (availabilityOnly) params.set('availabilityOnly', 'true');
-                          if (selectedTimeSlot) params.set('time', selectedTimeSlot);
-                          router.push(`/doctors?${params.toString()}`);
-                        }}
-                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-sm text-sm"
-                      >
-                        Find a Doctor Now
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
           </div>
         </section>
 
@@ -969,43 +833,78 @@ export default function HomePage() {
         {/* ── EXPLORE + CARDS (seamless tab-switch) ──────────────────── */}
         <section ref={quickAccessSection.ref} className={`transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[26rem]' : 'lg:mr-0'}`}>
 
-          {/* Category boxes — white background, original grid */}
-          <div className="px-3 md:px-4 pt-4 md:pt-5 pb-0 bg-white">
+          {/* Category boxes — sky blue background */}
+          <div className="px-3 md:px-4 pt-4 md:pt-5 pb-0" style={{ background: 'linear-gradient(135deg, #bae6fd 0%, #7dd3fc 60%, #38bdf8 100%)' }}>
             <div className="max-w-5xl mx-auto">
               {/* Section heading — centered */}
               <div className="mb-3 md:mb-4 text-center">
-                <h2 className="text-base md:text-lg font-bold text-gray-900">Browse Healthcare Services</h2>
-                <p className="text-[11px] md:text-xs text-gray-500 mt-0.5">Choose a category to explore</p>
+                <h2 className="text-base md:text-lg font-bold text-sky-950">Browse Healthcare Services</h2>
+                <p className="text-[11px] md:text-xs text-sky-800/70 mt-0.5">Choose a category to explore</p>
               </div>
-              {/* Category grid — compact clickable buttons */}
-              <div className="grid grid-cols-5 gap-1.5 md:gap-2 transition-all duration-500">
+              {/* Category grid — glassy buttons */}
+              <div className="grid grid-cols-5 gap-2 md:gap-2.5 transition-all duration-500">
                 {categories.map((cat, i) => {
                   const isActive = activeCategory === i;
                   const comingSoon = cat.title !== 'Hospitals' && cat.title !== 'Doctors';
-                  // Solid colors for seamless connection with cards below
                   const activeBg = cat.title === 'Hospitals'
                     ? '#5b4fcf'
                     : cat.title === 'Doctors'
                       ? '#2a2a9e'
                       : '#d97706';
+                  const activeShadowColor = cat.title === 'Hospitals'
+                    ? 'rgba(91,79,207,0.5)'
+                    : cat.title === 'Doctors'
+                      ? 'rgba(42,42,158,0.5)'
+                      : 'rgba(217,119,6,0.5)';
                   return (
-                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} whileHover={{ y: -2 }} className="cursor-pointer">
-                    <button onClick={() => {
-                      setActiveCategory(i);
-                      if (cat.title === 'Hospitals') setActiveGrid('hospitals');
-                      else if (cat.title === 'Doctors') setActiveGrid('doctors');
-                      else setActiveGrid('coming-soon');
-                    }}
-                      className={`relative w-full flex flex-col items-center justify-center gap-1 px-2 py-2.5 text-center transition-all border overflow-hidden ${
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ y: 1, scale: 0.97 }}
+                    className="cursor-pointer"
+                    style={{ perspective: '600px' }}
+                  >
+                    <button
+                      onClick={() => {
+                        setActiveCategory(i);
+                        if (cat.title === 'Hospitals') setActiveGrid('hospitals');
+                        else if (cat.title === 'Doctors') setActiveGrid('doctors');
+                        else setActiveGrid('coming-soon');
+                      }}
+                      className={`relative w-full flex flex-col items-center justify-center gap-1 px-1.5 py-2 text-center transition-all duration-200 overflow-hidden ${
                         isActive
-                          ? 'rounded-t-lg rounded-b-none border-transparent shadow-lg z-10'
-                          : 'bg-white rounded-lg border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 active:scale-95'
+                          ? 'rounded-t-xl rounded-b-none border-transparent z-10'
+                          : 'rounded-xl'
                       }`}
-                      style={isActive ? { background: activeBg } : undefined}>
-                      <div className={`w-7 h-7 bg-gradient-to-br ${cat.color} rounded-md flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                        <cat.icon className="w-3.5 h-3.5 text-white" />
+                      style={isActive ? {
+                        background: `linear-gradient(160deg, ${activeBg}dd 0%, ${activeBg} 100%)`,
+                        boxShadow: `0 5px 0 ${activeShadowColor}, 0 8px 16px ${activeShadowColor}`,
+                        transform: 'translateY(-2px)',
+                      } : {
+                        background: 'rgba(255, 255, 255, 0.30)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: '1px solid rgba(255,255,255,0.55)',
+                        boxShadow: '0 2px 8px rgba(56,189,248,0.15), inset 0 1px 1px rgba(255,255,255,0.6)',
+                      }}
+                    >
+                      {/* Glass shine */}
+                      {!isActive && (
+                        <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent rounded-xl pointer-events-none" />
+                      )}
+                      {isActive && (
+                        <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
+                      )}
+                      <div className={`relative w-7 h-7 bg-gradient-to-br ${cat.color} rounded-lg flex items-center justify-center flex-shrink-0`}
+                        style={{ boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.25)' : '0 2px 6px rgba(0,0,0,0.12)' }}>
+                        <cat.icon className="w-3.5 h-3.5 text-white drop-shadow" />
                       </div>
-                      <span className={`text-[10px] md:text-xs font-bold leading-tight text-center ${isActive ? 'text-white' : 'text-gray-800'}`}>{cat.title}</span>
+                      <span className={`relative text-[9px] md:text-[10px] font-bold leading-tight text-center ${isActive ? 'text-white drop-shadow-sm' : 'text-sky-950'}`}>
+                        {cat.title}
+                      </span>
                     </button>
                   </motion.div>
                   );
