@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useInstantNav } from "../hooks/useInstantNav";
 import { 
   Home, Calendar, Heart, Stethoscope, Building2, User, Settings,
-  Clock, LogOut, LayoutDashboard, Users, Menu, X
+  LogOut, LayoutDashboard, Menu, X
 } from "lucide-react";
 
 interface DesktopSidebarProps {
@@ -14,8 +14,16 @@ interface DesktopSidebarProps {
   onCollapseChange?: (collapsed: boolean) => void;
 }
 
-export default function DesktopSidebar({ className = "", onCollapseChange }: DesktopSidebarProps) {
-  // Default: compact (icon + label) like YouTube mini sidebar
+// Wrap in Suspense to satisfy Next.js static build (useSearchParams requires it)
+export default function DesktopSidebar(props: DesktopSidebarProps) {
+  return (
+    <Suspense fallback={<div className="hidden md:block fixed left-0 top-[64px] w-20 h-[calc(100vh-64px)] bg-[#1a2744] z-40" />}>
+      <DesktopSidebarInner {...props} />
+    </Suspense>
+  );
+}
+
+function DesktopSidebarInner({ className = "", onCollapseChange }: DesktopSidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -54,7 +62,6 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
         { href: "/dashboard?tab=settings", icon: Settings, label: "Settings", protected: true },
       ];
     }
-    // PATIENT
     return [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", protected: true },
       { href: "/", icon: Home, label: "Home", protected: false },
@@ -69,12 +76,11 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
   const navItems = getNavItems();
 
   const handleNav = (href: string, isProtected: boolean) => {
-    let target = href;
     if (isProtected && !user) {
-      router.push("/login?redirect=" + encodeURIComponent(target));
+      router.push("/login?redirect=" + encodeURIComponent(href));
       return;
     }
-    router.push(target);
+    router.push(href);
   };
 
   const isActive = (href: string) => {
@@ -90,78 +96,58 @@ export default function DesktopSidebar({ className = "", onCollapseChange }: Des
   };
 
   return (
-    <>
-      {/* Desktop sidebar */}
-      <aside
-        className={`hidden md:flex flex-col bg-[#1a2744] border-r border-white/10 shadow-lg transition-all duration-200 fixed left-0 top-[64px] h-[calc(100vh-64px)] z-40 ${
-          isExpanded ? "w-56" : "w-20"
-        } ${className}`}
-      >
-        {/* Toggle hamburger */}
-        <div className="flex items-center justify-center py-3 border-b border-white/10">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 rounded-xl hover:bg-white/10 transition-colors"
-            aria-label="Toggle sidebar"
-          >
-            {isExpanded ? <X className="w-5 h-5 text-white/70" /> : <Menu className="w-5 h-5 text-white/70" />}
+    <aside
+      className={`hidden md:flex flex-col bg-[#1a2744] border-r border-white/10 shadow-lg transition-all duration-200 fixed left-0 top-[64px] h-[calc(100vh-64px)] z-40 ${
+        isExpanded ? "w-56" : "w-20"
+      } ${className}`}
+    >
+      {/* Toggle */}
+      <div className="flex items-center justify-center py-3 border-b border-white/10">
+        <button onClick={() => setIsExpanded(!isExpanded)}
+          className="p-2 rounded-xl hover:bg-white/10 transition-colors" aria-label="Toggle sidebar">
+          {isExpanded ? <X className="w-5 h-5 text-white/70" /> : <Menu className="w-5 h-5 text-white/70" />}
+        </button>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-2 scrollbar-hide">
+        <ul className="space-y-0.5 px-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <li key={item.href}>
+                <button
+                  onClick={() => handleNav(item.href, item.protected)}
+                  {...getNavProps(item.href)}
+                  title={!isExpanded ? item.label : undefined}
+                  className={`w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl transition-all duration-150 ${
+                    isExpanded ? "flex-row gap-3 px-3 py-2.5 justify-start" : ""
+                  } ${active ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"}`}
+                >
+                  <Icon className={`flex-shrink-0 ${isExpanded ? "w-5 h-5" : "w-6 h-6"}`} />
+                  {isExpanded
+                    ? <span className="text-sm font-medium truncate">{item.label}</span>
+                    : <span className="text-[9px] font-medium leading-tight text-center w-full">{item.label}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      {/* Logout */}
+      {user && (
+        <div className="py-2 px-2 border-t border-white/10">
+          <button onClick={logout} title={!isExpanded ? "Log Out" : undefined}
+            className={`w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-white/50 hover:bg-white/10 hover:text-red-400 transition-all ${
+              !isExpanded ? "flex-col gap-0.5 px-1" : ""
+            }`}>
+            <LogOut className="flex-shrink-0 w-5 h-5" />
+            {isExpanded ? <span className="text-sm font-medium">Log Out</span> : <span className="text-[9px] font-medium">Out</span>}
           </button>
         </div>
-
-        {/* Nav items */}
-        <nav className="flex-1 overflow-y-auto py-2 scrollbar-hide">
-          <ul className="space-y-0.5 px-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-
-              return (
-                <li key={item.href}>
-                  <button
-                    onClick={() => handleNav(item.href, item.protected)}
-                    {...getNavProps(item.href)}
-                    title={!isExpanded ? item.label : undefined}
-                    className={`w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl transition-all duration-150 ${
-                      isExpanded ? "flex-row gap-3 px-3 py-2.5 justify-start" : ""
-                    } ${
-                      active
-                        ? "bg-white/15 text-white"
-                        : "text-white/60 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    <Icon className={`flex-shrink-0 ${isExpanded ? "w-5 h-5" : "w-6 h-6"}`} />
-                    {isExpanded ? (
-                      <span className="text-sm font-medium truncate">{item.label}</span>
-                    ) : (
-                      <span className="text-[9px] font-medium leading-tight text-center w-full">{item.label}</span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        {/* Logout at bottom */}
-        {user && (
-          <div className="py-2 px-2 border-t border-white/10">
-            <button
-              onClick={logout}
-              title={!isExpanded ? "Log Out" : undefined}
-              className={`w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-white/50 hover:bg-white/10 hover:text-red-400 transition-all ${
-                !isExpanded ? "flex-col gap-0.5 px-1" : ""
-              }`}
-            >
-              <LogOut className="flex-shrink-0 w-5 h-5" />
-              {isExpanded ? (
-                <span className="text-sm font-medium">Log Out</span>
-              ) : (
-                <span className="text-[9px] font-medium">Out</span>
-              )}
-            </button>
-          </div>
-        )}
-      </aside>
-    </>
+      )}
+    </aside>
   );
 }
