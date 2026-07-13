@@ -109,7 +109,7 @@ const getIconComponent = (iconName: string, className: string = "w-5 h-5") => {
 
 // ─── Hook: detect if a section overlaps the fixed map panel ─────────────────
 // Map panel: fixed top-[48px], height 440px → bottom at 488px from viewport top.
-const MAP_PANEL_BOTTOM = 504; // 64px header + 440px map
+const MAP_PANEL_BOTTOM = 704; // 64px header + 640px map
 
 function useSectionOverlapsMap() {
   const [overlaps, setOverlaps] = useState(false);
@@ -292,8 +292,8 @@ export default function HomePage() {
   const ctaSection = useSectionOverlapsMap();
 
   const isPopupOpen = !!selectedEntity;
-  const mapHeight = isPopupOpen ? 320 : 440;
-  const innerMapHeight = isPopupOpen ? 200 : 320;
+  const mapHeight = isPopupOpen ? 480 : 640;
+  const innerMapHeight = isPopupOpen ? 360 : 500;
   const popupTop = 64 + mapHeight;
 
   // Auto-open booking modal if bookDoctorId is in URL
@@ -715,7 +715,7 @@ export default function HomePage() {
       <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,5rem)]">
 
         {/* ── HERO + SEARCH ────────────────────────────────────────────── */}
-        <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out ${heroSection.overlaps ? 'lg:mr-[26rem]' : 'lg:mr-0'}`}>
+        <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out ${heroSection.overlaps ? 'lg:mr-[min(50vw,48rem)]' : 'lg:mr-0'}`}>
           <div className="relative">
             {/* Hero */}
             <div className="relative h-[180px] md:h-[260px] overflow-hidden">
@@ -725,8 +725,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ── FIXED MAP PANEL — right side, modern glass design ── */}
-        <div className="hidden lg:flex fixed right-0 top-[64px] w-[26rem] z-30 flex-col bg-white/95 backdrop-blur-md border-l border-gray-100 shadow-2xl rounded-bl-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
+        {/* ── FIXED MAP PANEL — right side, full viewport height ── */}
+        <div className="hidden lg:flex fixed right-0 top-[64px] w-[36rem] z-30 flex-col bg-white/95 backdrop-blur-md border-l border-gray-100 shadow-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
           {/* Header */}
           <div className="px-4 pt-3 pb-2 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-emerald-50/80 to-blue-50/80">
             <div className="flex items-center justify-between">
@@ -831,7 +831,7 @@ export default function HomePage() {
         </section>
 
         {/* ── EXPLORE + CARDS (seamless tab-switch) ──────────────────── */}
-        <section ref={quickAccessSection.ref} className={`transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[26rem]' : 'lg:mr-0'}`}>
+        <section ref={quickAccessSection.ref} className={`transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[min(50vw,48rem)]' : 'lg:mr-0'}`}>
 
           {/* Category boxes — sky blue background */}
           <div className="px-3 md:px-4 pt-4 md:pt-5 pb-0" style={{ background: 'linear-gradient(135deg, #bae6fd 0%, #7dd3fc 60%, #38bdf8 100%)' }}>
@@ -1161,7 +1161,7 @@ export default function HomePage() {
         </section>
 
         {/* ── STATS ─────────────────────────────────────────────────────── */}
-        <section ref={statsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[26rem]">
+        <section ref={statsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.trustedBy?.title || "Trusted by Thousands"}</h2>
@@ -1206,7 +1206,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
-        <section ref={howItWorksSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[26rem]">
+        <section ref={howItWorksSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.howItWorks?.title || "How It Works"}</h2>
@@ -1241,7 +1241,7 @@ export default function HomePage() {
         </section>
 
         {/* ── WHY CHOOSE US ─────────────────────────────────────────────── */}
-        <section ref={whyChooseSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[26rem]">
+        <section ref={whyChooseSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.whyChooseUs?.title || "Why Choose Us"}</h2>
@@ -1267,7 +1267,7 @@ export default function HomePage() {
         </section>
 
         {/* ── TESTIMONIALS ──────────────────────────────────────────────── */}
-        <section ref={testimonialsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[26rem]">
+        <section ref={testimonialsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.testimonials?.title || "What Our Users Say"}</h2>
@@ -1299,7 +1299,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HEALTH TIPS ───────────────────────────────────────────────── */}
-        <section ref={healthTipsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[26rem]">
+        <section ref={healthTipsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-5">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.healthTips?.title || "Health Tips from Our Doctors"}</h2>
@@ -1335,7 +1335,7 @@ export default function HomePage() {
         </section>
 
         {/* ── CTA BANNERS ───────────────────────────────────────────────── */}
-        <section ref={ctaSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[26rem]">
+        <section ref={ctaSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
             <motion.div initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
               <div className="bg-white rounded-xl p-5 text-center shadow-md">
@@ -1460,3 +1460,4 @@ export default function HomePage() {
     </div>
   );
 }
+
