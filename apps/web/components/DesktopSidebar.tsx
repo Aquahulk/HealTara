@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useInstantNav } from "../hooks/useInstantNav";
 import { 
   Home, Calendar, Heart, Stethoscope, Building2, User, Settings,
-  LogOut, LayoutDashboard, Menu, X
+  LogOut, LayoutDashboard
 } from "lucide-react";
 
 interface DesktopSidebarProps {
@@ -24,7 +24,7 @@ export default function DesktopSidebar(props: DesktopSidebarProps) {
 }
 
 function DesktopSidebarInner({ className = "", onCollapseChange }: DesktopSidebarProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -101,13 +101,14 @@ function DesktopSidebarInner({ className = "", onCollapseChange }: DesktopSideba
         isExpanded ? "w-56" : "w-20"
       } ${className}`}
     >
-      {/* Toggle */}
-      <div className="flex items-center justify-center py-3 border-b border-white/10">
-        <button onClick={() => setIsExpanded(!isExpanded)}
-          className="p-2 rounded-xl hover:bg-white/10 transition-colors" aria-label="Toggle sidebar">
-          {isExpanded ? <X className="w-5 h-5 text-white/70" /> : <Menu className="w-5 h-5 text-white/70" />}
-        </button>
-      </div>
+      {/* Toggle — floating pill on edge */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="absolute -right-3 top-8 w-6 h-12 bg-[#1a2744] border border-white/20 rounded-r-full flex items-center justify-center shadow-lg hover:bg-[#253552] transition-all group z-50"
+        aria-label="Toggle sidebar"
+      >
+        <div className={`w-3 h-3 border-t-2 border-r-2 border-white/60 group-hover:border-white transition-all ${isExpanded ? 'rotate-[225deg] translate-x-0.5' : 'rotate-45 -translate-x-0.5'}`} />
+      </button>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2 scrollbar-hide">

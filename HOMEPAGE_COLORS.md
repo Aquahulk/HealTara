@@ -230,7 +230,7 @@ Check that file for:
 ## 🎯 Page Backgrounds Summary
 
 | Page | Background | Vibe |
-|------|-----------|------|
+|------|-----------|------|`bg-gradient-to-b from-blue-600 to-blue-800
 | Homepage | `bg-white` (main), sections have their own gradients | Clean white with colorful sections |
 | Find Doctors | `from-slate-50 via-blue-50/30 to-indigo-50/20` | Subtle cool blue tint |
 | Find Hospitals | `from-slate-50 via-purple-50/30 to-blue-50/20` | Subtle warm purple-blue tint |
@@ -263,7 +263,7 @@ Check that file for:
 ## Main Container
 | Element | Color | Line |
 |---------|-------|------|
-| **Sidebar background** | `bg-gradient-to-b from-blue-600 to-blue-800` | [DesktopSidebar.tsx:149](apps/web/components/DesktopSidebar.tsx#L149) |
+| **Sidebar background** | ` | [DesktopSidebar.tsx:149](apps/web/components/DesktopSidebar.tsx#L149) |
 | Right border | `border-blue-900` | [DesktopSidebar.tsx:149](apps/web/components/DesktopSidebar.tsx#L149) |
 | Shadow | `shadow-lg` | [DesktopSidebar.tsx:149](apps/web/components/DesktopSidebar.tsx#L149) |
 

@@ -51,6 +51,7 @@ import {
   DollarSign,
   ArrowDown,
   Play,
+  Home,
 } from "lucide-react";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -109,7 +110,7 @@ const getIconComponent = (iconName: string, className: string = "w-5 h-5") => {
 
 // ─── Hook: detect if a section overlaps the fixed map panel ─────────────────
 // Map panel: fixed top-[48px], height 440px → bottom at 488px from viewport top.
-const MAP_PANEL_BOTTOM = 704; // 64px header + 640px map
+const MAP_PANEL_BOTTOM = 544; // 64px header + 480px map
 
 function useSectionOverlapsMap() {
   const [overlaps, setOverlaps] = useState(false);
@@ -292,9 +293,11 @@ export default function HomePage() {
   const ctaSection = useSectionOverlapsMap();
 
   const isPopupOpen = !!selectedEntity;
-  const mapHeight = isPopupOpen ? 480 : 640;
-  const innerMapHeight = isPopupOpen ? 360 : 500;
-  const popupTop = 64 + mapHeight;
+  const [mapExpanded, setMapExpanded] = useState(false); // manual toggle for map
+  const showMap = !isPopupOpen || mapExpanded;
+  const mapHeight = 480;
+  const innerMapHeight = 360;
+  const popupTop = 64;
 
   // Auto-open booking modal if bookDoctorId is in URL
   useEffect(() => {
@@ -715,7 +718,7 @@ export default function HomePage() {
       <main className="overflow-x-hidden transition-all duration-300 md:ml-[var(--sidebar-width,5rem)]">
 
         {/* ── HERO + SEARCH ────────────────────────────────────────────── */}
-        <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out ${heroSection.overlaps ? 'lg:mr-[min(50vw,48rem)]' : 'lg:mr-0'}`}>
+        <section ref={heroSection.ref} className={`relative bg-gray-50 transition-all duration-500 ease-in-out lg:mr-[31vw]`}>
           <div className="relative">
             {/* Hero */}
             <div className="relative h-[180px] md:h-[260px] overflow-hidden">
@@ -726,7 +729,8 @@ export default function HomePage() {
         </section>
 
         {/* ── FIXED MAP PANEL — right side, full viewport height ── */}
-        <div className="hidden lg:flex fixed right-0 top-[64px] w-[36rem] z-30 flex-col bg-white/95 backdrop-blur-md border-l border-gray-100 shadow-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
+        {showMap && (
+        <div className="hidden lg:flex fixed right-0 top-[64px] w-[31vw] z-30 flex-col bg-white/95 backdrop-blur-md border-l border-gray-100 shadow-2xl overflow-hidden transition-all duration-500 ease-in-out" style={{ height: `${mapHeight}px` }}>
           {/* Header */}
           <div className="px-4 pt-3 pb-2 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-emerald-50/80 to-blue-50/80">
             <div className="flex items-center justify-between">
@@ -783,6 +787,17 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+        )}
+
+        {/* Map expand button when profile is open */}
+        {isPopupOpen && !mapExpanded && (
+          <button
+            onClick={() => setMapExpanded(true)}
+            className="hidden lg:flex fixed right-[31vw] top-[72px] z-50 items-center gap-1.5 bg-white shadow-lg border border-gray-200 px-3 py-1.5 rounded-l-lg text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all"
+          >
+            <MapPin className="w-3.5 h-3.5 text-emerald-600" /> Map
+          </button>
+        )}
 
         {/* ── MOBILE MAP SECTION (visible only on small screens) ── */}
         <section className="lg:hidden py-4 px-4 bg-gradient-to-br from-white to-slate-50">
@@ -831,7 +846,7 @@ export default function HomePage() {
         </section>
 
         {/* ── EXPLORE + CARDS (seamless tab-switch) ──────────────────── */}
-        <section ref={quickAccessSection.ref} className={`transition-all duration-500 ease-in-out ${quickAccessSection.overlaps ? 'lg:mr-[min(50vw,48rem)]' : 'lg:mr-0'}`}>
+        <section ref={quickAccessSection.ref} className={`transition-all duration-500 ease-in-out lg:mr-[31vw]`}>
 
           {/* Category boxes — sky blue background */}
           <div className="px-3 md:px-4 pt-4 md:pt-5 pb-0" style={{ background: 'linear-gradient(135deg, #bae6fd 0%, #7dd3fc 60%, #38bdf8 100%)' }}>
@@ -1161,7 +1176,7 @@ export default function HomePage() {
         </section>
 
         {/* ── STATS ─────────────────────────────────────────────────────── */}
-        <section ref={statsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
+        <section ref={statsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 transition-all duration-500 ease-in-out lg:mr-[31vw]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.trustedBy?.title || "Trusted by Thousands"}</h2>
@@ -1206,7 +1221,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
-        <section ref={howItWorksSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
+        <section ref={howItWorksSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-blue-800 transition-all duration-500 ease-in-out lg:mr-[31vw]">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.howItWorks?.title || "How It Works"}</h2>
@@ -1241,7 +1256,7 @@ export default function HomePage() {
         </section>
 
         {/* ── WHY CHOOSE US ─────────────────────────────────────────────── */}
-        <section ref={whyChooseSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
+        <section ref={whyChooseSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 transition-all duration-500 ease-in-out lg:mr-[31vw]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{homepageContent?.whyChooseUs?.title || "Why Choose Us"}</h2>
@@ -1267,7 +1282,7 @@ export default function HomePage() {
         </section>
 
         {/* ── TESTIMONIALS ──────────────────────────────────────────────── */}
-        <section ref={testimonialsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
+        <section ref={testimonialsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[31vw]">
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-3 md:mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.testimonials?.title || "What Our Users Say"}</h2>
@@ -1299,7 +1314,7 @@ export default function HomePage() {
         </section>
 
         {/* ── HEALTH TIPS ───────────────────────────────────────────────── */}
-        <section ref={healthTipsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
+        <section ref={healthTipsSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-900 to-indigo-900 transition-all duration-500 ease-in-out lg:mr-[31vw]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-3 md:mb-5">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-1">{homepageContent?.healthTips?.title || "Health Tips from Our Doctors"}</h2>
@@ -1335,7 +1350,7 @@ export default function HomePage() {
         </section>
 
         {/* ── CTA BANNERS ───────────────────────────────────────────────── */}
-        <section ref={ctaSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[min(50vw,48rem)]">
+        <section ref={ctaSection.ref} className="py-4 md:py-8 px-3 md:px-4 bg-gradient-to-br from-blue-600 to-indigo-700 transition-all duration-500 ease-in-out lg:mr-[31vw]">
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
             <motion.div initial={{ opacity: 0, x: -16 }} whileInView={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
               <div className="bg-white rounded-xl p-5 text-center shadow-md">
@@ -1375,6 +1390,7 @@ export default function HomePage() {
         onClose={() => {
           setSelectedEntity(null);
           setSelectedEntityType(null);
+          setMapExpanded(false);
         }}
         onBook={(doctor) => {
           setSelectedDoctor(doctor);
@@ -1390,48 +1406,54 @@ export default function HomePage() {
       </AnimatePresence>
 
       {/* ── FOOTER ────────────────────────────────────────────────────── */}
-      <footer className="bg-gray-900 text-white py-4 md:py-8 px-3 md:px-4 md:ml-[var(--sidebar-width,14rem)] transition-all duration-300">
+      <footer className="bg-gray-900 text-white py-6 md:py-10 px-4 md:px-6 md:ml-[var(--sidebar-width,14rem)] lg:mr-[31vw] transition-all duration-300">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xl">🏥</span>
+                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-blue-600 rounded-lg flex items-center justify-center">
+                  <Heart className="w-4 h-4 text-white" />
+                </div>
                 <span className="text-base font-bold">Healtara</span>
               </div>
               <p className="text-gray-400 text-xs mb-4 leading-relaxed">Your trusted healthcare platform connecting patients with verified doctors and hospitals.</p>
               <div className="flex gap-2">
-                {[{ icon: Facebook, bg: "bg-blue-600 hover:bg-blue-700" }, { icon: Twitter, bg: "bg-sky-600 hover:bg-sky-700" }, { icon: Instagram, bg: "bg-pink-600 hover:bg-pink-700" }, { icon: Linkedin, bg: "bg-blue-700 hover:bg-blue-800" }].map(({ icon: Icon, bg }, i) => (
-                  <a key={i} href="#" className={`w-7 h-7 ${bg} rounded-full flex items-center justify-center transition-colors`}><Icon className="w-3.5 h-3.5" /></a>
+                {[{ icon: Facebook, bg: "bg-blue-600 hover:bg-blue-700" }, { icon: Twitter, bg: "bg-sky-500 hover:bg-sky-600" }, { icon: Instagram, bg: "bg-pink-600 hover:bg-pink-700" }, { icon: Linkedin, bg: "bg-blue-700 hover:bg-blue-800" }].map(({ icon: Icon, bg }, i) => (
+                  <a key={i} href="#" className={`w-7 h-7 ${bg} rounded-lg flex items-center justify-center transition-colors`}><Icon className="w-3.5 h-3.5" /></a>
                 ))}
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-bold mb-3">Quick Links</h3>
+              <h3 className="text-sm font-bold mb-3 text-white">Quick Links</h3>
               <ul className="space-y-2">
-                {[{ href: "/", label: "🏠 Home" }, { href: "/doctors", label: "👨‍⚕️ Find Doctors" }, { href: "/hospitals", label: "🏥 Hospitals" }, { href: "/clinics", label: "🏥 Clinics" }, { href: "/reviews", label: "⭐ Reviews" }].map((l) => (
-                  <li key={l.href}><Link href={l.href} prefetch className="text-gray-400 hover:text-white transition-colors text-xs">{l.label}</Link></li>
-                ))}
+                <li><Link href="/" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Home className="w-3 h-3" /> Home</Link></li>
+                <li><Link href="/doctors" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Stethoscope className="w-3 h-3" /> Find Doctors</Link></li>
+                <li><Link href="/hospitals" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Building2 className="w-3 h-3" /> Hospitals</Link></li>
+                <li><Link href="/clinics" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Hospital className="w-3 h-3" /> Clinics</Link></li>
+                <li><Link href="/reviews" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Star className="w-3 h-3" /> Reviews</Link></li>
               </ul>
             </div>
             <div>
-              <h3 className="text-sm font-bold mb-3">For Providers</h3>
+              <h3 className="text-sm font-bold mb-3 text-white">For Providers</h3>
               <ul className="space-y-2">
-                {[{ href: "/register/doctor-hospital?role=doctor", label: "👨‍⚕️ Doctor Sign-up" }, { href: "/register/doctor-hospital?role=hospital", label: "🏥 Hospital Sign-up" }, { href: "/login/doctors", label: "🔑 Doctor Login" }, { href: "/slot-admin/login", label: "🧑‍⚕️ Management" }].map((l) => (
-                  <li key={l.href}><Link href={l.href} prefetch className="text-gray-400 hover:text-white transition-colors text-xs">{l.label}</Link></li>
-                ))}
+                <li><Link href="/register/doctor-hospital?role=doctor" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><UserCheck className="w-3 h-3" /> Doctor Sign-up</Link></li>
+                <li><Link href="/register/doctor-hospital?role=hospital" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Building2 className="w-3 h-3" /> Hospital Sign-up</Link></li>
+                <li><Link href="/login/doctors" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Shield className="w-3 h-3" /> Doctor Login</Link></li>
+                <li><Link href="/slot-admin/login" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Activity className="w-3 h-3" /> Management</Link></li>
               </ul>
             </div>
             <div>
-              <h3 className="text-sm font-bold mb-3">Support</h3>
+              <h3 className="text-sm font-bold mb-3 text-white">Support</h3>
               <ul className="space-y-2">
-                {[{ href: "/about", label: "📖 About" }, { href: "/contact", label: "📞 Contact" }, { href: "/terms", label: "📋 Terms" }, { href: "/privacy", label: "🔒 Privacy" }, { href: "/careers", label: "💼 Careers" }].map((l) => (
-                  <li key={l.href}><Link href={l.href} prefetch className="text-gray-400 hover:text-white transition-colors text-xs">{l.label}</Link></li>
-                ))}
+                <li><Link href="/about" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><BookOpen className="w-3 h-3" /> About</Link></li>
+                <li><Link href="/contact" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Phone className="w-3 h-3" /> Contact</Link></li>
+                <li><Link href="/terms" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><FileText className="w-3 h-3" /> Terms</Link></li>
+                <li><Link href="/privacy" prefetch className="text-gray-400 hover:text-white transition-colors text-xs flex items-center gap-2"><Shield className="w-3 h-3" /> Privacy</Link></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-800 pt-5 text-center">
-            <p className="text-gray-500 text-xs">Made with ❤️ by Healtara Team · © 2024 All rights reserved</p>
+            <p className="text-gray-500 text-xs">© 2024 Healtara. All rights reserved.</p>
           </div>
         </div>
       </footer>

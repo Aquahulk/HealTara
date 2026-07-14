@@ -1991,6 +1991,37 @@ app.get('/api/my-appointments', authMiddleware, async (req: Request, res: Respon
   }
 });
 
+// --- Patient: Cancel own appointment ---
+app.patch('/api/my-appointments/:appointmentId/cancel', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const appointmentId = Number(req.params.appointmentId);
+  if (!Number.isFinite(appointmentId)) {
+    return res.status(400).json({ message: 'Invalid appointment ID' });
+  }
+  try {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: { id: true, patientId: true, doctorId: true, status: true }
+    });
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+    if (appointment.patientId !== user.userId) return res.status(403).json({ message: 'You can only cancel your own appointments' });
+    if (appointment.status === 'CANCELLED') return res.status(400).json({ message: 'Already cancelled' });
+    if (appointment.status === 'COMPLETED') return res.status(400).json({ message: 'Cannot cancel a completed appointment' });
+
+    const updated = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: 'CANCELLED' }
+    });
+
+    // Broadcast to doctor
+    broadcastDoctorEvent(appointment.doctorId, 'appointment-cancelled', { appointment: updated });
+    return res.status(200).json({ message: 'Appointment cancelled', appointment: updated });
+  } catch (error: any) {
+    console.error('Patient cancel error:', error?.message);
+    return res.status(500).json({ message: 'Failed to cancel appointment' });
+  }
+});
+
 // --- Update Doctor Profile Endpoint (Protected) ---
 app.put('/api/doctor/profile', authMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;

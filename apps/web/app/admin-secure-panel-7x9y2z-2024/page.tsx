@@ -38,6 +38,7 @@ import { getUserLabel, getDoctorLabel, getPatientLabel } from '@/lib/utils';    
 // 🔐 SECURITY UTILITIES - Advanced security validation functions
 // ============================================================================
 
+
 // Decrypt session data
 const decryptSessionData = (encryptedData: string): any => {
   try {
@@ -201,7 +202,7 @@ export default function SecureAdminPanel() {
   const [loading, setLoading] = useState(false);            // Loading state for data operations
   const [selectedUser, setSelectedUser] = useState<User | null>(null); // User selected for role update
   const [showRoleModal, setShowRoleModal] = useState(false); // Control role update modal visibility
-  const [newRole, setNewRole] = useState('');               // New role to assign to user
+  const [newRole, setNewRole] = useState('');               // New role to assign to user 
   const [securityValidated, setSecurityValidated] = useState(false); // Security validation status
   const [accessDenied, setAccessDenied] = useState(false);  // Access denied status
   const [homepageContent, setHomepageContent] = useState<HomepageContent | null>(null); // Homepage content

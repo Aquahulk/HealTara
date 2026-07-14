@@ -535,6 +535,10 @@ class ApiClient {
     return this.request('/api/my-appointments');
   }
 
+  async cancelMyAppointment(appointmentId: number): Promise<any> {
+    return this.request(`/api/my-appointments/${appointmentId}/cancel`, { method: 'PATCH' });
+  }
+
   async getMyPatients(): Promise<Array<{ patientId: number; email: string; count: number; lastDate: string }>> {
     const resp = await this.request<{ items: Array<{ patientId: number; email: string; count: number; lastDate: string }> }>('/api/doctor/patients');
     return resp.items || [];

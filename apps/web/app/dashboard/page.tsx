@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react'; 
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
 import { apiClient, Appointment, Slot, API_BASE_URL } from '@/lib/api';  // API client for making HTTP requests
 import Link from 'next/link';                              // Next.js Link component for navigation
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CalendarIcon, 
@@ -376,6 +377,16 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);        // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
   const [activeTab, setActiveTab] = useState('overview');  // Currently selected tab
+  const dashSearchParams = useSearchParams();
+  // Sync activeTab from URL ?tab= param
+  useEffect(() => {
+    const urlTab = dashSearchParams?.get('tab');
+    if (urlTab && ['appointments', 'slots', 'patients', 'settings', 'analytics', 'website', 'messages', 'prescriptions'].includes(urlTab)) {
+      setActiveTab(urlTab);
+    } else {
+      setActiveTab('overview');
+    }
+  }, [dashSearchParams]);
   const [appointmentViewMode, setAppointmentViewMode] = useState<'list' | 'grouped'>('grouped'); // Doctor appointments view mode
   const [selectedAppointmentForPopup, setSelectedAppointmentForPopup] = useState<Appointment | null>(null);
   const [doctorStatusFilter, setDoctorStatusFilter] = useState<'ALL'|'CONFIRMED'|'PENDING'|'CANCELLED'|'EMERGENCY'>('ALL'); // Doctor-only filter
@@ -3494,40 +3505,89 @@ const [socketReady, setSocketReady] = useState(false);
             )}
 
             {/* ============================================================================
-                📅 RECENT APPOINTMENTS - Latest appointment activity
+                📅 TODAY'S BOOKINGS (Patient) / RECENT APPOINTMENTS (Doctor/Hospital)
                 ============================================================================ */}
-            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Recent Appointments</h3>
-              </div>
-              <div className="p-6">
-                {(() => { const recents = (user.role as string) === 'HOSPITAL_ADMIN' ? recentHospitalAppointments : appointments.slice(0, 5); return recents.length > 0 ? (
-                  <div className="space-y-3 md:space-y-4">
-                    {recents.map((appointment) => (
-                      <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium' })} at {formatISTTime(getAppointmentISTDate(appointment))}
-                          </p>
-                                                       <p className="text-gray-600">
-                            {(user.role as string) === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || 'Patient')}` : `Doctor: ${(((appointment.doctor as any)?.doctorProfile?.slug) || 'Doctor')}`}
-                          </p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
-                          appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                          appointment.status === 'EMERGENCY' ? 'bg-orange-100 text-orange-800' :
-                          appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {appointment.status}
-                        </span>
+            {user.role === 'PATIENT' ? (
+              <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-gray-900">Today&apos;s Bookings</h3>
+                  <button onClick={() => setActiveTab('appointments')} className="text-xs text-blue-600 hover:text-blue-700 font-semibold">View all →</button>
+                </div>
+                <div className="p-4">
+                  {(() => {
+                    const fmtD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                    const todayStr = fmtD.format(getISTNow());
+                    const todayAppts = appointments.filter(a => fmtD.format(getAppointmentISTDate(a)) === todayStr && a.status !== 'CANCELLED');
+                    if (todayAppts.length === 0) return <p className="text-gray-500 text-center py-6 text-sm">No bookings for today</p>;
+                    return (
+                      <div className="space-y-2">
+                        {todayAppts.map(a => (
+                          <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-sm">🕐</div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{getDoctorLabel(a.doctor as any)}</p>
+                                <p className="text-xs text-gray-500">{a.time || formatISTTime(getAppointmentISTDate(a))}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                a.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' :
+                                a.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>{a.status}</span>
+                              {(a.status === 'PENDING' || a.status === 'CONFIRMED') && (
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Cancel this appointment?')) return;
+                                    try {
+                                      await apiClient.cancelMyAppointment(a.id);
+                                      setAppointments(prev => prev.map(x => x.id === a.id ? { ...x, status: 'CANCELLED' } : x));
+                                    } catch (err: any) { alert(err?.message || 'Failed'); }
+                                  }}
+                                  className="text-[10px] text-red-500 hover:text-red-700 font-semibold"
+                                >Cancel</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (<p className="text-gray-500 text-center py-8">No appointments found</p>); })()}
+                    );
+                  })()}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Recent Appointments</h3>
+                </div>
+                <div className="p-6">
+                  {(() => { const recents = (user.role as string) === 'HOSPITAL_ADMIN' ? recentHospitalAppointments : appointments.slice(0, 5); return recents.length > 0 ? (
+                    <div className="space-y-3 md:space-y-4">
+                      {recents.map((appointment) => (
+                        <div key={appointment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {formatIST(getAppointmentISTDate(appointment), { dateStyle: 'medium' })} at {formatISTTime(getAppointmentISTDate(appointment))}
+                            </p>
+                            <p className="text-gray-600">
+                              {(user.role as string) === 'DOCTOR' ? `Patient: ${(((appointment.patient as any)?.name) || 'Patient')}` : `Doctor: ${getDoctorLabel(appointment.doctor as any)}`}
+                            </p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            appointment.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' :
+                            appointment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                            appointment.status === 'EMERGENCY' ? 'bg-orange-100 text-orange-800' :
+                            appointment.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>{appointment.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (<p className="text-gray-500 text-center py-8">No appointments found</p>); })()}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
