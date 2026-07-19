@@ -12,7 +12,7 @@
 // 📦 EXTERNAL DEPENDENCIES - What we're importing and why
 // ============================================================================
 'use client';                                              // Enable React hooks and client-side features
-import { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';         // React hooks for state management, side effects, refs, memoization, and deferred updates
+import { useState, useEffect, useRef, useMemo, useDeferredValue, Suspense } from 'react';         // React hooks for state management, side effects, refs, memoization, and deferred updates
 import { useAuth } from '@/context/AuthContext';           // Custom hook to access user authentication state
 import { apiClient, Appointment, Slot, API_BASE_URL } from '@/lib/api';  // API client for making HTTP requests
 import Link from 'next/link';                              // Next.js Link component for navigation
@@ -354,7 +354,15 @@ const getSegmentBoxColors = (appointmentCount: number, segStart: Date) => {
 // ============================================================================
 // 🏥 DOCTOR DASHBOARD COMPONENT - Main dashboard component
 // ============================================================================
-export default function DashboardPage() {
+export default function DashboardPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div></div>}>
+      <DashboardPage />
+    </Suspense>
+  );
+}
+
+function DashboardPage() {
   // ============================================================================
   // 🎯 STATE MANAGEMENT - Variables that control component behavior
   // ============================================================================
