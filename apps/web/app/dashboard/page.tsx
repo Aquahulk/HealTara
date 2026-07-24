@@ -1,3 +1,5 @@
+'use client';
+
 import dynamic from 'next/dynamic';
 
 // Dynamically import the client dashboard with SSR disabled to prevent
