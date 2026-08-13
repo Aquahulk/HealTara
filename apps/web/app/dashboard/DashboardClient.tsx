@@ -60,6 +60,7 @@ import Header from '@/components/Header';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import EnhancedPatientsTab from '@/components/dashboard/EnhancedPatientsTab';
 import EnhancedWebsiteTab from '@/components/dashboard/EnhancedWebsiteTab';
+import HospitalAdminAdvanced from '@/components/dashboard/HospitalAdminAdvanced';
 
 function WalkInReserveBox({ userId }: { userId: number }) {
   const [name, setName] = useState('');
@@ -2517,6 +2518,7 @@ const [socketReady, setSocketReady] = useState(false);
             { id: 'overview', name: '📊 Overview', icon: ChartBarIcon, shortName: 'Overview' },
             { id: 'appointments', name: '📅 Appointments', icon: CalendarIcon, shortName: 'Appts' },
             ...(isDoctorLike ? [{ id: 'slots', name: '🕒 Slots', icon: ClockIcon, shortName: 'Slots' }] : []),
+            ...(user.role === 'HOSPITAL_ADMIN' ? [{ id: 'management', name: '🏥 Management', icon: BuildingOffice2Icon, shortName: 'Manage' }] : []),
             ...(isDoctorLike ? [{ id: 'analytics', name: '📈 Analytics', icon: ChartBarSquareIcon, shortName: 'Analytics' }] : []),
             ...(isDoctorLike ? [{ id: 'patients', name: '👥 Patients', icon: UserGroupIcon, shortName: 'Patients' }] : []),
             ...(isDoctorLike ? [{ id: 'website', name: '🌐 Website', icon: GlobeAltIcon, shortName: 'Website' }] : []),
@@ -2954,6 +2956,7 @@ const [socketReady, setSocketReady] = useState(false);
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <button onClick={() => setActiveTab('management')} className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">🏥 Management</button>
                       <button onClick={() => setActiveTab('appointments')} className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">📅 Appointments</button>
                       <a href="/hospital-admin/profile" className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">✏️ Edit Profile</a>
                       <a href={`/hospital-site/${(hospitalProfile as any)?.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 bg-white text-blue-700 hover:bg-blue-50 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">🌐 View Site</a>
@@ -3939,6 +3942,30 @@ const [socketReady, setSocketReady] = useState(false);
             stats={stats}
             doctorProfile={doctorProfile}
             user={user}
+          />
+        )}
+
+        {/* ============================================================================
+            🏥 MANAGEMENT TAB - Hospital admin management (HOSPITAL_ADMIN ONLY)
+            ============================================================================ */}
+        {activeTab === 'management' && user.role === 'HOSPITAL_ADMIN' && (
+          <HospitalAdminAdvanced
+            hospitalProfile={hospitalProfile}
+            hospitalDoctors={hospitalDoctors}
+            doctorAppointmentsMap={doctorAppointmentsMap}
+            onRefresh={async () => {
+              // Refresh hospital data
+              try {
+                const [doctors, profile] = await Promise.all([
+                  apiClient.getHospitalDoctors(),
+                  apiClient.getMyHospitalProfile(),
+                ]);
+                setHospitalDoctors(doctors);
+                setHospitalProfile(profile);
+              } catch (error) {
+                console.error('Failed to refresh hospital data:', error);
+              }
+            }}
           />
         )}
 
