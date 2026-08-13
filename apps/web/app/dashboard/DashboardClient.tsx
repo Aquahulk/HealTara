@@ -58,6 +58,8 @@ import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import PatientDetailPopup from '@/components/PatientDetailPopup';
 import Header from '@/components/Header';
 import DesktopSidebar from '@/components/DesktopSidebar';
+import EnhancedPatientsTab from '@/components/dashboard/EnhancedPatientsTab';
+import EnhancedWebsiteTab from '@/components/dashboard/EnhancedWebsiteTab';
 
 function WalkInReserveBox({ userId }: { userId: number }) {
   const [name, setName] = useState('');
@@ -350,6 +352,307 @@ const getSegmentBoxColors = (appointmentCount: number, segStart: Date) => {
     }
   }
 };
+
+// ============================================================================
+// 📈 ANALYTICS TAB COMPONENT - Advanced analytics and insights
+// ============================================================================
+function AnalyticsTab({ appointments, stats, doctorProfile, user }: {
+  appointments: Appointment[];
+  stats: DashboardStats | null;
+  doctorProfile: DoctorProfile | null;
+  user: any;
+}) {
+  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
+  const [selectedMetric, setSelectedMetric] = useState<'appointments' | 'revenue' | 'patients'>('appointments');
+
+  // Calculate analytics data
+  const analyticsData = useMemo(() => {
+    const now = new Date();
+    const rangeDays = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
+    const startDate = new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+
+    const filtered = appointments.filter(a => {
+      const apptDate = new Date(a.date);
+      return apptDate >= startDate && apptDate <= now;
+    });
+
+    // Appointments by status
+    const byStatus = {
+      confirmed: filtered.filter(a => a.status === 'CONFIRMED').length,
+      pending: filtered.filter(a => a.status === 'PENDING').length,
+      cancelled: filtered.filter(a => a.status === 'CANCELLED').length,
+      completed: filtered.filter(a => a.status === 'COMPLETED').length,
+    };
+
+    // Daily trend data
+    const dailyData: Record<string, { date: string; appointments: number; revenue: number; patients: Set<number> }> = {};
+    for (let i = 0; i < rangeDays; i++) {
+      const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+      const key = d.toISOString().split('T')[0];
+      dailyData[key] = { date: key, appointments: 0, revenue: 0, patients: new Set() };
+    }
+
+    filtered.forEach(a => {
+      const key = a.date.split('T')[0];
+      if (dailyData[key]) {
+        dailyData[key].appointments++;
+        dailyData[key].revenue += doctorProfile?.consultationFee || 0;
+        if (a.patientId) dailyData[key].patients.add(a.patientId);
+      }
+    });
+
+    const trendData = Object.values(dailyData).map(d => ({
+      date: d.date,
+      appointments: d.appointments,
+      revenue: d.revenue,
+      patients: d.patients.size,
+    }));
+
+    // Peak hours analysis
+    const hourCounts: Record<number, number> = {};
+    filtered.forEach(a => {
+      if (a.time) {
+        const hour = parseInt(a.time.split(':')[0]);
+        hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+      }
+    });
+
+    const peakHours = Object.entries(hourCounts)
+      .map(([hour, count]) => ({ hour: parseInt(hour), count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // Month-over-month comparison
+    const currentMonth = filtered.filter(a => {
+      const d = new Date(a.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+
+    const lastMonth = appointments.filter(a => {
+      const d = new Date(a.date);
+      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear();
+    }).length;
+
+    const growthRate = lastMonth > 0 ? ((currentMonth - lastMonth) / lastMonth * 100) : 0;
+
+    return {
+      byStatus,
+      trendData,
+      peakHours,
+      growthRate,
+      totalRevenue: filtered.reduce((sum, a) => sum + (doctorProfile?.consultationFee || 0), 0),
+      avgPerDay: filtered.length / rangeDays,
+    };
+  }, [appointments, timeRange, doctorProfile]);
+
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+  return (
+    <div className="space-y-6 pb-20">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-6 shadow-lg">
+        <h2 className="text-2xl font-black text-white mb-2">📈 Practice Analytics</h2>
+        <p className="text-white/90 text-sm">Insights and trends for your practice</p>
+      </div>
+
+      {/* Time Range Selector */}
+      <div className="flex gap-2 flex-wrap">
+        {(['7d', '30d', '90d', '1y'] as const).map(range => (
+          <button
+            key={range}
+            onClick={() => setTimeRange(range)}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+              timeRange === range
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+            }`}
+          >
+            {range === '7d' ? 'Last 7 Days' : range === '30d' ? 'Last 30 Days' : range === '90d' ? 'Last 90 Days' : 'Last Year'}
+          </button>
+        ))}
+      </div>
+
+      {/* Key Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-2xl">📅</div>
+            <div className={`text-xs font-bold px-2 py-1 rounded ${
+              analyticsData.growthRate > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            }`}>
+              {analyticsData.growthRate > 0 ? '↑' : '↓'} {Math.abs(analyticsData.growthRate).toFixed(1)}%
+            </div>
+          </div>
+          <div className="text-3xl font-black text-gray-900 mb-1">{appointments.length}</div>
+          <div className="text-xs text-gray-500 font-medium">Total Appointments</div>
+          <div className="text-xs text-gray-400 mt-2">Avg: {analyticsData.avgPerDay.toFixed(1)}/day</div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-2xl">💰</div>
+          </div>
+          <div className="text-3xl font-black text-gray-900 mb-1">₹{analyticsData.totalRevenue.toLocaleString()}</div>
+          <div className="text-xs text-gray-500 font-medium">Total Revenue</div>
+          <div className="text-xs text-gray-400 mt-2">Fee: ₹{doctorProfile?.consultationFee || 0}</div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-2xl">✅</div>
+          </div>
+          <div className="text-3xl font-black text-gray-900 mb-1">{analyticsData.byStatus.completed}</div>
+          <div className="text-xs text-gray-500 font-medium">Completed</div>
+          <div className="text-xs text-gray-400 mt-2">
+            {appointments.length > 0 ? ((analyticsData.byStatus.completed / appointments.length) * 100).toFixed(1) : 0}% rate
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-2xl">👥</div>
+          </div>
+          <div className="text-3xl font-black text-gray-900 mb-1">{stats?.totalPatients || 0}</div>
+          <div className="text-xs text-gray-500 font-medium">Total Patients</div>
+          <div className="text-xs text-gray-400 mt-2">Unique visitors</div>
+        </div>
+      </div>
+
+      {/* Trend Chart */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-black text-gray-900">📊 Trend Analysis</h3>
+          <div className="flex gap-2">
+            {(['appointments', 'revenue', 'patients'] as const).map(metric => (
+              <button
+                key={metric}
+                onClick={() => setSelectedMetric(metric)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedMetric === metric
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {metric.charAt(0).toUpperCase() + metric.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          <AreaChart data={analyticsData.trendData}>
+            <defs>
+              <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis 
+              dataKey="date" 
+              tick={{ fontSize: 11, fill: '#6b7280' }}
+              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            />
+            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+            <RechartsTooltip 
+              contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
+              labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            />
+            <Area 
+              type="monotone" 
+              dataKey={selectedMetric} 
+              stroke="#3b82f6" 
+              strokeWidth={2}
+              fillOpacity={1} 
+              fill="url(#colorMetric)" 
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Status Distribution */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-black text-gray-900 mb-4">📋 Appointment Status</h3>
+          <div className="flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Confirmed', value: analyticsData.byStatus.confirmed },
+                    { name: 'Completed', value: analyticsData.byStatus.completed },
+                    { name: 'Pending', value: analyticsData.byStatus.pending },
+                    { name: 'Cancelled', value: analyticsData.byStatus.cancelled },
+                  ].filter(d => d.value > 0)}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {[0, 1, 2, 3].map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            {Object.entries(analyticsData.byStatus).map(([status, count], idx) => (
+              <div key={status} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx] }}></div>
+                <div className="text-xs">
+                  <div className="font-bold text-gray-900">{count}</div>
+                  <div className="text-gray-500">{status}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Peak Hours */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-black text-gray-900 mb-4">🕐 Peak Hours</h3>
+          <div className="space-y-3">
+            {analyticsData.peakHours.map((ph, idx) => {
+              const maxCount = analyticsData.peakHours[0]?.count || 1;
+              const percentage = (ph.count / maxCount) * 100;
+              return (
+                <div key={ph.hour}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-gray-700">
+                      {String(ph.hour).padStart(2, '0')}:00 - {String(ph.hour + 1).padStart(2, '0')}:00
+                    </span>
+                    <span className="text-sm font-bold text-gray-900">{ph.count} bookings</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5">
+                    <div 
+                      className="h-2.5 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${percentage}%`,
+                        backgroundColor: COLORS[idx % COLORS.length]
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {analyticsData.peakHours.length === 0 && (
+            <div className="text-center text-gray-400 py-8">
+              <div className="text-4xl mb-2">📊</div>
+              <div className="text-sm">No data available yet</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================================
 // 🏥 DOCTOR DASHBOARD COMPONENT - Main dashboard component
@@ -2213,7 +2516,11 @@ const [socketReady, setSocketReady] = useState(false);
           {[
             { id: 'overview', name: '📊 Overview', icon: ChartBarIcon, shortName: 'Overview' },
             { id: 'appointments', name: '📅 Appointments', icon: CalendarIcon, shortName: 'Appts' },
-            ...(isDoctorLike ? [{ id: 'slots', name: '🕒 Slots', icon: ClockIcon, shortName: 'Slots' }] : [])
+            ...(isDoctorLike ? [{ id: 'slots', name: '🕒 Slots', icon: ClockIcon, shortName: 'Slots' }] : []),
+            ...(isDoctorLike ? [{ id: 'analytics', name: '📈 Analytics', icon: ChartBarSquareIcon, shortName: 'Analytics' }] : []),
+            ...(isDoctorLike ? [{ id: 'patients', name: '👥 Patients', icon: UserGroupIcon, shortName: 'Patients' }] : []),
+            ...(isDoctorLike ? [{ id: 'website', name: '🌐 Website', icon: GlobeAltIcon, shortName: 'Website' }] : []),
+            ...(isDoctorLike ? [{ id: 'settings', name: '⚙️ Settings', icon: CogIcon, shortName: 'Settings' }] : [])
           ].map((tab) => (
               <button
                 key={tab.id}
@@ -3621,6 +3928,18 @@ const [socketReady, setSocketReady] = useState(false);
               </div>
             </div>
           )
+        )}
+
+        {/* ============================================================================
+            📈 ANALYTICS TAB - Practice analytics and insights
+            ============================================================================ */}
+        {activeTab === 'analytics' && isDoctorLike && (
+          <AnalyticsTab 
+            appointments={appointments}
+            stats={stats}
+            doctorProfile={doctorProfile}
+            user={user}
+          />
         )}
 
         {/* ============================================================================
