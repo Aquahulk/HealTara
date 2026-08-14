@@ -53,7 +53,7 @@ import { doctorMicrositeUrl, hospitalMicrositeUrl, customSubdomainUrl, shouldUse
 import { getDoctorLabel, getPatientLabel, getUserLabel } from '@/lib/utils';
 import { io } from 'socket.io-client';
 import { getSocket, joinDoctorRoom } from '@/lib/realtime';
-import { Clock, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, GripVertical, ClipboardList } from 'lucide-react';
 import MobileBottomNavigation from '@/components/MobileBottomNavigation';
 import PatientDetailPopup from '@/components/PatientDetailPopup';
 import Header from '@/components/Header';
@@ -685,7 +685,7 @@ export default function DashboardPage() {
   // Sync activeTab from URL ?tab= param
   useEffect(() => {
     const urlTab = dashSearchParams?.get('tab');
-    if (urlTab && ['appointments', 'slots', 'patients', 'settings', 'analytics', 'website', 'messages', 'prescriptions'].includes(urlTab)) {
+    if (urlTab && ['appointments', 'slots', 'patients', 'settings', 'analytics', 'website', 'messages', 'prescriptions', 'management'].includes(urlTab)) {
       setActiveTab(urlTab);
     } else {
       setActiveTab('overview');
@@ -3949,24 +3949,45 @@ const [socketReady, setSocketReady] = useState(false);
             🏥 MANAGEMENT TAB - Hospital admin management (HOSPITAL_ADMIN ONLY)
             ============================================================================ */}
         {activeTab === 'management' && user.role === 'HOSPITAL_ADMIN' && (
-          <HospitalAdminAdvanced
-            hospitalProfile={hospitalProfile}
-            hospitalDoctors={hospitalDoctors}
-            doctorAppointmentsMap={doctorAppointmentsMap}
-            onRefresh={async () => {
-              // Refresh hospital data
-              try {
-                const [doctors, profile] = await Promise.all([
-                  apiClient.getHospitalDoctors(),
-                  apiClient.getMyHospitalProfile(),
-                ]);
-                setHospitalDoctors(doctors);
-                setHospitalProfile(profile);
-              } catch (error) {
-                console.error('Failed to refresh hospital data:', error);
-              }
-            }}
-          />
+          <div className="space-y-6 pb-20">
+            {/* Advanced Analytics Section */}
+            <HospitalAdminAdvanced
+              hospitalProfile={hospitalProfile}
+              hospitalDoctors={hospitalDoctors}
+              doctorAppointmentsMap={doctorAppointmentsMap}
+              onRefresh={async () => {
+                // Refresh hospital data
+                try {
+                  const [doctors, profile] = await Promise.all([
+                    apiClient.getHospitalDoctors(),
+                    apiClient.getMyHospitalProfile(),
+                  ]);
+                  setHospitalDoctors(doctors);
+                  setHospitalProfile(profile);
+                } catch (error) {
+                  console.error('Failed to refresh hospital data:', error);
+                }
+              }}
+            />
+            
+            {/* Hospital Settings & Configuration Section */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <CogIcon className="w-6 h-6" />
+                  Hospital Configuration
+                </h3>
+                <p className="text-white/80 text-sm mt-1">Manage doctor slot periods, access controls, and settings</p>
+              </div>
+              <div className="p-6">
+                <HospitalSettings
+                  onPeriodUpdated={(doctorId, minutes) => {
+                    setHospitalDoctorPeriodMap((prev) => ({ ...prev, [doctorId]: minutes }));
+                  }}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ============================================================================
@@ -5321,11 +5342,29 @@ const [socketReady, setSocketReady] = useState(false);
             ============================================================================ */}
         {activeTab === 'settings' && isDoctorLike && (
           user.role === 'DOCTOR' ? <DoctorSettings /> : (
-            <HospitalSettings
-              onPeriodUpdated={(doctorId, minutes) => {
-                setHospitalDoctorPeriodMap((prev) => ({ ...prev, [doctorId]: minutes }));
-              }}
-            />
+            // Hospital admins should use the Management tab
+            <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-5">
+                <h3 className="text-xl font-bold text-white flex items-center">
+                  <span className="mr-2">⚙️</span>
+                  Settings
+                </h3>
+              </div>
+              <div className="p-12 text-center">
+                <div className="text-6xl mb-6">🏥</div>
+                <h3 className="text-2xl font-black text-gray-900 mb-3">Use the Management Tab</h3>
+                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  Hospital configuration, doctor management, and slot settings have been moved to the dedicated Management section.
+                </p>
+                <button 
+                  onClick={() => setActiveTab('management')}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors inline-flex items-center gap-2"
+                >
+                  <ClipboardList className="w-5 h-5" />
+                  Go to Management
+                </button>
+              </div>
+            </div>
           )
         )}
       </div>

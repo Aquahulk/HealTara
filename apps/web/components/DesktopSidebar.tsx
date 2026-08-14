@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useInstantNav } from "../hooks/useInstantNav";
 import { 
   Home, Calendar, Heart, Stethoscope, Building2, User, Settings,
-  LogOut, LayoutDashboard
+  LogOut, LayoutDashboard, ClipboardList
 } from "lucide-react";
 
 interface DesktopSidebarProps {
@@ -57,8 +57,9 @@ function DesktopSidebarInner({ className = "", onCollapseChange }: DesktopSideba
     if (user.role === "HOSPITAL_ADMIN") {
       return [
         { href: "/dashboard", icon: LayoutDashboard, label: "Overview", protected: true },
-        { href: "/hospital-admin/profile", icon: Building2, label: "Hospital", protected: true },
+        { href: "/dashboard?tab=management", icon: ClipboardList, label: "Management", protected: true },
         { href: "/dashboard?tab=appointments", icon: Calendar, label: "Bookings", protected: true },
+        { href: "/hospital-admin/profile", icon: Building2, label: "Hospital", protected: true },
         { href: "/dashboard?tab=settings", icon: Settings, label: "Settings", protected: true },
       ];
     }
