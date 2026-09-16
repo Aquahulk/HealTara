@@ -23,6 +23,7 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
+import DoctorProfileSidebar from '@/components/DoctorProfileSidebar';
 
 interface Doctor {
   id: number;
@@ -77,6 +78,7 @@ export default function HospitalAdminAdvanced({
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'year'>('week');
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [expandedDepts, setExpandedDepts] = useState<Record<number, boolean>>({});
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
 
   // Process department data
   const departments = useMemo(() => {
@@ -404,7 +406,17 @@ export default function HospitalAdminAdvanced({
                           {dept.doctors.map(doctor => {
                             const appointments = doctorAppointmentsMap[doctor.id] || [];
                             return (
-                              <div key={doctor.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                              <div 
+                                key={doctor.id} 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log('Doctor card clicked:', doctor.id, 'Type:', typeof doctor.id);
+                                  console.log('Setting selectedDoctorId to:', doctor.id);
+                                  setSelectedDoctorId(doctor.id);
+                                  console.log('selectedDoctorId state should now be:', doctor.id);
+                                }}
+                                className="bg-white rounded-lg p-4 border border-gray-200 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all"
+                              >
                                 <div className="flex items-start gap-3">
                                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center text-white font-bold">
                                     {(doctor.doctorProfile?.slug || doctor.email)?.charAt(0).toUpperCase()}
@@ -424,6 +436,9 @@ export default function HospitalAdminAdvanced({
                                         <strong>{appointments.filter(a => a.status === 'COMPLETED').length}</strong> completed
                                       </span>
                                     </div>
+                                  </div>
+                                  <div className="text-blue-600">
+                                    <Eye className="w-5 h-5" />
                                   </div>
                                 </div>
                               </div>
@@ -550,7 +565,14 @@ export default function HospitalAdminAdvanced({
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">
-                            <button className="text-blue-600 hover:text-blue-800 transition-colors">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedDoctorId(doctor.id);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 transition-colors"
+                              title="View Profile"
+                            >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button className="text-gray-600 hover:text-gray-800 transition-colors">
@@ -743,6 +765,12 @@ export default function HospitalAdminAdvanced({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Doctor Profile Sidebar */}
+      <DoctorProfileSidebar 
+        doctorId={selectedDoctorId} 
+        onClose={() => setSelectedDoctorId(null)} 
+      />
     </div>
   );
 }

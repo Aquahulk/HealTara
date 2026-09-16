@@ -61,6 +61,7 @@ import DesktopSidebar from '@/components/DesktopSidebar';
 import EnhancedPatientsTab from '@/components/dashboard/EnhancedPatientsTab';
 import EnhancedWebsiteTab from '@/components/dashboard/EnhancedWebsiteTab';
 import HospitalAdminAdvanced from '@/components/dashboard/HospitalAdminAdvanced';
+import DoctorProfileSidebar from '@/components/DoctorProfileSidebar';
 
 function WalkInReserveBox({ userId }: { userId: number }) {
   const [name, setName] = useState('');
@@ -663,6 +664,13 @@ function AnalyticsTab({ appointments, stats, doctorProfile, user }: {
 // 🏥 DOCTOR DASHBOARD COMPONENT - Main dashboard component
 // ============================================================================
 export default function DashboardPage() {
+  console.log('🟢 DashboardPage RENDERING');
+  
+  // Test to see if this code even runs
+  if (typeof window !== 'undefined') {
+    (window as any).testDashboardRendering = true;
+  }
+  
   // ============================================================================
   // 🎯 STATE MANAGEMENT - Variables that control component behavior
   // ============================================================================
@@ -720,6 +728,9 @@ export default function DashboardPage() {
   const [selectedDoctorView, setSelectedDoctorView] = useState<number | null>(null); // doctor id for detail panel
   const [overviewDoctorAnalysis, setOverviewDoctorAnalysis] = useState<number | null>(null); // doctor id for inline overview analytics
   const [hospitalView, setHospitalView] = useState<'departments' | 'list' | 'doctor'>('departments'); // hospital appointments view mode
+  const [doctorProfileSidebarId, setDoctorProfileSidebarId] = useState<number | null>(null); // doctor id for profile sidebar
+  
+  console.log('🟢 Current doctorProfileSidebarId state:', doctorProfileSidebarId);
   const deferredHospitalDoctorSearch = useDeferredValue(hospitalDoctorSearch);
   const filteredHospitalDoctors = useMemo(() => {
     const q = deferredHospitalDoctorSearch.trim().toLowerCase();
@@ -4350,9 +4361,24 @@ const [socketReady, setSocketReady] = useState(false);
                                       const docPending = items.filter(a => a.status === 'PENDING').length;
                                       const docUpcoming = items.filter(a => getAppointmentISTDate(a).getTime() >= getISTNow().getTime()).length;
                                       return (
-                                        <div key={doc.id} className="border border-gray-100 rounded-xl overflow-hidden hover:border-blue-200 hover:shadow-md transition-all">
+                                        <div 
+                                          key={doc.id} 
+                                          className="border border-gray-100 rounded-xl overflow-hidden hover:border-blue-200 hover:shadow-md transition-all"
+                                        >
                                           {/* Doctor card header */}
-                                          <div className="px-3 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                                          <div 
+                                            className="px-3 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
+                                            onClick={(e) => {
+                                              console.log('🔵 Doctor card clicked! ID:', doc.id, 'Type:', typeof doc.id);
+                                              console.log('🔵 About to call setDoctorProfileSidebarId with:', doc.id);
+                                              setDoctorProfileSidebarId(doc.id);
+                                              console.log('🔵 setDoctorProfileSidebarId called');
+                                              // Force a small delay to see if it's a timing issue
+                                              setTimeout(() => {
+                                                console.log('🔵 Checking state after 100ms...');
+                                              }, 100);
+                                            }}
+                                          >
                                             <div className="flex items-center gap-2 min-w-0">
                                               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                                                 {(doc.doctorProfile?.clinicName || getDoctorLabel(doc)).charAt(0).toUpperCase()}
@@ -4362,8 +4388,14 @@ const [socketReady, setSocketReady] = useState(false);
                                                 <p className="text-[10px] text-gray-400 truncate">{doc.doctorProfile?.specialization || 'General'}</p>
                                               </div>
                                             </div>
-                                            <button onClick={() => { setSelectedDoctorView(doc.id); setHospitalView('doctor'); }}
-                                              className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold flex-shrink-0 ml-1">
+                                            <button 
+                                              onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                setSelectedDoctorView(doc.id); 
+                                                setHospitalView('doctor'); 
+                                              }}
+                                              className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold flex-shrink-0 ml-1"
+                                            >
                                               View →
                                             </button>
                                           </div>
@@ -6404,6 +6436,21 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
           </p>
         </section>
       </div>
+
+      {/* Test marker - should always be visible */}
+      <div style={{ position: 'fixed', top: 0, right: 0, background: 'red', color: 'white', padding: '4px', zIndex: 99999 }}>
+        Sidebar ID: {doctorProfileSidebarId || 'null'}
+      </div>
+
+      {/* Doctor Profile Sidebar */}
+      {console.log('📍 Rendering DoctorProfileSidebar with doctorProfileSidebarId:', doctorProfileSidebarId)}
+      <DoctorProfileSidebar 
+        doctorId={doctorProfileSidebarId} 
+        onClose={() => {
+          console.log('📍 Closing sidebar, setting ID to null');
+          setDoctorProfileSidebarId(null);
+        }} 
+      />
     </div>
   );
 }

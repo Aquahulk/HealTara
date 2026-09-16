@@ -775,6 +775,14 @@ class ApiClient {
     return this.request(`/api/hospitals/${hospitalId}/doctors/${doctorId}/appointments`);
   }
 
+  async getDoctorDetails(doctorId: number): Promise<any> {
+    return this.request(`/api/doctors/${doctorId}/details`);
+  }
+
+  async getDoctorAppointments(doctorId: number): Promise<Appointment[]> {
+    return this.request(`/api/doctors/${doctorId}/appointments`);
+  }
+
   async updateHospitalDoctorAppointment(
     hospitalId: number,
     doctorId: number,

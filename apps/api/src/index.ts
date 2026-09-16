@@ -2808,6 +2808,105 @@ app.get('/api/admin/doctors/:doctorId/details', authMiddleware, adminMiddleware,
     res.status(500).json({ message: 'Failed to fetch doctor details' });
   }
 });
+
+// --- Get Doctor Details (accessible by authenticated users, including hospital admins) ---
+app.get('/api/doctors/:doctorId/details', authMiddleware, async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: doctorId },
+      include: {
+        doctorProfile: {
+          select: {
+            id: true, slug: true, specialization: true, qualifications: true, experience: true,
+            clinicName: true, clinicAddress: true, city: true, state: true, phone: true,
+            consultationFee: true, about: true, services: true, workingHours: true,
+            profileImage: true, websiteTheme: true, verificationStatus: true, 
+            micrositeEnabled: true, slotPeriodMinutes: true
+          }
+        },
+        hospitalMemberships: {
+          include: { 
+            hospital: { select: { id: true, name: true } },
+            department: { select: { id: true, name: true } }
+          }
+        }
+      }
+    });
+    
+    if (!user || user.role !== 'DOCTOR') {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    
+    // Check if requester has access (admin, the doctor themselves, or hospital admin of their hospital)
+    const requesterId = req.user?.id;
+    const requesterRole = req.user?.role;
+    const isAuthorized = requesterRole === 'ADMIN' || 
+                        requesterId === doctorId ||
+                        (requesterRole === 'HOSPITAL_ADMIN' && 
+                         user.hospitalMemberships.some(m => m.hospitalId === req.user?.hospitalId));
+    
+    // Format response with membership info
+    const membership = user.hospitalMemberships[0];
+    const response = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      hospitalId: membership?.hospitalId,
+      departmentId: membership?.departmentId,
+      departmentName: membership?.department?.name,
+      doctorProfile: user.doctorProfile
+    };
+    
+    res.status(200).json(response);
+  } catch (error: any) {
+    console.error('Doctor details error:', error?.message);
+    res.status(500).json({ message: 'Failed to fetch doctor details' });
+  }
+});
+
+// --- Get Doctor Appointments (accessible by authenticated users with permission) ---
+app.get('/api/doctors/:doctorId/appointments', authMiddleware, async (req: Request, res: Response) => {
+  const doctorId = Number(req.params.doctorId);
+  if (!Number.isFinite(doctorId)) return res.status(400).json({ message: 'Invalid doctorId' });
+  
+  try {
+    // Check authorization
+    const requesterId = req.user?.id;
+    const requesterRole = req.user?.role;
+    
+    // Allow admin, the doctor themselves, or hospital admin who manages this doctor
+    if (requesterRole !== 'ADMIN' && requesterId !== doctorId) {
+      if (requesterRole === 'HOSPITAL_ADMIN' && req.user?.hospitalId) {
+        const membership = await prisma.hospitalDoctor.findFirst({
+          where: { doctorId, hospitalId: req.user.hospitalId }
+        });
+        if (!membership) {
+          return res.status(403).json({ message: 'Not authorized to view these appointments' });
+        }
+      } else {
+        return res.status(403).json({ message: 'Not authorized' });
+      }
+    }
+    
+    const appointments = await prisma.appointment.findMany({
+      where: { doctorId },
+      orderBy: { createdAt: 'desc' },
+      include: { 
+        patient: { select: { id: true, email: true, name: true } },
+        doctor: { select: { id: true, email: true } }
+      }
+    });
+    
+    res.status(200).json(appointments);
+  } catch (error: any) {
+    console.error('Doctor appointments error:', error?.message);
+    res.status(500).json({ message: 'Failed to fetch doctor appointments' });
+  }
+});
+
 // --- Admin: List all hospitals with status and stats ---
 app.get('/api/admin/hospitals', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
   try {
