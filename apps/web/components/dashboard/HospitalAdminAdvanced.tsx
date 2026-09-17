@@ -38,7 +38,7 @@ interface Appointment {
   doctorId: number;
   patientId: number;
   date: string;
-  time: string;
+  time?: string;
   status: string;
   reason?: string;
   doctor?: any;
