@@ -3973,11 +3973,17 @@ const [socketReady, setSocketReady] = useState(false);
               onRefresh={async () => {
                 // Refresh hospital data
                 try {
-                  const [doctors, profile] = await Promise.all([
-                    apiClient.getHospitalDoctors(),
-                    apiClient.getMyHospitalProfile(),
-                  ]);
-                  setHospitalDoctors(doctors);
+                  const profile = await apiClient.getMyHospitalProfile();
+                  if (profile?.id) {
+                    const details = await apiClient.getHospitalFull(profile.id);
+                    const links = ((details?.doctors || []) as Array<any>)
+                      .map((l) => {
+                        const d = l?.doctor || {};
+                        return { ...d, departmentId: l?.department?.id ?? null, departmentName: l?.department?.name ?? null };
+                      })
+                      .filter((d) => d && typeof d.id === 'number');
+                    setHospitalDoctors(links);
+                  }
                   setHospitalProfile(profile);
                 } catch (error) {
                   console.error('Failed to refresh hospital data:', error);
