@@ -3973,9 +3973,9 @@ const [socketReady, setSocketReady] = useState(false);
               onRefresh={async () => {
                 // Refresh hospital data
                 try {
-                  const profile = await apiClient.getMyHospitalProfile();
-                  if (profile?.id) {
-                    const details = await apiClient.getHospitalFull(profile.id);
+                  const myHospital = await apiClient.getMyHospital();
+                  if (myHospital?.id) {
+                    const details = await apiClient.getHospitalFull(myHospital.id);
                     const links = ((details?.doctors || []) as Array<any>)
                       .map((l) => {
                         const d = l?.doctor || {};
@@ -3983,8 +3983,8 @@ const [socketReady, setSocketReady] = useState(false);
                       })
                       .filter((d) => d && typeof d.id === 'number');
                     setHospitalDoctors(links);
+                    setHospitalProfile(myHospital);
                   }
-                  setHospitalProfile(profile);
                 } catch (error) {
                   console.error('Failed to refresh hospital data:', error);
                 }
