@@ -6443,17 +6443,10 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
         </section>
       </div>
 
-      {/* Test marker - should always be visible */}
-      <div style={{ position: 'fixed', top: 0, right: 0, background: 'red', color: 'white', padding: '4px', zIndex: 99999 }}>
-        Sidebar ID: {doctorProfileSidebarId || 'null'}
-      </div>
-
       {/* Doctor Profile Sidebar */}
-      {console.log('📍 Rendering DoctorProfileSidebar with doctorProfileSidebarId:', doctorProfileSidebarId)}
       <DoctorProfileSidebar 
         doctorId={doctorProfileSidebarId} 
         onClose={() => {
-          console.log('📍 Closing sidebar, setting ID to null');
           setDoctorProfileSidebarId(null);
         }} 
       />
