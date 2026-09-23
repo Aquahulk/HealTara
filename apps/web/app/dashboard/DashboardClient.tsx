@@ -5427,6 +5427,14 @@ const [socketReady, setSocketReady] = useState(false);
           }
         }}
       />
+      
+      {/* Doctor Profile Sidebar */}
+      <DoctorProfileSidebar 
+        doctorId={doctorProfileSidebarId} 
+        onClose={() => {
+          setDoctorProfileSidebarId(null);
+        }} 
+      />
     </div>
   );
 }
@@ -6442,14 +6450,6 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
           </p>
         </section>
       </div>
-
-      {/* Doctor Profile Sidebar */}
-      <DoctorProfileSidebar 
-        doctorId={doctorProfileSidebarId} 
-        onClose={() => {
-          setDoctorProfileSidebarId(null);
-        }} 
-      />
     </div>
   );
 }
