@@ -633,7 +633,10 @@ export default function HospitalAdminAdvanced({
                   ))}
                 </Pie>
                 <RechartsTooltip
-                  formatter={(value: number) => `₹${value.toLocaleString()}`}
+                  formatter={(value) => {
+                    const numValue = typeof value === 'number' ? value : 0;
+                    return `₹${numValue.toLocaleString()}`;
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
