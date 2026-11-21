@@ -22,7 +22,7 @@ import { jwtDecode } from 'jwt-decode';                    // JWT decoder to ext
 interface User {
   id: number;                                              // Unique user identifier from database
   email: string;                                           // User's email address
-  role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN'; // User's role in the system
+  role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN'; // User's role in the system
 }
 
 interface AuthContextType {

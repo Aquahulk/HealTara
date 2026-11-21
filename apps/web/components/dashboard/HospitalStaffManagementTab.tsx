@@ -63,7 +63,7 @@ interface Assignment {
 interface Doctor {
   id: number;
   email: string;
-  doctorCode: string;
+  doctorCode?: string;
   doctorProfile?: {
     specialization: string;
     clinicName: string;
