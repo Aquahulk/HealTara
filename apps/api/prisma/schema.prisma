@@ -12,6 +12,8 @@ model User {
   email                  String             @unique
   password               String
   role                   String
+  doctorCode             String?            @unique @map("doctor_code")
+  staffCode              String?            @unique @map("staff_code")
   createdAt              DateTime           @default(now()) @map("created_at")
   updatedAt              DateTime           @updatedAt @map("updated_at")
   managedDoctorProfileId Int?               @map("managed_doctor_profile_id")
@@ -30,6 +32,15 @@ model User {
   managedDoctorProfile   DoctorProfile?     @relation("UserManagedDoctorProfile", fields: [managedDoctorProfileId], references: [id])
   managedHospital        Hospital?          @relation("UserManagedHospital", fields: [managedHospitalId], references: [id])
   savedItems             SavedItem[]
+  staffProfile           StaffProfile?      @relation("UserStaffProfile")
+  initiatedRequests      StaffAssignmentRequest[] @relation("RequestInitiator")
+  approvedRequestsDoctor StaffAssignmentRequest[] @relation("RequestDoctorApprover")
+  approvedRequestsHospital StaffAssignmentRequest[] @relation("RequestHospitalApprover")
+  rejectedRequests       StaffAssignmentRequest[] @relation("RequestRejector")
+  doctorStaffRequests    StaffAssignmentRequest[] @relation("DoctorStaffRequests")
+  doctorStaffAssignments StaffAssignment[]  @relation("DoctorStaffAssignments")
+  revokedAssignments     StaffAssignment[]  @relation("AssignmentRevoker")
+  auditActions           StaffAssignmentAuditLog[]
 
   @@map("users")
 }
@@ -149,6 +160,7 @@ model Appointment {
 model Hospital {
   id          Int              @id @default(autoincrement())
   name        String
+  hospitalCode String?         @unique @map("hospital_code")
   subdomain   String?          @unique
   address     String?
   city        String?
@@ -169,6 +181,8 @@ model Hospital {
   admin       User?            @relation("UserAdminHospitals", fields: [adminId], references: [id])
   doctors     HospitalDoctor[]
   slotAdmins  User[]           @relation("UserManagedHospital")
+  staffAssignmentRequests StaffAssignmentRequest[]
+  staffAssignments StaffAssignment[]
 
   @@map("hospitals")
 }
@@ -282,4 +296,131 @@ model Comment {
 
   @@index([entityType, entityId])
   @@map("comments")
+}
+
+
+// ============================================================================
+// 🏥 SLOT ADMINISTRATOR SYSTEM - Phase 1: Identity Foundation
+// ============================================================================
+
+model StaffProfile {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @unique @map("user_id")
+  staffCode  String   @unique @map("staff_code")
+  name       String
+  phone      String?
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  
+  user       User     @relation("UserStaffProfile", fields: [userId], references: [id], onDelete: Cascade)
+  assignmentRequests StaffAssignmentRequest[]
+  assignments StaffAssignment[]
+  
+  @@map("staff_profiles")
+}
+
+model StaffAssignmentRequest {
+  id                    Int       @id @default(autoincrement())
+  staffId               Int       @map("staff_id")
+  doctorId              Int?      @map("doctor_id")
+  hospitalId            Int?      @map("hospital_id")
+  scope                 String
+  initiatedBy           Int       @map("initiated_by")
+  status                String    @default("PENDING")
+  doctorApprovedAt      DateTime? @map("doctor_approved_at")
+  doctorApprovedBy      Int?      @map("doctor_approved_by")
+  hospitalApprovedAt    DateTime? @map("hospital_approved_at")
+  hospitalApprovedBy    Int?      @map("hospital_approved_by")
+  staffAcceptedAt       DateTime? @map("staff_accepted_at")
+  rejectionReason       String?   @map("rejection_reason")
+  rejectionBy           Int?      @map("rejection_by")
+  rejectedAt            DateTime? @map("rejected_at")
+  expiresAt             DateTime  @map("expires_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  staff                 StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  doctor                User?        @relation("DoctorStaffRequests", fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital              Hospital?    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  initiator             User         @relation("RequestInitiator", fields: [initiatedBy], references: [id])
+  doctorApprover        User?        @relation("RequestDoctorApprover", fields: [doctorApprovedBy], references: [id])
+  hospitalApprover      User?        @relation("RequestHospitalApprover", fields: [hospitalApprovedBy], references: [id])
+  rejector              User?        @relation("RequestRejector", fields: [rejectionBy], references: [id])
+  assignment            StaffAssignment?
+  auditLogs             StaffAssignmentAuditLog[]
+  
+  @@index([staffId])
+  @@index([doctorId])
+  @@index([hospitalId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("staff_assignment_requests")
+}
+
+model StaffAssignment {
+  id                Int       @id @default(autoincrement())
+  requestId         Int?      @unique @map("request_id")
+  staffId           Int       @map("staff_id")
+  doctorId          Int?      @map("doctor_id")
+  hospitalId        Int?      @map("hospital_id")
+  scope             String
+  status            String    @default("ACTIVE")
+  activatedAt       DateTime  @default(now()) @map("activated_at")
+  revokedAt         DateTime? @map("revoked_at")
+  revokedBy         Int?      @map("revoked_by")
+  revocationReason  String?   @map("revocation_reason")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  request           StaffAssignmentRequest? @relation(fields: [requestId], references: [id])
+  staff             StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  doctor            User?        @relation("DoctorStaffAssignments", fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital          Hospital?    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  revoker           User?        @relation("AssignmentRevoker", fields: [revokedBy], references: [id])
+  permissions       StaffAssignmentPermission[]
+  auditLogs         StaffAssignmentAuditLog[]
+  
+  @@unique([staffId, doctorId, hospitalId, scope])
+  @@index([staffId])
+  @@index([doctorId])
+  @@index([hospitalId])
+  @@index([status])
+  @@index([scope])
+  @@map("staff_assignments")
+}
+
+model StaffAssignmentPermission {
+  id           Int      @id @default(autoincrement())
+  assignmentId Int      @map("assignment_id")
+  permission   String
+  granted      Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  assignment   StaffAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  
+  @@unique([assignmentId, permission])
+  @@index([assignmentId])
+  @@map("staff_assignment_permissions")
+}
+
+model StaffAssignmentAuditLog {
+  id           Int      @id @default(autoincrement())
+  assignmentId Int?     @map("assignment_id")
+  requestId    Int?     @map("request_id")
+  action       String
+  actorId      Int      @map("actor_id")
+  details      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  assignment   StaffAssignment?         @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  request      StaffAssignmentRequest?  @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  actor        User                     @relation(fields: [actorId], references: [id])
+  
+  @@index([assignmentId])
+  @@index([requestId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("staff_assignment_audit_logs")
 }
