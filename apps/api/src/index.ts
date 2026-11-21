@@ -383,6 +383,12 @@ app.use('/api', (_req, res, next) => {
 });
 
 // ============================================================================
+// 📦 ROUTE IMPORTS - Modular route handlers
+// ============================================================================
+import staffRoutes from './routes/staffRoutes';
+import staffAssignmentRoutes from './routes/staffAssignmentRoutes';
+
+// ============================================================================
 // 🩺 HEALTH CHECK - Keep the server alive
 // ============================================================================
 app.get('/api/debug/tables', async (req: Request, res: Response) => {
@@ -397,6 +403,12 @@ app.get('/api/debug/tables', async (req: Request, res: Response) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ============================================================================
+// 👥 STAFF & ASSIGNMENT ROUTES - Slot Administrator System
+// ============================================================================
+app.use('/api/staff', staffRoutes);
+app.use('/api/staff/assignments', staffAssignmentRoutes);
 
 // Static file serving for uploads (logos, photos)
 const uploadsDir = path.resolve(__dirname, '../uploads');
