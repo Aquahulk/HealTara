@@ -6,7 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useInstantNav } from "../hooks/useInstantNav";
 import { 
   Home, Calendar, Heart, Stethoscope, Building2, User, Settings,
-  LogOut, LayoutDashboard, ClipboardList
+  LogOut, LayoutDashboard, ClipboardList, Users, Briefcase, 
+  Clock, BarChart3, Globe, MessageSquare
 } from "lucide-react";
 
 interface DesktopSidebarProps {
@@ -40,37 +41,74 @@ function DesktopSidebarInner({ className = "", onCollapseChange }: DesktopSideba
   const getNavItems = () => {
     if (!user) {
       return [
-        { href: "/", icon: Home, label: "Home", protected: false },
-        { href: "/doctors", icon: Stethoscope, label: "Doctors", protected: false },
-        { href: "/hospitals", icon: Building2, label: "Hospitals", protected: false },
-        { href: "/login", icon: User, label: "Sign In", protected: false },
+        { href: "/", icon: Home, label: "Home", protected: false, section: "main" },
+        { href: "/doctors", icon: Stethoscope, label: "Doctors", protected: false, section: "main" },
+        { href: "/hospitals", icon: Building2, label: "Hospitals", protected: false, section: "main" },
+        { href: "/login", icon: User, label: "Sign In", protected: false, section: "main" },
       ];
     }
+    
     if (user.role === "DOCTOR") {
       return [
-        { href: "/dashboard", icon: LayoutDashboard, label: "Overview", protected: true },
-        { href: "/dashboard?tab=appointments", icon: Calendar, label: "Bookings", protected: true },
-        { href: "/dashboard/profile", icon: User, label: "Profile", protected: true },
-        { href: "/dashboard?tab=settings", icon: Settings, label: "Settings", protected: true },
+        // Dashboard Section
+        { href: "/dashboard", icon: LayoutDashboard, label: "Overview", protected: true, section: "Dashboard" },
+        
+        // Operations Section
+        { href: "/dashboard?tab=appointments", icon: Calendar, label: "Appointments", protected: true, section: "Operations" },
+        { href: "/dashboard?tab=slots", icon: Clock, label: "Slots & Hours", protected: true, section: "Operations" },
+        { href: "/dashboard?tab=patients", icon: Users, label: "Patients", protected: true, section: "Operations" },
+        
+        // Staff Section
+        { href: "/dashboard?tab=staff", icon: Briefcase, label: "My Staff", protected: true, section: "Staff" },
+        
+        // Profile & Settings
+        { href: "/dashboard?tab=website", icon: Globe, label: "My Website", protected: true, section: "Profile" },
+        { href: "/dashboard/profile", icon: User, label: "Profile", protected: true, section: "Profile" },
+        { href: "/dashboard?tab=settings", icon: Settings, label: "Settings", protected: true, section: "Profile" },
       ];
     }
+    
     if (user.role === "HOSPITAL_ADMIN") {
       return [
-        { href: "/dashboard", icon: LayoutDashboard, label: "Overview", protected: true },
-        { href: "/dashboard?tab=management", icon: ClipboardList, label: "Management", protected: true },
-        { href: "/dashboard?tab=appointments", icon: Calendar, label: "Bookings", protected: true },
-        { href: "/hospital-admin/profile", icon: Building2, label: "Hospital", protected: true },
-        { href: "/dashboard?tab=settings", icon: Settings, label: "Settings", protected: true },
+        // Dashboard Section
+        { href: "/dashboard", icon: LayoutDashboard, label: "Overview", protected: true, section: "Dashboard" },
+        
+        // Management Section
+        { href: "/dashboard?tab=management", icon: ClipboardList, label: "Doctors", protected: true, section: "Management" },
+        { href: "/dashboard?tab=appointments", icon: Calendar, label: "Appointments", protected: true, section: "Management" },
+        
+        // Staff Section
+        { href: "/dashboard?tab=staff", icon: Briefcase, label: "Hospital Staff", protected: true, section: "Staff" },
+        
+        // Hospital Profile
+        { href: "/hospital-admin/profile", icon: Building2, label: "Hospital Info", protected: true, section: "Hospital" },
+        { href: "/dashboard?tab=analytics", icon: BarChart3, label: "Analytics", protected: true, section: "Hospital" },
+        { href: "/dashboard?tab=settings", icon: Settings, label: "Settings", protected: true, section: "Hospital" },
       ];
     }
+    
+    if (user.role === "SLOT_ADMIN") {
+      return [
+        // Dashboard Section
+        { href: "/dashboard", icon: LayoutDashboard, label: "My Dashboard", protected: true, section: "Dashboard" },
+        
+        // Work Section
+        { href: "/dashboard?tab=appointments", icon: Calendar, label: "Appointments", protected: true, section: "Work" },
+        { href: "/dashboard?tab=slots", icon: Clock, label: "Manage Slots", protected: true, section: "Work" },
+        
+        // Profile Section
+        { href: "/dashboard/profile", icon: User, label: "My Profile", protected: true, section: "Profile" },
+      ];
+    }
+    
     return [
-      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", protected: true },
-      { href: "/", icon: Home, label: "Home", protected: false },
-      { href: "/dashboard?tab=appointments", icon: Calendar, label: "Bookings", protected: true },
-      { href: "/saved", icon: Heart, label: "Saved", protected: true },
-      { href: "/doctors", icon: Stethoscope, label: "Doctors", protected: false },
-      { href: "/hospitals", icon: Building2, label: "Hospitals", protected: false },
-      { href: "/dashboard/profile", icon: User, label: "Profile", protected: true },
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", protected: true, section: "main" },
+      { href: "/", icon: Home, label: "Home", protected: false, section: "main" },
+      { href: "/dashboard?tab=appointments", icon: Calendar, label: "Bookings", protected: true, section: "main" },
+      { href: "/saved", icon: Heart, label: "Saved", protected: true, section: "main" },
+      { href: "/doctors", icon: Stethoscope, label: "Doctors", protected: false, section: "main" },
+      { href: "/hospitals", icon: Building2, label: "Hospitals", protected: false, section: "main" },
+      { href: "/dashboard/profile", icon: User, label: "Profile", protected: true, section: "main" },
     ];
   };
 
@@ -114,27 +152,73 @@ function DesktopSidebarInner({ className = "", onCollapseChange }: DesktopSideba
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2 scrollbar-hide">
         <ul className="space-y-0.5 px-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <li key={item.href}>
-                <button
-                  onClick={() => handleNav(item.href, item.protected)}
-                  {...getNavProps(item.href)}
-                  title={!isExpanded ? item.label : undefined}
-                  className={`w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl transition-all duration-150 ${
-                    isExpanded ? "flex-row gap-3 px-3 py-2.5 justify-start" : ""
-                  } ${active ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"}`}
-                >
-                  <Icon className={`flex-shrink-0 ${isExpanded ? "w-5 h-5" : "w-6 h-6"}`} />
-                  {isExpanded
-                    ? <span className="text-sm font-medium truncate">{item.label}</span>
-                    : <span className="text-[9px] font-medium leading-tight text-center w-full">{item.label}</span>}
-                </button>
-              </li>
-            );
-          })}
+          {(() => {
+            const items = navItems;
+            const sections = [...new Set(items.map(item => item.section))];
+            
+            // If only one section or "main", don't show headers
+            if (sections.length === 1 || (sections.length === 1 && sections[0] === 'main')) {
+              return items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <li key={item.href}>
+                    <button
+                      onClick={() => handleNav(item.href, item.protected)}
+                      {...getNavProps(item.href)}
+                      title={!isExpanded ? item.label : undefined}
+                      className={`w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl transition-all duration-150 ${
+                        isExpanded ? "flex-row gap-3 px-3 py-2.5 justify-start" : ""
+                      } ${active ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"}`}
+                    >
+                      <Icon className={`flex-shrink-0 ${isExpanded ? "w-5 h-5" : "w-6 h-6"}`} />
+                      {isExpanded
+                        ? <span className="text-sm font-medium truncate">{item.label}</span>
+                        : <span className="text-[9px] font-medium leading-tight text-center w-full">{item.label}</span>}
+                    </button>
+                  </li>
+                );
+              });
+            }
+            
+            // Show sections with headers
+            return sections.map((section, sectionIdx) => {
+              const sectionItems = items.filter(item => item.section === section);
+              return (
+                <div key={section} className={sectionIdx > 0 ? 'mt-4' : ''}>
+                  {isExpanded && section !== 'main' && (
+                    <div className="px-3 py-2 text-[10px] font-bold text-white/40 uppercase tracking-wider">
+                      {section}
+                    </div>
+                  )}
+                  {!isExpanded && section !== 'main' && sectionIdx > 0 && (
+                    <div className="h-px bg-white/10 my-2 mx-2"></div>
+                  )}
+                  {sectionItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.href);
+                    return (
+                      <li key={item.href}>
+                        <button
+                          onClick={() => handleNav(item.href, item.protected)}
+                          {...getNavProps(item.href)}
+                          title={!isExpanded ? item.label : undefined}
+                          className={`w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-1 rounded-xl transition-all duration-150 ${
+                            isExpanded ? "flex-row gap-3 px-3 py-2.5 justify-start" : ""
+                          } ${active ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"}`}
+                        >
+                          <Icon className={`flex-shrink-0 ${isExpanded ? "w-5 h-5" : "w-6 h-6"}`} />
+                          {isExpanded
+                            ? <span className="text-sm font-medium truncate">{item.label}</span>
+                            : <span className="text-[9px] font-medium leading-tight text-center w-full">{item.label}</span>}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </div>
+              );
+            });
+          })()}
         </ul>
       </nav>
 

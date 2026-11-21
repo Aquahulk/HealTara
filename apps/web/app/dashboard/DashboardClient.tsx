@@ -61,6 +61,9 @@ import DesktopSidebar from '@/components/DesktopSidebar';
 import EnhancedPatientsTab from '@/components/dashboard/EnhancedPatientsTab';
 import EnhancedWebsiteTab from '@/components/dashboard/EnhancedWebsiteTab';
 import HospitalAdminAdvanced from '@/components/dashboard/HospitalAdminAdvanced';
+import StaffManagementTab from '@/components/dashboard/StaffManagementTab';
+import HospitalStaffManagementTab from '@/components/dashboard/HospitalStaffManagementTab';
+import StaffDashboard from '@/components/dashboard/StaffDashboard';
 import DoctorProfileSidebar from '@/components/DoctorProfileSidebar';
 
 function WalkInReserveBox({ userId }: { userId: number }) {
@@ -697,7 +700,7 @@ export default function DashboardPage() {
   // Sync activeTab from URL ?tab= param
   useEffect(() => {
     const urlTab = dashSearchParams?.get('tab');
-    if (urlTab && ['appointments', 'slots', 'patients', 'settings', 'analytics', 'website', 'messages', 'prescriptions', 'management'].includes(urlTab)) {
+    if (urlTab && ['appointments', 'slots', 'patients', 'settings', 'analytics', 'website', 'messages', 'prescriptions', 'management', 'staff'].includes(urlTab)) {
       setActiveTab(urlTab);
     } else {
       setActiveTab('overview');
@@ -2534,8 +2537,9 @@ const [socketReady, setSocketReady] = useState(false);
             { id: 'appointments', name: '📅 Appointments', icon: CalendarIcon, shortName: 'Appts' },
             ...(isDoctorLike ? [{ id: 'slots', name: '🕒 Slots', icon: ClockIcon, shortName: 'Slots' }] : []),
             ...(user.role === 'HOSPITAL_ADMIN' ? [{ id: 'management', name: '🏥 Management', icon: BuildingOffice2Icon, shortName: 'Manage' }] : []),
+            ...(isDoctorLike || user.role === 'HOSPITAL_ADMIN' ? [{ id: 'staff', name: '👥 Staff', icon: UserGroupIcon, shortName: 'Staff' }] : []),
             ...(isDoctorLike ? [{ id: 'analytics', name: '📈 Analytics', icon: ChartBarSquareIcon, shortName: 'Analytics' }] : []),
-            ...(isDoctorLike ? [{ id: 'patients', name: '👥 Patients', icon: UserGroupIcon, shortName: 'Patients' }] : []),
+            ...(isDoctorLike ? [{ id: 'patients', name: '🧑‍⚕️ Patients', icon: UserGroupIcon, shortName: 'Patients' }] : []),
             ...(isDoctorLike ? [{ id: 'website', name: '🌐 Website', icon: GlobeAltIcon, shortName: 'Website' }] : []),
             ...(isDoctorLike ? [{ id: 'settings', name: '⚙️ Settings', icon: CogIcon, shortName: 'Settings' }] : [])
           ].map((tab) => (
@@ -2937,7 +2941,15 @@ const [socketReady, setSocketReady] = useState(false);
           </div>
         )}
 
-        {activeTab === 'overview' && user.role !== 'DOCTOR' && (
+        {activeTab === 'overview' && user.role === 'SLOT_ADMIN' && (
+          <StaffDashboard 
+            userId={user.id}
+            apiBaseUrl={API_BASE_URL}
+            token={localStorage.getItem('token') || ''}
+          />
+        )}
+
+        {activeTab === 'overview' && user.role !== 'DOCTOR' && user.role !== 'SLOT_ADMIN' && (
           <div className="space-y-3 md:space-y-5">
             {user.role === 'HOSPITAL_ADMIN' && hospitalProfile && (hospitalProfile as any)?.profile?.serviceStatus === 'PENDING' && (
               <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 flex items-center gap-2 text-sm">
@@ -5168,6 +5180,27 @@ const [socketReady, setSocketReady] = useState(false);
               )}
             </div>
           </div>
+        )}
+
+        {/* ============================================================================
+            👥 STAFF TAB - Staff management interface
+            ============================================================================ */}
+        {activeTab === 'staff' && user.role === 'DOCTOR' && (
+          <StaffManagementTab 
+            userId={user.id}
+            apiBaseUrl={API_BASE_URL}
+            token={localStorage.getItem('token') || ''}
+          />
+        )}
+
+        {activeTab === 'staff' && user.role === 'HOSPITAL_ADMIN' && hospitalProfile && (
+          <HospitalStaffManagementTab 
+            hospitalId={hospitalProfile.id}
+            hospitalAdminId={user.id}
+            apiBaseUrl={API_BASE_URL}
+            token={localStorage.getItem('token') || ''}
+            doctors={hospitalDoctors}
+          />
         )}
 
         {/* ============================================================================
