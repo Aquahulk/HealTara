@@ -61,7 +61,7 @@ export async function checkStaffPermission(
 
     // Check if permission is granted
     const hasPermission = assignment.permissions.some(
-      p => p.permission === requiredPermission && p.granted === true
+      (p: { permission: string; granted: boolean }) => p.permission === requiredPermission && p.granted === true
     );
 
     return hasPermission;
@@ -151,7 +151,7 @@ export async function getStaffPermissions(
       }
     });
 
-    return assignment?.permissions.map(p => ({
+    return assignment?.permissions.map((p: { permission: string; granted: boolean }) => ({
       permission: p.permission,
       granted: p.granted
     })) || [];
