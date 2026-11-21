@@ -22,7 +22,8 @@ import {
   ShieldCheckIcon,
   CalendarIcon,
   BriefcaseIcon,
-  BellAlertIcon
+  BellAlertIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -238,6 +239,35 @@ export default function StaffDashboard({ userId, apiBaseUrl, token }: StaffDashb
 
   return (
     <div className="space-y-4 pb-20">
+      {/* Staff ID Banner - Always Visible */}
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-4 shadow-lg sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+              <ShieldCheckIcon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-white/80 text-xs font-semibold">Your Staff ID</p>
+              <p className="text-white text-lg md:text-xl font-mono font-bold tracking-wider">
+                {profile?.staffCode}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(profile?.staffCode || '');
+              alert('✅ Staff ID copied to clipboard!');
+            }}
+            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2 rounded-lg transition-all"
+            title="Copy Staff ID"
+          >
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       {/* Header with Profile Info */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 md:p-6 text-white shadow-lg">
         <div className="flex items-start justify-between">
@@ -249,16 +279,13 @@ export default function StaffDashboard({ userId, apiBaseUrl, token }: StaffDashb
               <h2 className="text-xl md:text-2xl font-bold">{profile?.name}</h2>
               <p className="text-sm text-white/80">{profile?.user.email}</p>
               <div className="flex items-center gap-2 mt-2">
-                <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-mono font-bold px-2 py-1 rounded border border-white/30">
-                  {profile?.staffCode}
-                </span>
                 <span className="bg-green-500/80 text-white text-xs font-semibold px-2 py-1 rounded">
-                  Active
+                  Active Staff Member
                 </span>
               </div>
             </div>
           </div>
-          <ShieldCheckIcon className="w-10 h-10 md:w-12 md:h-12 text-white/30" />
+          <UserCircleIcon className="w-10 h-10 md:w-12 md:h-12 text-white/30" />
         </div>
 
         {/* Stats Row */}
@@ -273,6 +300,32 @@ export default function StaffDashboard({ userId, apiBaseUrl, token }: StaffDashb
           </div>
         </div>
       </div>
+
+      {/* No Assignments Yet - Waiting State */}
+      {activeAssignments.length === 0 && pendingInvitations.length === 0 && (
+        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-6 md:p-8 border-2 border-amber-200 shadow-sm">
+          <div className="text-center">
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ClockIcon className="w-10 h-10 text-amber-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Waiting for Assignment</h3>
+            <p className="text-gray-600 mb-4 max-w-md mx-auto">
+              Your account is active! You'll be able to work once a doctor or hospital admin invites you to join their team.
+            </p>
+            <div className="bg-white/60 rounded-lg p-4 max-w-lg mx-auto">
+              <p className="text-sm text-gray-700 mb-2">
+                <strong>What's next?</strong>
+              </p>
+              <ul className="text-sm text-gray-600 text-left space-y-1">
+                <li>✓ Your Staff ID is active and ready</li>
+                <li>✓ Share your Staff ID with doctors or hospital admins</li>
+                <li>✓ Wait for an invitation to appear in this dashboard</li>
+                <li>✓ Accept the invitation to start working</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pending Invitations */}
       {pendingInvitations.length > 0 && (
