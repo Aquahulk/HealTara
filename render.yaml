@@ -19,16 +19,17 @@ services:
     rootDir: apps/api
     plan: starter
     region: oregon
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm run start
-    postDeployCommand: npm run prisma:migrate
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: JWT_SECRET
+        sync: false
       - key: CORS_ORIGINS
-        value: https://heal-tara-web.vercel.app
-      - key: CORS_PRIMARY_DOMAIN
-        value: heal-tara-web.vercel.app
+        value: https://heal-tara-9qjqk6us2-zeds-projects-58878cb7.vercel.app,https://heal-tara-web.vercel.app,https://healtara.onrender.com,https://www.healtara.com,https://api.healtara.com
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 3001
