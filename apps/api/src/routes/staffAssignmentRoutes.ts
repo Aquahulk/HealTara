@@ -629,4 +629,131 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// 📋 GET PENDING REQUESTS - List all pending assignment requests
+// ============================================================================
+router.get('/requests/pending', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const userRole = req.user!.role;
+
+    let requests: any[] = [];
+
+    if (userRole === 'SLOT_ADMIN') {
+      // Staff member: get requests pending their acceptance
+      const staffProfile = await prisma.staffProfile.findUnique({
+        where: { userId }
+      });
+
+      if (staffProfile) {
+        requests = await prisma.staffAssignmentRequest.findMany({
+          where: {
+            staffId: staffProfile.id,
+            status: { in: ['PENDING_STAFF_ACCEPTANCE', 'PENDING_DOCTOR_APPROVAL', 'PENDING_HOSPITAL_APPROVAL'] },
+            expiresAt: { gte: new Date() }
+          },
+          include: {
+            doctor: {
+              select: {
+                id: true,
+                email: true,
+                doctorCode: true,
+                doctorProfile: true
+              }
+            },
+            hospital: {
+              select: {
+                id: true,
+                name: true,
+                hospitalCode: true
+              }
+            }
+          }
+        });
+      }
+    } else if (userRole === 'DOCTOR') {
+      // Doctor: get requests pending their approval
+      requests = await prisma.staffAssignmentRequest.findMany({
+        where: {
+          doctorId: userId,
+          status: { in: ['PENDING_DOCTOR_APPROVAL', 'PENDING_STAFF_ACCEPTANCE'] },
+          expiresAt: { gte: new Date() }
+        },
+        include: {
+          staff: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  staffCode: true
+                }
+              }
+            }
+          },
+          hospital: {
+            select: {
+              id: true,
+              name: true,
+              hospitalCode: true
+            }
+          }
+        }
+      });
+    } else if (userRole === 'HOSPITAL_ADMIN') {
+      // Hospital admin: get all pending requests for their hospital
+      const hospital = await prisma.hospital.findFirst({
+        where: { adminId: userId }
+      });
+
+      if (hospital) {
+        requests = await prisma.staffAssignmentRequest.findMany({
+          where: {
+            hospitalId: hospital.id,
+            status: { in: ['PENDING_HOSPITAL_APPROVAL', 'PENDING_DOCTOR_APPROVAL', 'PENDING_STAFF_ACCEPTANCE'] },
+            expiresAt: { gte: new Date() }
+          },
+          include: {
+            staff: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    email: true,
+                    staffCode: true
+                  }
+                }
+              }
+            },
+            doctor: {
+              select: {
+                id: true,
+                email: true,
+                doctorCode: true,
+                doctorProfile: {
+                  select: {
+                    specialization: true,
+                    clinicName: true
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    res.json({
+      count: requests.length,
+      requests
+    });
+  } catch (error: any) {
+    console.error('Get pending requests error:', error);
+    res.status(500).json({ 
+      message: 'Failed to fetch pending requests',
+      error: error.message 
+    });
+  }
+});
+
 export default router;

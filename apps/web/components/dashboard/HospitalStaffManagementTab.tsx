@@ -22,7 +22,8 @@ import {
   BuildingOffice2Icon,
   TrashIcon,
   ShieldCheckIcon,
-  FunnelIcon
+  FunnelIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -85,9 +86,10 @@ export default function HospitalStaffManagementTab({
   token,
   doctors 
 }: HospitalStaffManagementTabProps) {
-  const [view, setView] = useState<'current' | 'invite'>('current');
+  const [view, setView] = useState<'current' | 'invite' | 'pending'>('current');
   const [activeStaff, setActiveStaff] = useState<Assignment[]>([]);
   const [filteredStaff, setFilteredStaff] = useState<Assignment[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<StaffMember[]>([]);
   const [searching, setSearching] = useState(false);
@@ -102,6 +104,7 @@ export default function HospitalStaffManagementTab({
   // Fetch active staff assignments
   useEffect(() => {
     fetchActiveStaff();
+    fetchPendingRequests();
   }, []);
 
   // Filter staff by doctor
@@ -133,6 +136,24 @@ export default function HospitalStaffManagementTab({
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingRequests = async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/staff/assignments/requests/pending`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch pending requests');
+      
+      const data = await response.json();
+      setPendingRequests(data.requests || []);
+    } catch (err: any) {
+      console.error('Error fetching pending requests:', err);
     }
   };
 
@@ -209,8 +230,8 @@ export default function HospitalStaffManagementTab({
       setSelectedDoctor(null);
       setSearchQuery('');
       setSearchResults([]);
-      setView('current');
-      fetchActiveStaff();
+      setView('pending');
+      fetchPendingRequests();
     } catch (err: any) {
       console.error('Error inviting staff:', err);
       alert('❌ ' + err.message);
@@ -303,22 +324,35 @@ export default function HospitalStaffManagementTab({
         <div className="flex gap-2 mt-4">
           <button
             onClick={() => setView('current')}
-            className={`flex-1 py-2 px-4 rounded-lg font-semibold text-sm transition-all ${
+            className={`flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition-all ${
               view === 'current'
                 ? 'bg-white text-indigo-600'
                 : 'bg-white/20 text-white hover:bg-white/30'
             }`}
           >
-            Current Staff ({filteredStaff.length})
+            Active ({filteredStaff.length})
+          </button>
+          <button
+            onClick={() => setView('pending')}
+            className={`flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition-all ${
+              view === 'pending'
+                ? 'bg-white text-indigo-600'
+                : 'bg-white/20 text-white hover:bg-white/30'
+            }`}
+          >
+            Pending ({pendingRequests.length})
           </button>
           <button
             onClick={() => setView('invite')}
-            className={`flex-1 py-2 px-4 rounded-lg font-semibold text-sm transition-all ${
+            className={`flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition-all ${
               view === 'invite'
                 ? 'bg-white text-indigo-600'
                 : 'bg-white/20 text-white hover:bg-white/30'
             }`}
           >
+            Invite New
+          </button>
+        </div>
             + Invite New
           </button>
         </div>
@@ -437,6 +471,127 @@ export default function HospitalStaffManagementTab({
                     ))}
                   </div>
                 </details>
+              </motion.div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Pending Invitations View */}
+      {view === 'pending' && (
+        <div className="space-y-3">
+          {pendingRequests.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center border-2 border-dashed border-gray-300">
+              <ClockIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">No Pending Invitations</h3>
+              <p className="text-gray-500 mb-4">
+                All invitations have been processed. You can invite new staff members.
+              </p>
+              <button
+                onClick={() => setView('invite')}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-semibold inline-flex items-center gap-2"
+              >
+                <UserPlusIcon className="w-5 h-5" />
+                Invite Staff Member
+              </button>
+            </div>
+          ) : (
+            pendingRequests.map((request) => (
+              <motion.div
+                key={request.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-xl p-4 shadow-sm border-2 border-yellow-200 hover:shadow-md transition-all"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                      <ClockIcon className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900">{request.staff.name}</h3>
+                      <p className="text-sm text-gray-500">{request.staff.user.email}</p>
+                      
+                      {/* Doctor Assignment */}
+                      {request.doctor && (
+                        <div className="mt-1">
+                          <p className="text-xs text-gray-600">
+                            <span className="font-semibold">For Doctor:</span>{' '}
+                            {getDoctorLabel(request.doctor)} ({request.doctor.doctorProfile?.specialization})
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs font-semibold px-2 py-1 rounded">
+                          <ShieldCheckIcon className="w-3 h-3" />
+                          {request.staff.staffCode}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded ${getScopeBadgeColor(request.scope)}`}>
+                          {getScopeLabel(request.scope)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 bg-yellow-50 text-yellow-700 text-xs font-semibold px-2 py-1 rounded">
+                          {request.status.split('_').map((w: string) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ')}
+                        </span>
+                      </div>
+
+                      {/* Approval Status */}
+                      <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+                        <p className="text-xs font-semibold text-gray-700 mb-1">Approval Status:</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {request.doctorId && (
+                            <div className="flex items-center gap-1">
+                              {request.doctorApprovedAt ? (
+                                <>
+                                  <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                                  <span className="text-green-700">Doctor Approved</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ClockIcon className="w-4 h-4 text-yellow-500" />
+                                  <span className="text-yellow-700">Doctor Pending</span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {request.hospitalId && (
+                            <div className="flex items-center gap-1">
+                              {request.hospitalApprovedAt ? (
+                                <>
+                                  <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                                  <span className="text-green-700">Hospital Approved</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ClockIcon className="w-4 h-4 text-yellow-500" />
+                                  <span className="text-yellow-700">Hospital Pending</span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            {request.staffAcceptedAt ? (
+                              <>
+                                <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                                <span className="text-green-700">Staff Accepted</span>
+                              </>
+                            ) : (
+                              <>
+                                <ClockIcon className="w-4 h-4 text-yellow-500" />
+                                <span className="text-yellow-700">Staff Pending</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expires At */}
+                      <p className="text-xs text-gray-500 mt-2">
+                        Expires: {new Date(request.expiresAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             ))
           )}
