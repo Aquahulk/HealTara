@@ -28,7 +28,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGINS
-        value: https://heal-tara-9qjqk6us2-zeds-projects-58878cb7.vercel.app,https://heal-tara-web.vercel.app,https://healtara.onrender.com,https://www.healtara.com,https://api.healtara.com
+        value: https://heal-tara-web-git-main-zeds-projects-58878cb7.vercel.app,https://heal-tara-9qjqk6us2-zeds-projects-58878cb7.vercel.app,https://heal-tara-web.vercel.app,https://healtara.onrender.com,https://www.healtara.com,https://api.healtara.com,https://healtara.com
       - key: NODE_ENV
         value: production
       - key: PORT
