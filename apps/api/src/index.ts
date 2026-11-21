@@ -286,16 +286,18 @@ const getDefaultHospitalFeatures = (f: Partial<HospitalFeatures> = {}): Hospital
 const server = createServer(app);
 const io = new SocketIOServer(server, { 
   cors: { 
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'http://localhost:3003',
-      'https://healtara.com',
-      'https://www.healtara.com',
-      'https://api.healtara.com',
-      'https://healtara.onrender.com'
-    ],
+    origin: (origin, callback) => {
+      // Allow all Vercel URLs for Socket.IO
+      if (!origin || 
+          origin.includes('localhost') || 
+          origin.includes('healtara.com') ||
+          origin.includes('vercel.app') ||
+          origin.includes('onrender.com')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true
   } 
 });
@@ -325,7 +327,9 @@ app.set('io', io);
 // ============================================================================
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    const allowedOrigins = [
+    // Get allowed origins from environment variable or use defaults
+    const envOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()).filter(Boolean) || [];
+    const defaultOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:3002',
@@ -335,6 +339,8 @@ const corsOptions = {
       'https://api.healtara.com',
       'https://healtara.onrender.com'
     ];
+    const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
+    
     if (!origin) {
       callback(null, true);
       return;
@@ -354,6 +360,12 @@ const corsOptions = {
       callback(null, true);
       return;
     }
+    // Allow Vercel preview and production URLs
+    if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+    console.warn(`🚫 CORS blocked origin: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
