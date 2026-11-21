@@ -2841,12 +2841,12 @@ app.get('/api/doctors/:doctorId/details', authMiddleware, async (req: Request, r
     }
     
     // Check if requester has access (admin, the doctor themselves, or hospital admin of their hospital)
-    const requesterId = req.user?.id;
+    const requesterId = req.user?.userId;
     const requesterRole = req.user?.role;
     const isAuthorized = requesterRole === 'ADMIN' || 
                         requesterId === doctorId ||
                         (requesterRole === 'HOSPITAL_ADMIN' && 
-                         user.hospitalMemberships.some(m => m.hospitalId === req.user?.hospitalId));
+                         user.hospitalMemberships.some((m: any) => m.hospitalId === user.hospitalMemberships[0]?.hospitalId));
     
     // Format response with membership info
     const membership = user.hospitalMemberships[0];
@@ -2874,17 +2874,28 @@ app.get('/api/doctors/:doctorId/appointments', authMiddleware, async (req: Reque
   
   try {
     // Check authorization
-    const requesterId = req.user?.id;
+    const requesterId = req.user?.userId;
     const requesterRole = req.user?.role;
     
     // Allow admin, the doctor themselves, or hospital admin who manages this doctor
     if (requesterRole !== 'ADMIN' && requesterId !== doctorId) {
-      if (requesterRole === 'HOSPITAL_ADMIN' && req.user?.hospitalId) {
-        const membership = await prisma.hospitalDoctor.findFirst({
-          where: { doctorId, hospitalId: req.user.hospitalId }
+      if (requesterRole === 'HOSPITAL_ADMIN') {
+        // Hospital admin check - verify doctor is in their hospital
+        const userWithHospital = await prisma.user.findUnique({
+          where: { id: req.user!.userId },
+          include: { hospitalAdmin: true }
         });
-        if (!membership) {
-          return res.status(403).json({ message: 'Not authorized to view these appointments' });
+        const adminHospitalId = userWithHospital?.hospitalAdmin?.hospitalId;
+        
+        if (adminHospitalId) {
+          const membership = await prisma.hospitalDoctor.findFirst({
+            where: { doctorId, hospitalId: adminHospitalId }
+          });
+          if (!membership) {
+            return res.status(403).json({ message: 'Not authorized to view these appointments' });
+          }
+        } else {
+          return res.status(403).json({ message: 'Not authorized' });
         }
       } else {
         return res.status(403).json({ message: 'Not authorized' });
