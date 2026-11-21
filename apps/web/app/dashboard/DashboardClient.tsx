@@ -5509,6 +5509,8 @@ function DoctorSettings() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [doctorCode, setDoctorCode] = useState<string | null>(null);
+  
   useEffect(() => {
     const loadSlotPeriod = async () => {
       try {
@@ -5538,6 +5540,7 @@ function DoctorSettings() {
         const flag = (prof as any)?.isBookable;
         if (typeof flag === 'boolean') setIsBookable(flag);
         if ((prof as any)?.profileImage) setProfileImageUrl((prof as any).profileImage);
+        if ((prof as any)?.doctorCode) setDoctorCode((prof as any).doctorCode);
       } catch {}
     };
     if (user?.role === 'DOCTOR') { loadSlotPeriod(); loadProfile(); }
@@ -5648,6 +5651,47 @@ function DoctorSettings() {
             </div>
           </section>
         )}
+
+        {/* Doctor Unique ID */}
+        {user?.role === 'DOCTOR' && (
+          <section className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border-2 border-purple-200 shadow-sm">
+            <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+              </svg>
+              Your Doctor ID
+            </h4>
+            <p className="text-sm text-gray-600 mb-4">Your permanent unique identifier in the Healtara system</p>
+            {doctorCode ? (
+              <div className="bg-white p-4 rounded-lg border-2 border-purple-300 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Doctor Code</p>
+                  <p className="text-2xl font-mono font-bold text-purple-700">{doctorCode}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(doctorCode);
+                    setMessage('✅ Doctor ID copied to clipboard!');
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-lg transition-all"
+                  title="Copy to clipboard"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div className="bg-white p-4 rounded-lg border-2 border-gray-300 text-center">
+                <p className="text-sm text-gray-500">Loading doctor ID...</p>
+              </div>
+            )}
+            <p className="text-xs text-gray-600 mt-3">
+              💡 This ID is permanent and can be used by staff members to find and connect with you
+            </p>
+          </section>
+        )}
+
         {/* Bookable ON/OFF */}
         <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
           <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
@@ -5715,70 +5759,31 @@ function DoctorSettings() {
           <p className="text-[10px] text-gray-400">Each patient gets <span className="font-bold">{slotPeriodMinutes} min</span> · {Math.floor(60/slotPeriodMinutes)} bookings per hour</p>
         </section>
 
-        {/* Doctors Management Credentials */}
-        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
-            <span className="bg-indigo-100 p-2 rounded-lg mr-2">👨‍⚕️</span>
-            Doctors Management
+        {/* Staff Management - New System */}
+        <section className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 shadow-sm">
+          <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Staff Management
           </h4>
-          <p className="text-sm text-gray-600 mb-4">
-            Create or update a dedicated Doctors Management login for managing your slots.
+          <p className="text-sm text-gray-700 mb-4">
+            Manage your slot administrators and receptionists who can help with appointments, slots, and patient queues
           </p>
-          {message && (
-            <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 text-yellow-900 font-medium shadow-sm">{message}</div>
-          )}
-          <div className="space-y-3 md:space-y-4">
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Current Slot Admin</label>
-              <div className="text-gray-800">
-                {currentSlotAdminEmail ? (
-                  <span className="font-mono bg-blue-100 px-3 py-1.5 rounded-lg text-blue-800 font-semibold">{currentSlotAdminEmail}</span>
-                ) : (
-                  <span className="text-gray-500 italic">No Slot Admin configured yet</span>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
-                  <span className="mr-2">📧</span> Slot Admin Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="slot-admin@example.com"
-                  className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
-                  <span className="mr-2">🔒</span> New Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between pt-4">
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 px-8 rounded-xl transition-all duration-200 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-              >
-                {loading ? '⏳ Saving...' : (currentSlotAdminEmail ? '✏️ Update Slot Admin' : '➕ Create Slot Admin')}
-              </button>
-              <Link 
-                href="/slot-admin/login" 
-                className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-2 hover:underline transition-all"
-              >
-                <span>🔗</span> Slot Admin Login
-              </Link>
-            </div>
+          <a
+            href="/dashboard?tab=staff"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Go to Staff Management
+          </a>
+          <div className="mt-4 p-3 bg-white/60 rounded-lg">
+            <p className="text-xs text-gray-700 flex items-start gap-2">
+              <span className="text-lg">💡</span>
+              <span><strong>New System:</strong> Invite staff members with permanent IDs who can help manage your practice with granular permissions. Staff registration available at <a href="/staff-register" className="text-blue-600 hover:underline font-mono">/staff-register</a></span>
+            </p>
           </div>
         </section>
       </div>
@@ -6281,63 +6286,31 @@ function HospitalSettings({ onPeriodUpdated }: { onPeriodUpdated?: (doctorId: nu
             )}
           </section>
         )}
-        {/* Slot Admin Credentials */}
-        <section className="bg-white rounded-lg border border-sky-200 overflow-hidden">
-          <button onClick={() => toggleSection('slotAdmin')} className="w-full flex items-center justify-between px-4 py-3 hover:bg-sky-50 transition-colors">
-            <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">🔐 Slot Booking Admin</h4>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${collapsedSections['slotAdmin'] ? '-rotate-90' : ''}`} />
-          </button>
-          {!collapsedSections['slotAdmin'] && (
-          <div className="px-4 pb-3">
-          <p className="text-[11px] text-gray-500 mb-2">Create or update a dedicated Slot Admin login.</p>
-          {message && (
-            <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">{message}</div>
-          )}
-          <div className="space-y-3 md:space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Current Doctors Management</label>
-              <div className="text-gray-800">
-                {currentSlotAdminEmail ? (
-                  <span className="font-mono">{currentSlotAdminEmail}</span>
-                ) : (
-                  <span className="text-gray-500">No Doctors Management configured yet</span>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Doctors Management Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="slot-admin@example.com"
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </div>
-            </div>
-            <div>
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200"
-              >
-                {loading ? 'Saving...' : 'Save Doctors Management'}
-              </button>
+        {/* Staff Management - New System */}
+        <section className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200 overflow-hidden">
+          <div className="px-4 py-4">
+            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-2">
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Staff Management
+            </h4>
+            <p className="text-sm text-gray-700 mb-4">
+              Manage your slot administrators and receptionists with proper permissions and assignments
+            </p>
+            <a
+              href="/dashboard?tab=staff"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Go to Staff Management
+            </a>
+            <div className="mt-3 text-xs text-gray-600 bg-white/50 rounded p-2">
+              💡 <strong>New System:</strong> Invite staff members who can help manage appointments, slots, and patient queues with granular permissions
             </div>
           </div>
-          </div>
-          )}
         </section>
 
         {/* Slot Period per Doctor */}
