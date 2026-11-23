@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, startTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useInstantNav } from "../hooks/useInstantNav";
@@ -119,7 +119,22 @@ function DesktopSidebarInner({ className = "", onCollapseChange }: DesktopSideba
       router.push("/login?redirect=" + encodeURIComponent(href));
       return;
     }
-    router.push(href);
+    
+    // If navigating within dashboard with tab parameter, use shallow navigation
+    if (href.startsWith('/dashboard?tab=')) {
+      const tab = new URLSearchParams(href.split('?')[1]).get('tab');
+      if (tab && pathname === '/dashboard') {
+        // Use shallow navigation with startTransition for instant feel
+        startTransition(() => {
+          router.replace(href, { scroll: false });
+        });
+        return;
+      }
+    }
+    
+    startTransition(() => {
+      router.push(href);
+    });
   };
 
   const isActive = (href: string) => {

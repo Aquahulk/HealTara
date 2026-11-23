@@ -27,6 +27,22 @@ export default function DoctorProfilePage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [verification, setVerification] = useState({ registrationNumber: '', phone: '' });
+  const [doctorProfile, setDoctorProfile] = useState<any>(null);
+
+  // Load doctor profile to check verification status
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (user?.role === 'DOCTOR') {
+        try {
+          const profile = await apiClient.getDoctorProfile();
+          setDoctorProfile(profile);
+        } catch (error) {
+          console.error('Failed to load doctor profile:', error);
+        }
+      }
+    };
+    loadProfile();
+  }, [user]);
 
   // Redirect hospital admins to their dedicated profile page via effect
   useEffect(() => {
@@ -242,7 +258,8 @@ export default function DoctorProfilePage() {
           </div>
         </div>
 
-        {/* Verification Section */}
+        {/* Verification Section - Only show if not approved */}
+        {doctorProfile?.verificationStatus !== 'APPROVED' && (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
             <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
@@ -295,6 +312,7 @@ export default function DoctorProfilePage() {
             </button>
           </div>
         </div>
+        )}
 
         {message && (
           <div className={`mb-6 p-4 rounded-xl ${message.startsWith('Error') ? 'bg-red-50 border-2 border-red-200 text-red-800' : 'bg-green-50 border-2 border-green-200 text-green-800'}`}>

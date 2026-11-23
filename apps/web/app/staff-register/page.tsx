@@ -304,12 +304,12 @@ export default function StaffRegisterPage() {
           {/* Login Link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Already have an account?{' '}
+              Already have a staff account?{' '}
               <Link 
-                href="/login" 
+                href="/slot-admin/login" 
                 className="text-blue-600 hover:text-blue-700 font-semibold hover:underline"
               >
-                Sign in here
+                Staff Login
               </Link>
             </p>
           </div>

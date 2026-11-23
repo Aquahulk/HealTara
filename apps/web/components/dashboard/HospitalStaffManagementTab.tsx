@@ -353,9 +353,6 @@ export default function HospitalStaffManagementTab({
             Invite New
           </button>
         </div>
-            + Invite New
-          </button>
-        </div>
       </div>
 
       {/* Current Staff View */}

@@ -232,6 +232,7 @@ declare global {
         userId: number;                                    // Unique user ID from database
         email: string;                                     // User's email address
         role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN';             // User's role in the system
+        doctorCode?: string;                               // Doctor's unique ID (HLT-DOC-XXXXXX)
       };
     }
   }
@@ -682,11 +683,11 @@ app.post('/api/login', async (req: Request, res: Response) => {
     // ============================================================================
     // 🎫 JWT TOKEN GENERATION - Create secure authentication token
     // ============================================================================
-    // JWT contains: user ID, email, role, and expiration time
+    // JWT contains: user ID, email, role, doctorCode (if doctor), and expiration time
     // This token will be used for all future authenticated requests
     const jwtSecret = process.env.JWT_SECRET || 'dev-insecure-secret';
     const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, doctorCode: user.doctorCode },
       jwtSecret,
       { expiresIn: '24h' }
     );
@@ -1250,7 +1251,18 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
         dp.profile_image,
         (SELECT COUNT(*)::int FROM "appointments" WHERE "doctor_id" = u.id) as appt_count,
         (SELECT COUNT(*)::int FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true) as review_count,
-        (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating
+        (SELECT COALESCE(AVG(rating), 0)::float FROM "comments" WHERE entity_type = 'doctor' AND entity_id = CAST(u.id AS TEXT) AND is_active = true AND rating IS NOT NULL) as avg_rating,
+        (
+          SELECT json_build_object(
+            'id', h.id,
+            'name', h.name,
+            'subdomain', h.subdomain
+          )
+          FROM "hospital_doctors" hd
+          JOIN "hospitals" h ON hd.hospital_id = h.id
+          WHERE hd.doctor_id = u.id
+          LIMIT 1
+        ) as hospital_link
       FROM "users" u
         JOIN "doctor_profiles" dp ON u.id = dp.user_id
         WHERE u.role = 'DOCTOR' AND u.status = 'ACTIVE' AND dp.verification_status = 'APPROVED' ${whereClause}
@@ -1289,6 +1301,7 @@ app.get('/api/doctors', async (req: Request, res: Response) => {
           slug: row.slug,
           profileImage: row.profile_image
         },
+        hospital: row.hospital_link || null,
         rating: row.avg_rating || 0,
         totalReviews: row.review_count || 0,
         _count: {
@@ -1971,12 +1984,22 @@ app.get('/api/my-appointments', authMiddleware, async (req: Request, res: Respon
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   try {
+    // Load appointments from 60 days ago to 90 days in the future for better performance
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    const ninetyDaysLater = new Date();
+    ninetyDaysLater.setDate(ninetyDaysLater.getDate() + 90);
+
     const appointments = await prisma.appointment.findMany({
       where: {
         OR: [
           { patientId: user.userId },
           { doctorId: user.userId },
         ],
+        date: {
+          gte: sixtyDaysAgo,
+          lte: ninetyDaysLater
+        }
       },
       include: {
         doctor: {
@@ -1989,6 +2012,7 @@ app.get('/api/my-appointments', authMiddleware, async (req: Request, res: Respon
       orderBy: {
         date: 'asc',
       },
+      take: 1000 // Limit for performance
     });
     res.status(200).json(appointments);
   } catch (error: any) {
@@ -3865,6 +3889,49 @@ const slotAdminMiddleware = (req: Request, res: Response, next: NextFunction) =>
   next();
 };
 
+// Helper function to get active assignment for SLOT_ADMIN
+async function getActiveAssignment(userId: number) {
+  const staffProfile = await prisma.staffProfile.findUnique({
+    where: { userId }
+  });
+
+  if (!staffProfile) return null;
+
+  const assignment = await prisma.staffAssignment.findFirst({
+    where: {
+      staffId: staffProfile.id,
+      status: 'ACTIVE'
+    },
+    include: {
+      doctor: {
+        select: {
+          id: true,
+          email: true,
+          doctorCode: true,
+          doctorProfile: {
+            select: {
+              id: true,
+              specialization: true,
+              clinicName: true,
+              city: true
+            }
+          }
+        }
+      },
+      hospital: {
+        select: {
+          id: true,
+          name: true,
+          hospitalCode: true
+        }
+      }
+    },
+    orderBy: { activatedAt: 'asc' }
+  });
+
+  return assignment;
+}
+
 // Get slot admin context (doctor and hospital info)
 app.get('/api/slot-admin/context', authMiddleware, slotAdminMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;
@@ -3873,41 +3940,28 @@ app.get('/api/slot-admin/context', authMiddleware, slotAdminMiddleware, async (r
     let hospital = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      // Find the doctor this slot admin manages
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: {
-          managedDoctorProfile: {
-            include: {
-              user: { select: { id: true, email: true } }
-            }
-          }
+      const assignment = await getActiveAssignment(user.userId);
+      
+      if (assignment) {
+        if (assignment.doctor) {
+          doctor = {
+            id: assignment.doctor.id,
+            email: assignment.doctor.email,
+            doctorProfileId: assignment.doctor.doctorProfile?.id || null,
+            doctorCode: assignment.doctor.doctorCode
+          };
         }
-      });
 
-      if (slotAdmin?.managedDoctorProfile) {
-        doctor = {
-          id: slotAdmin.managedDoctorProfile.user.id,
-          email: slotAdmin.managedDoctorProfile.user.email,
-          doctorProfileId: slotAdmin.managedDoctorProfile.id
-        };
-
-        // Find hospital this doctor belongs to
-        const hospitalDoctor = await prisma.hospitalDoctor.findFirst({
-          where: { doctorId: doctor.id },
-          include: { hospital: { select: { id: true, name: true } } }
-        });
-
-        if (hospitalDoctor) {
-          hospital = hospitalDoctor.hospital;
+        if (assignment.hospital) {
+          hospital = assignment.hospital;
         }
       }
     }
 
     res.status(200).json({ doctor, hospital });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to load context' });
+  } catch (error: any) {
+    console.error('[Context] Error:', error.message);
+    res.status(500).json({ message: 'Failed to load context', error: error.message });
   }
 });
 
@@ -3918,31 +3972,40 @@ app.get('/api/slot-admin/appointments', authMiddleware, slotAdminMiddleware, asy
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      // Find the doctor this slot admin manages
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     if (!doctorId) {
       return res.status(404).json({ message: 'No managed doctor found' });
     }
 
+    // Load appointments from 30 days ago to 90 days in the future
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const ninetyDaysLater = new Date();
+    ninetyDaysLater.setDate(ninetyDaysLater.getDate() + 90);
+
     const appointments = await prisma.appointment.findMany({
-      where: { doctorId },
+      where: { 
+        doctorId,
+        date: {
+          gte: thirtyDaysAgo,
+          lte: ninetyDaysLater
+        }
+      },
       include: {
         doctor: { select: { id: true, email: true } },
         patient: { select: { id: true, email: true } }
       },
-      orderBy: { date: 'asc' }
+      orderBy: { date: 'asc' },
+      take: 1000 // Limit to 1000 appointments for performance
     });
 
     res.status(200).json(appointments);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to load appointments' });
+  } catch (error: any) {
+    console.error('[Appointments] Error:', error.message);
+    res.status(500).json({ message: 'Failed to load appointments', error: error.message });
   }
 });
 
@@ -3953,26 +4016,39 @@ app.get('/api/slot-admin/slots', authMiddleware, slotAdminMiddleware, async (req
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     if (!doctorId) {
       return res.status(404).json({ message: 'No managed doctor found' });
     }
 
+    // Only load slots from 7 days ago to 90 days in the future to avoid loading thousands of old slots
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0); // Start of day
+    
+    const ninetyDaysLater = new Date();
+    ninetyDaysLater.setDate(ninetyDaysLater.getDate() + 90);
+    ninetyDaysLater.setHours(23, 59, 59, 999); // End of day
+
     const slots = await prisma.slot.findMany({
-      where: { doctorId },
-      orderBy: { date: 'asc' }
+      where: { 
+        doctorId,
+        date: {
+          gte: sevenDaysAgo,
+          lte: ninetyDaysLater
+        }
+      },
+      orderBy: { date: 'asc' },
+      take: 500 // Limit to 500 slots max for performance
     });
 
     res.status(200).json({ slots });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to load slots' });
+  } catch (error: any) {
+    console.error('[Slots] Error:', error.message);
+    res.status(500).json({ message: 'Failed to load slots', error: error.message });
   }
 });
 
@@ -3983,11 +4059,8 @@ app.get('/api/slot-admin/working-hours', authMiddleware, slotAdminMiddleware, as
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     const queryDoctorId = req.query.doctorId ? Number(req.query.doctorId) : doctorId;
@@ -4021,11 +4094,8 @@ app.get('/api/slot-admin/slot-period', authMiddleware, slotAdminMiddleware, asyn
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     const queryDoctorId = req.query.doctorId ? Number(req.query.doctorId) : doctorId;
@@ -4055,11 +4125,8 @@ app.get('/api/slot-admin/time-off', authMiddleware, slotAdminMiddleware, async (
     let doctorProfileId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { id: true } } }
-      });
-      doctorProfileId = slotAdmin?.managedDoctorProfile?.id;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorProfileId = assignment?.doctor?.doctorProfile?.id || null;
     }
 
     const queryDoctorProfileId = req.query.doctorProfileId ? Number(req.query.doctorProfileId) : doctorProfileId;
@@ -4090,11 +4157,8 @@ app.patch('/api/slot-admin/slots/:slotId/cancel', authMiddleware, slotAdminMiddl
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     if (!doctorId) {
@@ -4145,11 +4209,8 @@ app.patch('/api/slot-admin/appointments/:appointmentId/status', authMiddleware, 
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     if (!doctorId) {
@@ -4214,11 +4275,8 @@ app.patch('/api/slot-admin/appointments/:appointmentId/cancel', authMiddleware, 
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     if (!doctorId) {
@@ -4239,7 +4297,7 @@ app.patch('/api/slot-admin/appointments/:appointmentId/cancel', authMiddleware, 
       where: { id: appointmentId },
       data: { 
         status: 'CANCELLED',
-        ...(reason && { reason })
+        ...(reason && { notes: reason }) // Store cancellation reason in notes field
       },
       include: {
         doctor: { select: { id: true, email: true } },
@@ -4286,11 +4344,8 @@ app.patch('/api/slot-admin/appointments/:appointmentId', authMiddleware, slotAdm
     let doctorId = null;
 
     if (user.role === 'SLOT_ADMIN') {
-      const slotAdmin = await prisma.user.findUnique({
-        where: { id: user.userId },
-        include: { managedDoctorProfile: { select: { userId: true } } }
-      });
-      doctorId = slotAdmin?.managedDoctorProfile?.userId;
+      const assignment = await getActiveAssignment(user.userId);
+      doctorId = assignment?.doctorId;
     }
 
     if (!doctorId) {
@@ -5488,6 +5543,164 @@ app.patch('/api/hospitals/:hospitalId/doctors/:doctorId/department', authMiddlew
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Failed to update doctor department' });
+  }
+});
+
+// --- Hospital Admin: Link existing doctor by doctorCode ---
+app.post('/api/hospitals/:hospitalId/link-doctor', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (!['ADMIN', 'HOSPITAL_ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Hospital admin access required.' });
+  }
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+  const { doctorCode, departmentId: reqDepartmentId, departmentName } = (req.body || {}) as { doctorCode?: string; departmentId?: number; departmentName?: string };
+  
+  if (!doctorCode || typeof doctorCode !== 'string' || doctorCode.trim().length === 0) {
+    return res.status(400).json({ message: 'doctorCode is required' });
+  }
+
+  try {
+    const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId }, select: { adminId: true, name: true } });
+    if (!hospital) return res.status(404).json({ message: 'Hospital not found' });
+    if (user.role !== 'ADMIN' && hospital.adminId !== user.userId) {
+      return res.status(403).json({ message: 'Forbidden: You do not manage this hospital.' });
+    }
+
+    // Find doctor by doctorCode
+    const doctor = await prisma.user.findFirst({
+      where: {
+        doctorCode: doctorCode.trim(),
+        role: 'DOCTOR'
+      },
+      include: {
+        doctorProfile: {
+          select: {
+            id: true,
+            clinicName: true,
+            specialization: true,
+            verificationStatus: true
+          }
+        }
+      }
+    });
+
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found with this code. Please check the doctor code and try again.' });
+    }
+
+    // Check if doctor is approved
+    if (doctor.doctorProfile?.verificationStatus !== 'APPROVED') {
+      return res.status(400).json({ message: 'This doctor is not yet approved. Only approved doctors can be linked to hospitals.' });
+    }
+
+    // Check if already linked
+    const existing = await prisma.hospitalDoctor.findUnique({
+      where: { hospitalId_doctorId: { hospitalId, doctorId: doctor.id } }
+    });
+
+    if (existing) {
+      return res.status(400).json({ message: 'This doctor is already linked to your hospital.' });
+    }
+
+    // Resolve department
+    let resolvedDepartmentId: number | null = null;
+    if (typeof reqDepartmentId === 'number' && Number.isFinite(reqDepartmentId)) {
+      const dep = await prisma.department.findUnique({ where: { id: Number(reqDepartmentId) } });
+      if (!dep || dep.hospitalId !== hospitalId) {
+        return res.status(400).json({ message: 'Invalid departmentId for this hospital.' });
+      }
+      resolvedDepartmentId = dep.id;
+    } else if (typeof departmentName === 'string' && departmentName.trim().length > 0) {
+      const depName = departmentName.trim();
+      let dep = await prisma.department.findFirst({ where: { hospitalId, name: depName } });
+      if (!dep) {
+        dep = await prisma.department.create({ data: { hospitalId, name: depName } });
+      }
+      resolvedDepartmentId = dep.id;
+    }
+
+    // Create the link
+    const link = await prisma.hospitalDoctor.create({
+      data: {
+        hospitalId,
+        doctorId: doctor.id,
+        departmentId: resolvedDepartmentId
+      },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            email: true,
+            doctorCode: true,
+            doctorProfile: {
+              select: {
+                id: true,
+                clinicName: true,
+                specialization: true
+              }
+            }
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    // Ensure hospital.profile.departments includes this department name
+    try {
+      if (resolvedDepartmentId) {
+        const dep = await prisma.department.findUnique({ where: { id: resolvedDepartmentId } });
+        const depName = dep?.name?.trim();
+        if (depName) {
+          const currentProfile: any = hospital.profile || {};
+          const list: any[] = Array.isArray(currentProfile?.departments) ? currentProfile.departments : [];
+          const exists = list.some((d: any) => String(d?.name || '').trim().toLowerCase() === depName.toLowerCase());
+          if (!exists) {
+            const updatedProfile = { ...(currentProfile || {}) };
+            updatedProfile.departments = [...list, { name: depName }];
+            await prisma.hospital.update({ where: { id: hospitalId }, data: { profile: updatedProfile } });
+          }
+        }
+      }
+    } catch (_) {}
+
+    return res.status(201).json({
+      message: 'Doctor linked successfully',
+      link: {
+        id: link.id,
+        doctor: link.doctor,
+        department: link.department
+      }
+    });
+  } catch (error) {
+    console.error('Error linking doctor:', error);
+    return res.status(500).json({ message: 'An error occurred while linking doctor.' });
+  }
+});
+
+// --- Get hospital departments ---
+app.get('/api/hospitals/:hospitalId/departments', authMiddleware, async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+  try {
+    const departments = await prisma.department.findMany({
+      where: { hospitalId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }
+    });
+    return res.status(200).json(departments);
+  } catch (error) {
+    console.error('Error fetching departments:', error);
+    return res.status(500).json({ message: 'Failed to fetch departments' });
   }
 });
 

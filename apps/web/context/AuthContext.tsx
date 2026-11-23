@@ -23,6 +23,7 @@ interface User {
   id: number;                                              // Unique user identifier from database
   email: string;                                           // User's email address
   role: 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN'; // User's role in the system
+  doctorCode?: string;                                     // Doctor's unique ID (HLT-DOC-XXXXXX)
 }
 
 interface AuthContextType {
@@ -102,9 +103,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // 👤 USER STATE UPDATE - Set authenticated user information
             // ============================================================================
             setUser({
-              id: decoded.id,
+              id: decoded.id || decoded.userId,
               email: decoded.email,
               role: decoded.role,
+              doctorCode: decoded.doctorCode,
             });
             setLoading(false);
             
@@ -190,7 +192,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (decoded?.role === 'SLOT_ADMIN') {
           apiClient.clearToken();
           localStorage.removeItem('authToken');
-          throw new Error('This account is for Doctors Management. Please use /slot-admin/login.');
+          throw new Error('Staff accounts must use the staff login page at /slot-admin/login');
         }
         
         // ============================================================================
@@ -199,7 +201,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userData: User = {
           id: decoded.userId,
           email: decoded.email,
-          role: decoded.role
+          role: decoded.role,
+          doctorCode: decoded.doctorCode,
         };
         
         // ============================================================================
@@ -321,7 +324,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userData: User = {
           id: decoded.userId,
           email: decoded.email,
-          role: decoded.role
+          role: decoded.role,
+          doctorCode: decoded.doctorCode,
         };
         
         setUser(userData);                                  // Update user state

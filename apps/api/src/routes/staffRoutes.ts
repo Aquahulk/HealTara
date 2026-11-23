@@ -174,6 +174,130 @@ router.patch('/profile', authMiddleware, async (req: Request, res: Response) => 
 });
 
 // ============================================================================
+// 📊 STAFF DASHBOARD - Get staff member's dashboard data
+// ============================================================================
+router.get('/dashboard', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const userRole = req.user!.role;
+
+    // Verify user is a staff member
+    if (userRole !== 'SLOT_ADMIN') {
+      return res.status(403).json({ 
+        message: 'Only staff members can access this dashboard' 
+      });
+    }
+
+    // Get staff profile
+    const staffProfile = await prisma.staffProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        staffCode: true,
+        name: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!staffProfile) {
+      return res.status(404).json({ 
+        message: 'Staff profile not found' 
+      });
+    }
+
+    // Get active assignments
+    const activeAssignments = await prisma.staffAssignment.findMany({
+      where: {
+        staffId: staffProfile.id,
+        status: 'ACTIVE'
+      },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            email: true,
+            doctorCode: true,
+            doctorProfile: {
+              select: {
+                specialization: true,
+                clinicName: true,
+                city: true
+              }
+            }
+          }
+        },
+        hospital: {
+          select: {
+            id: true,
+            name: true,
+            hospitalCode: true,
+            city: true
+          }
+        },
+        permissions: true
+      }
+    });
+
+    // Get pending invitations
+    const pendingInvitations = await prisma.staffAssignmentRequest.findMany({
+      where: {
+        staffId: staffProfile.id,
+        status: { in: ['PENDING_STAFF_ACCEPTANCE', 'PENDING_DOCTOR_APPROVAL', 'PENDING_HOSPITAL_APPROVAL'] },
+        expiresAt: { gte: new Date() }
+      },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            email: true,
+            doctorCode: true,
+            doctorProfile: {
+              select: {
+                specialization: true,
+                clinicName: true
+              }
+            }
+          }
+        },
+        hospital: {
+          select: {
+            id: true,
+            name: true,
+            hospitalCode: true
+          }
+        }
+      }
+    });
+
+    res.json({
+      profile: staffProfile,
+      activeAssignments: {
+        count: activeAssignments.length,
+        assignments: activeAssignments
+      },
+      pendingInvitations: {
+        count: pendingInvitations.length,
+        invitations: pendingInvitations
+      }
+    });
+  } catch (error: any) {
+    console.error('Staff dashboard error:', error);
+    res.status(500).json({ 
+      message: 'Failed to fetch dashboard data',
+      error: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // 🔍 SEARCH STAFF - Search for staff by code or name
 // ============================================================================
 router.get('/search', authMiddleware, async (req: Request, res: Response) => {
@@ -381,7 +505,24 @@ router.post('/assignments/request', authMiddleware, async (req: Request, res: Re
   try {
     const initiatorUserId = req.user!.userId;
     const initiatorRole = req.user!.role;
-    const { staffCode, doctorId, hospitalId, scope, permissions } = req.body;
+    let { staffCode, doctorId, hospitalId, scope, permissions } = req.body;
+
+    console.log('📩 Assignment request received:', {
+      initiatorUserId,
+      initiatorRole,
+      staffCode,
+      doctorId,
+      hospitalId,
+      scope,
+      doctorIdType: typeof doctorId,
+      doctorIdValue: doctorId
+    });
+
+    // Auto-fill doctorId if scope is DOCTOR and initiator is DOCTOR but doctorId is missing
+    if (scope === 'DOCTOR' && initiatorRole === 'DOCTOR' && !doctorId) {
+      console.log('Auto-filling doctorId with initiatorUserId:', initiatorUserId);
+      doctorId = initiatorUserId;
+    }
 
     // Validate required fields
     if (!staffCode || !scope) {

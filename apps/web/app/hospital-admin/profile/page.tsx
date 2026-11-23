@@ -97,8 +97,13 @@ export default function HospitalAdminProfilePage() {
   const [creatingHospital, setCreatingHospital] = useState(false);
   const [createHospitalForm, setCreateHospitalForm] = useState({ name: "", address: "", city: "", state: "", phone: "" });
   const [message, setMessage] = useState<string>("");
+  const [hospitalDetails, setHospitalDetails] = useState<any>(null);
   const [doctorAdmins, setDoctorAdmins] = useState<Record<number, { currentEmail?: string; email: string; password: string; saving: boolean; loading: boolean }>>({});
   const [linkedDoctors, setLinkedDoctors] = useState<Array<{ doctor: { id: number; email: string; doctorProfile?: any }, department?: { id: number; name: string } | null }>>([]);
+  const [linkDoctorCode, setLinkDoctorCode] = useState('');
+  const [linkDoctorDepartment, setLinkDoctorDepartment] = useState('');
+  const [linkingDoctor, setLinkingDoctor] = useState(false);
+  const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([]);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
   const [activeSection, setActiveSection] = useState<'general' | 'about' | 'departments' | 'doctors'>('general');
@@ -130,10 +135,18 @@ export default function HospitalAdminProfilePage() {
           apiClient.getHospitalDetails(mine.id)
         ]);
         if (profRes) setProfile(profRes as HospitalProfile);
+        if (details) setHospitalDetails(details); // Store hospital details including verificationStatus
         if (details?.doctors) setLinkedDoctors(details.doctors || []);
         if (details?.subdomain) {
           setSubdomain(details.subdomain);
           setInitialSubdomain(details.subdomain);
+        }
+        // Load departments
+        try {
+          const depts = await apiClient.getDepartments(mine.id);
+          setDepartments(Array.isArray(depts) ? depts : []);
+        } catch (e) {
+          console.error('Failed to load departments:', e);
         }
       } catch (e: any) {
         setMessage(e?.message || "Failed to load hospital profile.");
@@ -200,6 +213,52 @@ export default function HospitalAdminProfilePage() {
       setSaving(false);
     }
   }
+
+  // Link existing doctor by doctor code
+  async function linkDoctorByCode() {
+    if (!hospitalId) {
+      setMessage('Hospital ID not found');
+      return;
+    }
+    if (!linkDoctorCode.trim()) {
+      setMessage('Please enter a doctor code');
+      return;
+    }
+    try {
+      setLinkingDoctor(true);
+      setMessage('');
+      const response = await fetch(`/api/hospitals/${hospitalId}/link-doctor`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          doctorCode: linkDoctorCode.trim(),
+          departmentName: linkDoctorDepartment.trim() || undefined
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to link doctor');
+      }
+      setMessage(`✅ Doctor linked successfully! ${data.link?.doctor?.doctorProfile?.clinicName || 'Doctor'} has been added to your hospital.`);
+      setLinkDoctorCode('');
+      setLinkDoctorDepartment('');
+      // Reload hospital details to show the new doctor
+      try {
+        const details = await apiClient.getHospitalDetails(hospitalId);
+        if (details?.doctors) setLinkedDoctors(details.doctors || []);
+      } catch (e) {
+        console.error('Failed to reload doctors:', e);
+      }
+    } catch (e: any) {
+      setMessage(`Error: ${e?.message || 'Failed to link doctor'}`);
+    } finally {
+      setLinkingDoctor(false);
+    }
+  }
+
   const updateDepartment = (idx: number, field: string, value: any) => {
     setProfile((prev) => {
       const list = [...(prev.departments || [])];
@@ -735,8 +794,8 @@ export default function HospitalAdminProfilePage() {
           </div>
         )}
 
-        {/* Verification Section */}
-        {hospitalId && (
+        {/* Verification Section - Only show if not approved */}
+        {hospitalId && hospitalDetails?.verificationStatus !== 'APPROVED' && (
           <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Verification</h2>
@@ -1460,6 +1519,109 @@ export default function HospitalAdminProfilePage() {
             {/* Doctors Section */}
             {activeSection === 'doctors' && (
               <div className="space-y-6">
+                {!hospitalId ? (
+                  <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 text-center">
+                    <p className="text-yellow-800 font-semibold">Please create your hospital first to manage doctors.</p>
+                    <p className="text-yellow-600 text-sm mt-2">Go to the "Create Hospital" section above.</p>
+                  </div>
+                ) : (
+                  <>
+                {/* Link Existing Doctor by Code */}
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden border-2 border-blue-200">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-blue-200">
+                    <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <span className="text-lg">🔗</span>
+                      Link Existing Doctor by Doctor Code
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">Invite an approved doctor to join your hospital using their unique doctor ID</p>
+                  </div>
+                  <div className="p-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                      <p className="text-xs text-gray-700">
+                        <strong>💡 How it works:</strong> Ask the doctor for their unique Doctor Code (format: <code className="bg-white px-2 py-0.5 rounded font-mono text-blue-600">HLT-DOC-XXXXXX</code>). 
+                        The doctor can find this code in their dashboard. Once linked, they'll appear in your hospital's doctor list while maintaining their individual profile.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Doctor Code *</label>
+                        <input
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all font-mono"
+                          placeholder="HLT-DOC-XXXXXX"
+                          value={linkDoctorCode}
+                          onChange={(e) => setLinkDoctorCode(e.target.value.toUpperCase())}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Enter the doctor's unique ID (case-insensitive)</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Department (Optional)</label>
+                        {departments.length > 0 ? (
+                          <select
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                            value={linkDoctorDepartment}
+                            onChange={(e) => setLinkDoctorDepartment(e.target.value)}
+                          >
+                            <option value="">No department</option>
+                            {departments.map((dept) => (
+                              <option key={dept.id} value={dept.name}>{dept.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all"
+                            placeholder="e.g., Cardiology"
+                            value={linkDoctorDepartment}
+                            onChange={(e) => setLinkDoctorDepartment(e.target.value)}
+                          />
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">Assign doctor to a specific department</p>
+                      </div>
+                    </div>
+                    <button
+                      className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={linkDoctorByCode}
+                      disabled={linkingDoctor || !linkDoctorCode.trim()}
+                    >
+                      {linkingDoctor ? 'Linking Doctor...' : '🔗 Link Doctor to Hospital'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Linked Doctors List */}
+                {linkedDoctors.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
+                      <h2 className="text-sm font-bold text-gray-900">Linked Hospital Doctors ({linkedDoctors.length})</h2>
+                      <p className="text-sm text-gray-600 mt-1">Doctors associated with your hospital</p>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      {linkedDoctors.map((link, idx) => (
+                        <div key={idx} className="border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-base font-bold text-gray-900">
+                                {link.doctor.doctorProfile?.clinicName || link.doctor.email}
+                              </h3>
+                              <p className="text-sm text-gray-600 mt-1">
+                                <span className="font-semibold">{link.doctor.doctorProfile?.specialization || 'N/A'}</span>
+                                {link.department && <span className="ml-2 text-blue-600">• {link.department.name}</span>}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1 font-mono">
+                                Doctor ID: {link.doctor.id}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                                ✓ Linked
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Add New Doctor */}
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-3 border-b border-gray-200">
@@ -1690,6 +1852,8 @@ export default function HospitalAdminProfilePage() {
                       ))}
                     </div>
                   </div>
+                )}
+                  </>
                 )}
               </div>
             )}

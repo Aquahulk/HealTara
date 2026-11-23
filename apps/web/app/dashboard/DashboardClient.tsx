@@ -2571,7 +2571,14 @@ const [socketReady, setSocketReady] = useState(false);
                 <h1 className="text-base md:text-xl font-bold text-gray-900 flex items-center gap-2">
                   Good morning, Dr. {doctorProfile?.clinicName.split(' ')[0] || user.email.split('@')[0]} 👋
                 </h1>
-                <p className="text-xs text-gray-500">Here's what's happening in your practice today.</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs text-gray-500">Here's what's happening in your practice today.</p>
+                  {user.doctorCode && (
+                    <span className="text-xs font-mono font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-md border border-blue-200">
+                      ID: {user.doctorCode}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <div className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 flex items-center gap-2 shadow-sm">
@@ -2591,26 +2598,25 @@ const [socketReady, setSocketReady] = useState(false);
             {/* Top Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Today's Appointments", value: stats?.todaysBookings || 0, trend: "+ 20% from yesterday", icon: CalendarIcon, color: "text-blue-600", bg: "bg-blue-50" },
-                { label: "Total Patients", value: stats?.totalPatients?.toLocaleString() || "0", trend: "+ 16% this month", icon: UserGroupIcon, color: "text-emerald-600", bg: "bg-emerald-50" },
-                { label: "Prescriptions", value: "86", trend: "+ 12% this month", icon: ChartBarIcon, color: "text-indigo-600", bg: "bg-indigo-50" },
-                { label: "Patient Rating", value: "4.8/5", trend: "Based on 236 reviews", icon: ChartBarSquareIcon, color: "text-purple-600", bg: "bg-purple-50" },
+                { label: "Today's Appointments", value: stats?.todaysBookings || 0, trend: `${appointments.filter(a => {
+                  const d = getAppointmentISTDate(a);
+                  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                  return fmt.format(d) === new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(getISTNow());
+                }).length} today`, icon: CalendarIcon, color: "text-blue-600", bg: "bg-blue-50" },
+                { label: "Total Patients", value: stats?.totalPatients?.toLocaleString() || "0", trend: `${new Set(appointments.map(a => a.patientId)).size} unique`, icon: UserGroupIcon, color: "text-emerald-600", bg: "bg-emerald-50" },
+                { label: "Completed Appts", value: appointments.filter(a => a.status === 'COMPLETED').length, trend: "All time completed", icon: ChartBarIcon, color: "text-indigo-600", bg: "bg-indigo-50" },
+                { label: "Pending", value: appointments.filter(a => a.status === 'PENDING').length, trend: "Awaiting confirmation", icon: ChartBarSquareIcon, color: "text-purple-600", bg: "bg-purple-50" },
               ].map((stat, i) => (
                 <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                   <div className="flex items-center justify-between mb-3">
                     <div className={`p-2 rounded-lg ${stat.bg} ${stat.color}`}>
                       <stat.icon className="h-5 w-5" />
                     </div>
-                    {stat.trend.includes('%') && (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">
-                        {stat.trend.split(' ')[0]} {stat.trend.split(' ')[1]}
-                      </span>
-                    )}
                   </div>
                   <h3 className="text-gray-500 text-[10px] font-medium uppercase tracking-wider">{stat.label}</h3>
                   <div className="flex items-baseline gap-2 mt-0.5">
                     <span className="text-base md:text-xl font-black text-gray-900">{stat.value}</span>
-                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{stat.trend.split(' ').slice(2).join(' ')}</span>
+                    <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{stat.trend}</span>
                   </div>
                 </div>
               ))}
@@ -2675,15 +2681,23 @@ const [socketReady, setSocketReady] = useState(false);
                 </div>
                 <div className="flex-1 min-h-[200px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={[
-                      { day: 'Mon', count: 15 },
-                      { day: 'Tue', count: 24 },
-                      { day: 'Wed', count: 18 },
-                      { day: 'Thu', count: 22 },
-                      { day: 'Fri', count: 35 },
-                      { day: 'Sat', count: 30 },
-                      { day: 'Sun', count: 18 },
-                    ]}>
+                    <LineChart data={(() => {
+                      // Calculate appointments for last 7 days using real data
+                      const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                      const last7Days = Array.from({ length: 7 }, (_, i) => {
+                        const d = new Date();
+                        d.setDate(d.getDate() - (6 - i));
+                        const dateStr = fmtDateIST.format(d);
+                        const dayName = dayNames[d.getDay()];
+                        const count = appointments.filter(a => {
+                          const apptDate = getAppointmentISTDate(a);
+                          return fmtDateIST.format(apptDate) === dateStr;
+                        }).length;
+                        return { day: dayName, count };
+                      });
+                      return last7Days;
+                    })()}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                       <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 'bold', fill: '#9ca3af' }} dy={10} />
                       <YAxis hide />
@@ -2705,13 +2719,10 @@ const [socketReady, setSocketReady] = useState(false);
                 <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between">
                   <div>
                     <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Total</p>
-                    <p className="text-lg font-black text-gray-900">156</p>
+                    <p className="text-lg font-black text-gray-900">{appointments.length}</p>
                   </div>
                   <div className="text-right">
-                    <span className="text-emerald-600 font-bold text-xs flex items-center gap-1 justify-end">
-                      ↑ 18%
-                    </span>
-                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">vs last week</p>
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">all appointments</p>
                   </div>
                 </div>
               </div>
@@ -2751,7 +2762,7 @@ const [socketReady, setSocketReady] = useState(false);
                     </div>
                     <div>
                       <p className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">Rating</p>
-                      <p className="text-xs font-black text-gray-900">4.8</p>
+                      <p className="text-xs font-black text-gray-900">-</p>
                     </div>
                   </div>
                   
@@ -2762,120 +2773,113 @@ const [socketReady, setSocketReady] = useState(false);
               </div>
             </div>
 
-            {/* Row 3: Demographics & Conditions & Reviews */}
+            {/* Row 3: Appointment Status & Conditions & Reviews */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              {/* Patient Demographics */}
+              {/* Appointment Status Breakdown */}
               <div className="lg:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                <h3 className="text-xs font-bold text-gray-900 mb-4">Patient Demographics</h3>
-                <div className="flex items-center gap-3">
-                  <div className="w-28 h-28 shrink-0 relative">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={[
-                            { name: '0-18', value: 16, color: '#3b82f6' },
-                            { name: '19-35', value: 28, color: '#fbbf24' },
-                            { name: '36-55', value: 34, color: '#10b981' },
-                            { name: '56+', value: 22, color: '#8b5cf6' },
-                          ]}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={30}
-                          outerRadius={45}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
-                          {[ '#3b82f6', '#fbbf24', '#10b981', '#8b5cf6' ].map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-[7px] font-bold text-gray-400 uppercase">Total</span>
-                      <span className="text-sm font-black text-gray-900 leading-none">{stats?.totalPatients || '1,248'}</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    {[
-                      { label: '0-18 Years', value: '16%', count: '199', color: 'bg-blue-500' },
-                      { label: '19-35 Years', value: '28%', count: '349', color: 'bg-yellow-400' },
-                      { label: '36-55 Years', value: '34%', count: '424', color: 'bg-emerald-500' },
-                      { label: '56+ Years', value: '22%', count: '276', color: 'bg-purple-500' },
-                    ].map((item, i) => (
-                      <div key={i} className="flex items-center justify-between group">
-                        <div className="flex items-center gap-1.5">
-                          <div className={`w-1.5 h-1.5 rounded-full ${item.color}`} />
-                          <span className="text-[9px] font-bold text-gray-500 group-hover:text-gray-900 transition-colors">{item.label}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[9px] font-black text-gray-900">{item.value}</span>
-                          <span className="text-[7px] text-gray-400 font-bold ml-0.5">({item.count})</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Top Conditions */}
-              <div className="lg:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-gray-900">Top Conditions</h3>
-                  <select className="text-[9px] font-bold bg-gray-50 border-none rounded-lg focus:ring-0 py-0.5 px-1.5">
-                    <option>This Month</option>
-                  </select>
-                </div>
-                <div className="space-y-3 flex-1">
+                <h3 className="text-xs font-bold text-gray-900 mb-4">Appointment Status</h3>
+                <div className="space-y-3">
                   {[
-                    { label: 'Hypertension', value: '28%', count: '241', icon: '🩺', bg: 'bg-blue-50', color: 'text-blue-600' },
-                    { label: 'CAD', value: '18%', count: '155', icon: '❤️', bg: 'bg-red-50', color: 'text-red-600' },
-                    { label: 'Arrhythmia', value: '12%', count: '103', icon: '💓', bg: 'bg-emerald-50', color: 'text-emerald-600' },
-                    { label: 'Diabetes', value: '10%', count: '86', icon: '🧪', bg: 'bg-cyan-50', color: 'text-cyan-600' },
-                    { label: 'Others', value: '32%', count: '268', icon: '🧬', bg: 'bg-purple-50', color: 'text-purple-600' },
+                    { label: 'Pending', count: appointments.filter(a => a.status === 'PENDING').length, color: 'bg-amber-500', percentage: Math.round((appointments.filter(a => a.status === 'PENDING').length / Math.max(appointments.length, 1)) * 100) },
+                    { label: 'Confirmed', count: appointments.filter(a => a.status === 'CONFIRMED').length, color: 'bg-emerald-500', percentage: Math.round((appointments.filter(a => a.status === 'CONFIRMED').length / Math.max(appointments.length, 1)) * 100) },
+                    { label: 'Completed', count: appointments.filter(a => a.status === 'COMPLETED').length, color: 'bg-blue-500', percentage: Math.round((appointments.filter(a => a.status === 'COMPLETED').length / Math.max(appointments.length, 1)) * 100) },
+                    { label: 'Cancelled', count: appointments.filter(a => a.status === 'CANCELLED').length, color: 'bg-red-500', percentage: Math.round((appointments.filter(a => a.status === 'CANCELLED').length / Math.max(appointments.length, 1)) * 100) },
                   ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between group">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded-lg ${item.bg} ${item.color} flex items-center justify-center text-[10px] shadow-sm group-hover:scale-110 transition-transform`}>
-                          {item.icon}
+                    <div key={i}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[9px] font-bold text-gray-600">{item.label}</span>
+                        <div className="text-right">
+                          <span className="text-[9px] font-black text-gray-900">{item.percentage}%</span>
+                          <span className="text-[7px] text-gray-400 font-bold ml-1">({item.count})</span>
                         </div>
-                        <span className="text-[10px] font-bold text-gray-700 group-hover:text-gray-900 transition-colors">{item.label}</span>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-black text-gray-900">{item.value}</span>
-                        <span className="text-[8px] text-gray-400 font-bold ml-0.5">({item.count})</span>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div className={`${item.color} h-1.5 rounded-full transition-all`} style={{ width: `${item.percentage}%` }}></div>
                       </div>
                     </div>
                   ))}
+                  <div className="pt-3 mt-3 border-t border-gray-100 text-center">
+                    <p className="text-[8px] font-bold text-gray-400 uppercase">Total Appointments</p>
+                    <p className="text-2xl font-black text-gray-900">{appointments.length}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Recent Reviews */}
+              {/* Upcoming Appointments */}
+              <div className="lg:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold text-gray-900">Upcoming Appointments</h3>
+                </div>
+                <div className="space-y-3 flex-1">
+                  {(() => {
+                    const fmtDateIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+                    const todayStr = fmtDateIST.format(getISTNow());
+                    const upcoming = appointments
+                      .filter(a => {
+                        const apptDateStr = fmtDateIST.format(getAppointmentISTDate(a));
+                        return apptDateStr >= todayStr && (a.status === 'CONFIRMED' || a.status === 'PENDING');
+                      })
+                      .sort((a, b) => {
+                        const dateA = getAppointmentISTDate(a);
+                        const dateB = getAppointmentISTDate(b);
+                        return dateA.getTime() - dateB.getTime();
+                      })
+                      .slice(0, 5);
+                    
+                    if (upcoming.length === 0) {
+                      return <p className="text-center text-xs text-gray-400 py-4">No upcoming appointments</p>;
+                    }
+                    
+                    return upcoming.map((appt, i) => (
+                      <div key={i} className="flex items-center justify-between group hover:bg-gray-50 p-2 rounded-lg transition-colors">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] shadow-sm ${
+                            appt.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                          }`}>
+                            {appt.status === 'CONFIRMED' ? '✓' : '⏳'}
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-gray-700 block">{appt.patientName || 'Patient'}</span>
+                            <span className="text-[8px] text-gray-500">{appt.date.slice(0, 10)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-black text-gray-900">{appt.time}</span>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              {/* Recent Activity */}
               <div className="lg:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-gray-900">Recent Reviews</h3>
-                  <button className="text-blue-600 text-[10px] font-bold hover:underline">View all</button>
+                  <h3 className="text-xs font-bold text-gray-900">Recent Activity</h3>
                 </div>
                 <div className="space-y-3 md:space-y-4">
-                  {[
-                    { name: 'Riya Sharma', text: 'Kind and patient doctor.', rating: 5, date: '18 May' },
-                    { name: 'Vikram Patel', text: 'Excellent experience.', rating: 5, date: '16 May' },
-                    { name: 'Meera Joshi', text: 'Great diagnosis.', rating: 5, date: '14 May' },
-                  ].map((item, i) => (
+                  {appointments.slice(0, 3).map((appt, i) => (
                     <div key={i} className="flex gap-2 group">
                       <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] shrink-0 shadow-sm border border-white">👤</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-[10px] font-bold text-gray-900 truncate">{item.name}</h4>
-                          <span className="text-[8px] font-bold text-gray-400">{item.date}</span>
+                          <h4 className="text-[10px] font-bold text-gray-900 truncate">{appt.patientName || 'Patient'}</h4>
+                          <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
+                            appt.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-600' :
+                            appt.status === 'PENDING' ? 'bg-amber-50 text-amber-600' :
+                            appt.status === 'COMPLETED' ? 'bg-blue-50 text-blue-600' :
+                            'bg-gray-50 text-gray-600'
+                          }`}>{appt.status}</span>
                         </div>
-                        <div className="flex text-yellow-400 text-[8px] my-0.5">
-                          {Array.from({ length: item.rating }).map((_, j) => <span key={j}>⭐</span>)}
-                        </div>
-                        <p className="text-[9px] text-gray-500 font-medium line-clamp-1 leading-tight">{item.text}</p>
+                        <p className="text-[9px] text-gray-500 font-medium line-clamp-1 leading-tight mt-1">
+                          {appt.date.slice(0, 10)} at {appt.time}
+                        </p>
                       </div>
                     </div>
                   ))}
+                  {appointments.length === 0 && (
+                    <p className="text-center text-xs text-gray-400 py-4">No recent activity</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -2903,37 +2907,53 @@ const [socketReady, setSocketReady] = useState(false);
                 </div>
               </div>
 
-              {/* Earnings Overview */}
+              {/* Monthly Summary */}
               <div className="lg:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-gray-900">Earnings</h3>
-                  <select className="text-[9px] font-bold bg-gray-50 border-none rounded-lg focus:ring-0 py-0.5 px-1.5">
-                    <option>Month</option>
-                  </select>
+                  <h3 className="text-xs font-bold text-gray-900">This Month</h3>
                 </div>
-                <div className="flex-1 flex flex-col justify-center">
-                  <div className="flex items-baseline gap-1.5 mb-1">
-                    <span className="text-base md:text-xl font-black text-gray-900">₹{stats?.monthlyRevenue.toLocaleString() || "2.48k"}</span>
-                    <span className="text-emerald-600 font-bold text-[10px] flex items-center gap-0.5">
-                      ↑ 22%
-                    </span>
+                <div className="flex-1 flex flex-col justify-center space-y-4">
+                  <div>
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Appointments</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-base md:text-xl font-black text-gray-900">{(() => {
+                        const now = new Date();
+                        const currentMonth = now.getMonth();
+                        const currentYear = now.getFullYear();
+                        return appointments.filter(a => {
+                          const apptDate = getAppointmentISTDate(a);
+                          return apptDate.getMonth() === currentMonth && apptDate.getFullYear() === currentYear;
+                        }).length;
+                      })()}</span>
+                    </div>
                   </div>
-                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-4">Earnings vs last month</p>
-                  
-                  <div className="h-12 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={[
-                        { v: 4000 }, { v: 3000 }, { v: 5000 }, { v: 4500 }, { v: 6000 }, { v: 5500 }, { v: 7000 }
-                      ]}>
-                        <defs>
-                          <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <Area type="monotone" dataKey="v" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorEarnings)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                  <div>
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Completed</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-base md:text-xl font-black text-emerald-600">{(() => {
+                        const now = new Date();
+                        const currentMonth = now.getMonth();
+                        const currentYear = now.getFullYear();
+                        return appointments.filter(a => {
+                          const apptDate = getAppointmentISTDate(a);
+                          return a.status === 'COMPLETED' && apptDate.getMonth() === currentMonth && apptDate.getFullYear() === currentYear;
+                        }).length;
+                      })()}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pending</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-base md:text-xl font-black text-amber-600">{(() => {
+                        const now = new Date();
+                        const currentMonth = now.getMonth();
+                        const currentYear = now.getFullYear();
+                        return appointments.filter(a => {
+                          const apptDate = getAppointmentISTDate(a);
+                          return a.status === 'PENDING' && apptDate.getMonth() === currentMonth && apptDate.getFullYear() === currentYear;
+                        }).length;
+                      })()}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2945,7 +2965,7 @@ const [socketReady, setSocketReady] = useState(false);
           <StaffDashboard 
             userId={user.id}
             apiBaseUrl={API_BASE_URL}
-            token={localStorage.getItem('token') || ''}
+            token={localStorage.getItem('authToken') || ''}
           />
         )}
 
@@ -4002,24 +4022,6 @@ const [socketReady, setSocketReady] = useState(false);
                 }
               }}
             />
-            
-            {/* Hospital Settings & Configuration Section */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                  <CogIcon className="w-6 h-6" />
-                  Hospital Configuration
-                </h3>
-                <p className="text-white/80 text-sm mt-1">Manage doctor slot periods, access controls, and settings</p>
-              </div>
-              <div className="p-6">
-                <HospitalSettings
-                  onPeriodUpdated={(doctorId, minutes) => {
-                    setHospitalDoctorPeriodMap((prev) => ({ ...prev, [doctorId]: minutes }));
-                  }}
-                />
-              </div>
-            </div>
           </div>
         )}
 
@@ -5189,7 +5191,7 @@ const [socketReady, setSocketReady] = useState(false);
           <StaffManagementTab 
             userId={user.id}
             apiBaseUrl={API_BASE_URL}
-            token={localStorage.getItem('token') || ''}
+            token={localStorage.getItem('authToken') || ''}
           />
         )}
 
@@ -5198,7 +5200,7 @@ const [socketReady, setSocketReady] = useState(false);
             hospitalId={hospitalProfile.id}
             hospitalAdminId={user.id}
             apiBaseUrl={API_BASE_URL}
-            token={localStorage.getItem('token') || ''}
+            token={localStorage.getItem('authToken') || ''}
             doctors={hospitalDoctors}
           />
         )}

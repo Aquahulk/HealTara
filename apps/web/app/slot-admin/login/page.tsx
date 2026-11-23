@@ -37,8 +37,10 @@ export default function SlotAdminLoginPage() {
       if (role !== "SLOT_ADMIN" && role !== "ADMIN") {
         throw new Error("This login is only for Slot Admin or Admin accounts");
       }
-      localStorage.setItem("slotAdminToken", token);
-      window.location.href = "/slot-admin";
+      localStorage.setItem("slotAdminToken", token); // Keep for backward compatibility
+      localStorage.setItem("authToken", token); // Use the correct key that AuthContext looks for
+      localStorage.setItem("user", JSON.stringify({ id: decoded.userId, email: decoded.email, role: decoded.role }));
+      window.location.href = "/dashboard";
     } catch (e: any) {
       setMessage(e?.message || "Login failed");
     } finally {

@@ -21,6 +21,7 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
     const router = useRouter();
     const cardRef = useRef<HTMLDivElement | null>(null);
     const profile = doctor.doctorProfile;
+    const hospital = doctor.hospital;
     const clinicName = profile?.clinicName || "Clinic";
     const specialization = profile?.specialization || "Specialist";
     const fee = profile?.consultationFee;
@@ -28,6 +29,10 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
     const state = profile?.state;
     const slug = profile?.slug;
     const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+    // Determine the profile link and label based on hospital association
+    const profileLink = hospital ? `/hospital-site/${hospital.id}` : (slug ? `/doctor-site/${slug}` : null);
+    const displayName = hospital ? hospital.name : clinicName;
 
     // Track a view when the card enters viewport
     useEffect(() => {
@@ -55,7 +60,13 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
                 <SaveButton entityType="doctor" entityId={doctor.id} />
             </div>
 			<div className="p-4 flex-1">
-				<h3 className="text-xl font-semibold text-gray-900">{clinicName}</h3>
+				<h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+					{hospital && <span className="text-blue-600">🏥</span>}
+					{displayName}
+				</h3>
+				{hospital && (
+					<p className="text-xs text-purple-600 font-semibold mt-1">Hospital Doctor</p>
+				)}
 				<p className="text-sm text-gray-600 mt-1">{specialization}</p>
 				<p className="text-sm text-gray-500 mt-2">
 					{city && state ? `${city}, ${state}` : city || state || ""}
@@ -65,23 +76,29 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
 				)}
 			</div>
 			<div className="p-4 border-t border-gray-200 flex gap-3">
-                {slug ? (
+                {profileLink ? (
                     <Link
-                        href={`/doctor-site/${slug}`}
+                        href={profileLink}
                         className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-900 font-medium py-2 rounded-lg transition-colors"
                 onMouseEnter={() => {
                   try {
                     if (shouldUseSubdomainNav()) {
-                      const url = doctorMicrositeUrl(slug);
-                      import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
+                      const url = hospital?.subdomain ? customSubdomainUrl(hospital.subdomain) : (slug ? doctorMicrositeUrl(slug) : '');
+                      if (url) {
+                        import('@/lib/navWarmup').then(m => { try { m.preconnect(url); m.dnsPrefetch(url); } catch {} });
+                      }
                     }
                   } catch {}
                 }}
                 onClick={(e) => {
                             if (shouldUseSubdomainNav()) {
-                                // Navigate via name-only subdomain for doctor microsite
+                                // Navigate via subdomain
                                 e.preventDefault();
-                                window.location.href = doctorMicrositeUrl(slug);
+                                if (hospital?.subdomain) {
+                                    window.location.href = customSubdomainUrl(hospital.subdomain);
+                                } else if (slug) {
+                                    window.location.href = doctorMicrositeUrl(slug);
+                                }
                             }
                             import("@/lib/api").then(({ apiClient }) => {
                                 apiClient.trackDoctorClick(doctor.id, 'site', searchQuery || undefined).catch(() => {});
@@ -91,7 +108,7 @@ export default function DoctorCard({ doctor, onBookAppointment, onBookClick, sea
                             });
                         }}
                     >
-                        Visit Website
+                        {hospital ? 'Visit Hospital' : 'Visit Website'}
                     </Link>
                 ) : (
                     <button

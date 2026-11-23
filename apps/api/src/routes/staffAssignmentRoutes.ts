@@ -653,6 +653,20 @@ router.get('/requests/pending', authMiddleware, async (req: Request, res: Respon
             expiresAt: { gte: new Date() }
           },
           include: {
+            initiator: {
+              select: {
+                id: true,
+                email: true,
+                role: true,
+                doctorCode: true,
+                doctorProfile: {
+                  select: {
+                    name: true,
+                    specialization: true
+                  }
+                }
+              }
+            },
             doctor: {
               select: {
                 id: true,

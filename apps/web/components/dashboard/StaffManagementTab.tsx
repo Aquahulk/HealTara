@@ -57,6 +57,9 @@ interface StaffManagementTabProps {
 }
 
 export default function StaffManagementTab({ userId, apiBaseUrl, token }: StaffManagementTabProps) {
+  console.log('StaffManagementTab props:', { userId, apiBaseUrl, token: token ? 'EXISTS' : 'MISSING' });
+  console.log('userId type:', typeof userId, 'value:', userId);
+  
   const [view, setView] = useState<'current' | 'invite'>('current');
   const [activeStaff, setActiveStaff] = useState<Assignment[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,6 +79,8 @@ export default function StaffManagementTab({ userId, apiBaseUrl, token }: StaffM
   const fetchActiveStaff = async () => {
     try {
       setLoading(true);
+      console.log('Fetching active staff from:', `${apiBaseUrl}/api/staff/assignments/`);
+      
       const response = await fetch(`${apiBaseUrl}/api/staff/assignments/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -83,9 +88,25 @@ export default function StaffManagementTab({ userId, apiBaseUrl, token }: StaffM
         }
       });
 
-      if (!response.ok) throw new Error('Failed to fetch staff');
+      console.log('Fetch active staff response status:', response.status);
+      console.log('Response headers:', response.headers.get('content-type'));
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Fetch active staff error response:', text);
+        
+        let errorData: any = {};
+        try {
+          errorData = JSON.parse(text);
+        } catch {
+          errorData = { message: `HTTP ${response.status}: ${text.substring(0, 200)}` };
+        }
+        
+        throw new Error(errorData.message || 'Failed to fetch staff');
+      }
       
       const data = await response.json();
+      console.log('Active staff data:', data);
       setActiveStaff(data.assignments || []);
     } catch (err: any) {
       console.error('Error fetching staff:', err);
@@ -103,6 +124,11 @@ export default function StaffManagementTab({ userId, apiBaseUrl, token }: StaffM
 
     try {
       setSearching(true);
+      setError(null);
+      
+      console.log('🔍 Searching for staff:', searchQuery);
+      console.log('API URL:', `${apiBaseUrl}/api/staff/search?query=${encodeURIComponent(searchQuery)}`);
+      
       const response = await fetch(
         `${apiBaseUrl}/api/staff/search?query=${encodeURIComponent(searchQuery)}`,
         {
@@ -113,10 +139,21 @@ export default function StaffManagementTab({ userId, apiBaseUrl, token }: StaffM
         }
       );
 
-      if (!response.ok) throw new Error('Search failed');
+      console.log('Search response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Search error:', errorData);
+        throw new Error(errorData.message || 'Search failed');
+      }
       
       const data = await response.json();
+      console.log('Search results:', data);
       setSearchResults(data.results || []);
+      
+      if (!data.results || data.results.length === 0) {
+        setError('No staff members found matching your search');
+      }
     } catch (err: any) {
       console.error('Error searching staff:', err);
       setError(err.message);
@@ -128,6 +165,25 @@ export default function StaffManagementTab({ userId, apiBaseUrl, token }: StaffM
   const inviteStaff = async () => {
     if (!selectedStaff) return;
 
+    const payload = {
+      staffCode: selectedStaff.staffCode,
+      doctorId: userId ? Number(userId) : undefined, // Send undefined if not available, backend will fill it
+      scope: inviteScope,
+      permissions: [
+        { permission: 'APPOINTMENT_VIEW', granted: true },
+        { permission: 'APPOINTMENT_MANAGE', granted: true },
+        { permission: 'SLOT_VIEW', granted: true },
+        { permission: 'SLOT_MANAGE', granted: true },
+        { permission: 'WALKIN_CREATE', granted: true },
+        { permission: 'TOKEN_VIEW', granted: true },
+        { permission: 'TOKEN_MANAGE', granted: true },
+        { permission: 'PATIENT_BASIC_INFO_VIEW', granted: true }
+      ]
+    };
+
+    console.log('Sending invitation with payload:', payload);
+    console.log('userId value:', userId, 'type:', typeof userId);
+
     try {
       setInviting(true);
       const response = await fetch(`${apiBaseUrl}/api/staff/assignments/request`, {
@@ -136,25 +192,12 @@ export default function StaffManagementTab({ userId, apiBaseUrl, token }: StaffM
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          staffCode: selectedStaff.staffCode,
-          doctorId: userId,
-          scope: inviteScope,
-          permissions: [
-            { permission: 'APPOINTMENT_VIEW', granted: true },
-            { permission: 'APPOINTMENT_MANAGE', granted: true },
-            { permission: 'SLOT_VIEW', granted: true },
-            { permission: 'SLOT_MANAGE', granted: true },
-            { permission: 'WALKIN_CREATE', granted: true },
-            { permission: 'TOKEN_VIEW', granted: true },
-            { permission: 'TOKEN_MANAGE', granted: true },
-            { permission: 'PATIENT_BASIC_INFO_VIEW', granted: true }
-          ]
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Invitation error response:', errorData);
         throw new Error(errorData.message || 'Failed to send invitation');
       }
 

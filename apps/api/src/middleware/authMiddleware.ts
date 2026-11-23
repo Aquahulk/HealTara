@@ -53,6 +53,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       userId: number;
       email: string;
       role: string;
+      doctorCode?: string;
     };
     
     // ============================================================================
@@ -63,7 +64,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     try {
       user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        select: { id: true, email: true, role: true }
+        select: { id: true, email: true, role: true, doctorCode: true }
       });
     } catch (dbError: any) {
       // If database is unavailable but token is valid, we allow the request to proceed
@@ -80,7 +81,8 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         req.user = {
           userId: decoded.userId,
           email: decoded.email,
-          role: decoded.role as any
+          role: decoded.role as any,
+          doctorCode: decoded.doctorCode
         };
         return next();
       }
@@ -100,11 +102,12 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     // ✅ AUTHENTICATION SUCCESS - Add user data to request object
     // ============================================================================
     // This makes user information available to all route handlers
-    // Route handlers can now access: req.user.id, req.user.email, req.user.role
+    // Route handlers can now access: req.user.id, req.user.email, req.user.role, req.user.doctorCode
     req.user = {
       userId: user.id,
       email: user.email,
-      role: user.role as 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN'
+      role: user.role as 'PATIENT' | 'DOCTOR' | 'ADMIN' | 'HOSPITAL_ADMIN' | 'SLOT_ADMIN',
+      doctorCode: user.doctorCode || undefined
     };
     
     // ============================================================================

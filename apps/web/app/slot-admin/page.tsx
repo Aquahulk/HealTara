@@ -162,10 +162,12 @@ export default function SlotAdminPanelPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [refreshKey, setRefreshKey] = useState(0); // Force re-render key
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [doctorName, setDoctorName] = useState<string>('');
+  const [doctorCode, setDoctorCode] = useState<string>(''); // Doctor unique ID
   const [hospitalName, setHospitalName] = useState<string>('');
   const [hospitalId, setHospitalId] = useState<number | null>(null);
   const [doctorId, setDoctorId] = useState<number | null>(null);
@@ -219,11 +221,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         return;
       }
       const data = await res.json();
-      const doc = data?.doctor as { id: number; email: string; doctorProfileId?: number } | null;
+      const doc = data?.doctor as { id: number; email: string; doctorProfileId?: number; doctorCode?: string } | null;
       const hosp = data?.hospital as { id: number; name: string } | null;
       if (doc) {
         setDoctorId(doc.id);
         if (typeof doc.doctorProfileId === 'number') setDoctorProfileId(doc.doctorProfileId);
+        if (doc.doctorCode) setDoctorCode(doc.doctorCode); // Store doctor unique ID
         const derivedName = doc.email ? doc.email.split('@')[0] : `Doctor ${doc.id}`;
         setDoctorName(derivedName);
         await loadSlotPeriod(tkn, doc.id);
@@ -522,11 +525,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
     if (!token) return;
     try {
       setMessage(null);
-      // Optimistically update local state to reflect change immediately
+      
+      // Optimistically update UI immediately
       setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
-      bc?.postMessage({ type: 'appointment-update', id, status });
-
-      // Use correct endpoint to update status server-side
+      setRefreshKey(k => k + 1); // Force re-render
+      
+      // Update server
       const res = await fetch(`/api/slot-admin/appointments/${id}/status`, {
         method: 'PATCH',
         headers: {
@@ -535,10 +539,17 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         },
         body: JSON.stringify({ status }),
       });
+      
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Failed to update appointment' }));
+        // Revert on error
+        await loadAppointments(token);
+        setRefreshKey(k => k + 1);
         throw new Error(err.message || 'Failed to update appointment');
       }
+      
+      // Broadcast update
+      bc?.postMessage({ type: 'appointment-update', id, status });
       setMessage('Appointment updated');
     } catch (e: any) {
       setMessage(e?.message || 'Failed to update appointment');
@@ -549,11 +560,12 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
     if (!token) return;
     try {
       setMessage(null);
-      // Optimistically remove appointment locally to avoid reload delays
-      setAppointments((prev) => prev.filter((a) => a.id !== id));
-      bc?.postMessage({ type: 'appointment-cancel', id });
+      
+      // Optimistically update to CANCELLED immediately
+      setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'CANCELLED' } : a)));
+      setRefreshKey(k => k + 1); // Force re-render
 
-      // Use correct endpoint to cancel server-side
+      // Update server
       const res = await fetch(`/api/slot-admin/appointments/${id}/cancel`, {
         method: 'PATCH',
         headers: { 
@@ -562,10 +574,17 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
         },
         body: JSON.stringify({ reason: 'Cancelled by slot admin' }),
       });
+      
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: 'Failed to cancel appointment' }));
+        // Revert on error
+        await loadAppointments(token);
+        setRefreshKey(k => k + 1);
         throw new Error(err.message || 'Failed to cancel appointment');
       }
+      
+      // Broadcast update
+      bc?.postMessage({ type: 'appointment-cancel', id });
       setMessage('Appointment cancelled');
     } catch (e: any) {
       setMessage(e?.message || 'Failed to cancel appointment');
@@ -1037,7 +1056,7 @@ const [viewMode, setViewMode] = useState<'day' | 'grouped'>('day');
                 {/* Grouped view */}
                 {viewMode === 'grouped' && (() => {
                   const filtered = appointments.filter(a => {
-                    if (!showHistory && a.status === 'COMPLETED') return false;
+                    if (!showHistory && (a.status === 'COMPLETED' || a.status === 'CANCELLED')) return false;
                     const okStatus = statusFilter ? a.status === statusFilter : true;
                     const dt = istDateTimeFromDateAndTime(a.date.slice(0,10), a.time || '00:00');
                     const okFrom = fromDate ? dt >= new Date(`${fromDate}T00:00:00`) : true;

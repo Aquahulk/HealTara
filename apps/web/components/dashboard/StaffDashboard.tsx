@@ -118,6 +118,10 @@ export default function StaffDashboard({ userId, apiBaseUrl, token }: StaffDashb
       if (!response.ok) throw new Error('Failed to fetch dashboard data');
       
       const data = await response.json();
+      console.log('Staff dashboard data:', data);
+      console.log('Staff profile:', data.profile);
+      console.log('Staff code:', data.profile?.staffCode);
+      
       setProfile(data.profile);
       setActiveAssignments(data.activeAssignments.assignments || []);
       setPendingInvitations(data.pendingInvitations.invitations || []);
@@ -147,7 +151,7 @@ export default function StaffDashboard({ userId, apiBaseUrl, token }: StaffDashb
         throw new Error(errorData.message || 'Failed to accept invitation');
       }
 
-      alert('✅ Assignment accepted! You can now manage this doctor/hospital.');
+      alert('✅ Assignment accepted! Click "Open Slot Admin" to start managing appointments and slots.');
       fetchDashboardData();
     } catch (err: any) {
       console.error('Error accepting invitation:', err);
@@ -379,7 +383,7 @@ export default function StaffDashboard({ userId, apiBaseUrl, token }: StaffDashb
                   )}
 
                   <p className="text-xs text-gray-500 mt-2">
-                    Invited by: {invitation.initiator.email} ({invitation.initiator.role.replace('_', ' ')})
+                    Invited by: {invitation.initiator?.email || 'Unknown'} ({invitation.initiator?.role?.replace('_', ' ') || 'N/A'})
                   </p>
                 </div>
               </div>
@@ -512,18 +516,18 @@ export default function StaffDashboard({ userId, apiBaseUrl, token }: StaffDashb
               {/* Quick Actions */}
               <div className="mt-3 pt-3 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-700 mb-2">Quick Actions:</p>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Link
-                    href="/dashboard?tab=appointments"
-                    className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 px-3 rounded-lg text-xs font-semibold text-center transition-colors"
+                    href="/slot-admin"
+                    className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white py-2 px-3 rounded-lg text-xs font-bold text-center transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1"
                   >
-                    📅 Manage Appointments
+                    🏥 Open Slot Admin
                   </Link>
                   <Link
-                    href="/dashboard?tab=slots"
-                    className="flex-1 bg-purple-50 hover:bg-purple-100 text-purple-700 py-2 px-3 rounded-lg text-xs font-semibold text-center transition-colors"
+                    href="/dashboard?tab=appointments"
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 px-3 rounded-lg text-xs font-semibold text-center transition-colors"
                   >
-                    ⏰ Manage Slots
+                    📅 Appointments
                   </Link>
                 </div>
               </div>

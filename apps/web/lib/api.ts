@@ -84,6 +84,11 @@ export interface DoctorProfile {
 
 export interface Doctor extends User {
   doctorProfile: DoctorProfile | null;                     // Doctor's professional profile (null if not created yet)
+  hospital?: {                                             // Hospital association (if doctor is linked to a hospital)
+    id: number;
+    name: string;
+    subdomain?: string;
+  } | null;
 }
 
 export interface SearchDoctorsResponse {
@@ -765,6 +770,10 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
+  }
+
+  async getDepartments(hospitalId: number): Promise<Array<{ id: number; name: string }>> {
+    return this.request(`/api/hospitals/${hospitalId}/departments`);
   }
 
   async getHospitalByDoctorId(doctorId: number): Promise<{ id: number; name?: string; address?: string; city?: string; state?: string; phone?: string; subdomain?: string | null }> {
