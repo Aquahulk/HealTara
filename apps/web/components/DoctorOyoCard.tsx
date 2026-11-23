@@ -34,6 +34,20 @@ export default function DoctorOyoCard({ doctor, onBookAppointment, searchQuery }
         .replace(/\b\w/g, (c) => c.toUpperCase()).trim();
   const displayName = slug ? toTitle(slug) : emailName;
 
+  // Debug logging
+  useEffect(() => {
+    if (doctor.id === 105 || doctor.id === 104) {
+      console.log(`🔍 DoctorOyoCard Debug for Doctor ${doctor.id}:`, {
+        doctorId: doctor.id,
+        email: doctor.email,
+        hasHospital: !!doctor.hospital,
+        hospital: doctor.hospital,
+        clinicName,
+        displayName
+      });
+    }
+  }, [doctor.id, doctor.hospital, doctor.email, clinicName, displayName]);
+
   const location = city && state ? `${city}, ${state}` : city || state || "";
 
   const cardRef = useRef<HTMLDivElement | null>(null);
