@@ -545,6 +545,11 @@ export default function HomePage() {
       const startTime = performance.now();
       try {
         setLoading(true);
+        // Clear old cache keys if they exist
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('homepage_cache');
+          localStorage.removeItem('homepage_cache_timestamp');
+        }
         const cachedData = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache_v2') : null;
         const cacheTimestamp = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache_v2_timestamp') : null;
         const CACHE_DURATION = 30 * 1000; // 30 seconds — keeps homepage fast but shows approvals quickly
@@ -552,9 +557,13 @@ export default function HomePage() {
           const parsed = JSON.parse(cachedData);
           const ch = Array.isArray(parsed?.hospitals) ? parsed.hospitals : [];
           const cd = Array.isArray(parsed?.doctors) ? parsed.doctors : [];
+          console.log('📦 Using cached data:', { hospitals: ch.length, doctors: cd.length, hasHospitalData: cd.some(d => d.hospital) });
           if (ch.length > 0 || cd.length > 0) {
             setHospitals(ch); setDoctors(cd); setLoading(false);
-            setTimeout(() => fetchFreshData(), 500);
+            // Fetch fresh data in background and update state when it arrives
+            fetchFreshData().then(() => {
+              console.log('🔄 Background refresh completed, state updated');
+            });
             return;
           }
         }
