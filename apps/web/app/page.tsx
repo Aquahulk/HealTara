@@ -1013,6 +1013,11 @@ export default function HomePage() {
 
                           {/* Info chips */}
                           <div className="flex flex-wrap gap-1.5 mb-3">
+                            {doctor.hospital && (
+                              <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md text-[11px] border border-purple-200 font-semibold">
+                                🏥 {doctor.hospital.name}
+                              </span>
+                            )}
                             {doctor.doctorProfile?.city && (
                               <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-600 px-2 py-0.5 rounded-md text-[11px] border border-gray-100">
                                 <MapPin className="w-3 h-3 text-blue-400" />{doctor.doctorProfile.city}
@@ -1032,7 +1037,19 @@ export default function HomePage() {
 
                           {/* Action buttons */}
                           <div className="flex gap-2">
-                            {doctor.doctorProfile?.slug ? (
+                            {doctor.hospital ? (
+                              // Hospital-linked doctor: show hospital profile link
+                              <Link href={`/hospital-site/${doctor.hospital.id}`}
+                                className="flex-1 bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold py-2 px-3 rounded-lg transition-all text-center text-xs flex items-center justify-center border border-purple-200"
+                                onMouseEnter={() => router.prefetch(`/hospital-site/${doctor.hospital.id}`)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  import('@/lib/api').then(({ apiClient }) => apiClient.trackDoctorClick(doctor.id, 'hospital').catch(() => {}));
+                                }}>
+                                <Building2 className="w-3 h-3 mr-1" />View at {doctor.hospital.name}
+                              </Link>
+                            ) : doctor.doctorProfile?.slug ? (
+                              // Independent doctor with slug: show their profile
                               <Link href={`/doctor-site/${doctor.doctorProfile.slug}`}
                                 className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold py-2 px-3 rounded-lg transition-all text-center text-xs flex items-center justify-center border border-gray-200"
                                 onMouseEnter={() => router.prefetch(`/doctor-site/${doctor.doctorProfile.slug}`)}
@@ -1044,6 +1061,7 @@ export default function HomePage() {
                                 <Globe className="w-3 h-3 mr-1" />Profile
                               </Link>
                             ) : (
+                              // No slug and no hospital: check for hospital dynamically
                               <button className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 font-semibold py-2 px-3 rounded-lg transition-all text-xs flex items-center justify-center border border-gray-200"
                                 onClick={(e) => {
                                   e.stopPropagation();
