@@ -545,8 +545,8 @@ export default function HomePage() {
       const startTime = performance.now();
       try {
         setLoading(true);
-        const cachedData = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache') : null;
-        const cacheTimestamp = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache_timestamp') : null;
+        const cachedData = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache_v2') : null;
+        const cacheTimestamp = typeof window !== 'undefined' ? localStorage.getItem('homepage_cache_v2_timestamp') : null;
         const CACHE_DURATION = 30 * 1000; // 30 seconds — keeps homepage fast but shows approvals quickly
         if (cachedData && cacheTimestamp && (Date.now() - parseInt(cacheTimestamp)) < CACHE_DURATION) {
           const parsed = JSON.parse(cachedData);
@@ -569,10 +569,11 @@ export default function HomePage() {
             ]);
             const h = hospitalsRes.status === 'fulfilled' ? (Array.isArray(hospitalsRes.value) ? hospitalsRes.value : []) : [];
             const d = doctorsRes.status === 'fulfilled' ? (Array.isArray(doctorsRes.value) ? doctorsRes.value : []) : [];
+            console.log('🔍 Homepage API Response - Doctors:', d.map(doc => ({ id: doc.id, name: doc.name, hospital: doc.hospital })));
             setHospitals(h); setDoctors(d);
             if (typeof window !== 'undefined' && (h.length > 0 || d.length > 0)) {
-              localStorage.setItem('homepage_cache', JSON.stringify({ hospitals: h, doctors: d }));
-              localStorage.setItem('homepage_cache_timestamp', Date.now().toString());
+              localStorage.setItem('homepage_cache_v2', JSON.stringify({ hospitals: h, doctors: d }));
+              localStorage.setItem('homepage_cache_v2_timestamp', Date.now().toString());
             }
             setLoading(false);
             console.log(`📊 Homepage loaded in ${(performance.now() - startTime).toFixed(2)}ms`);
