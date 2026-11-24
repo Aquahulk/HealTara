@@ -2839,7 +2839,7 @@ const [socketReady, setSocketReady] = useState(false);
                             {appt.status === 'CONFIRMED' ? '✓' : '⏳'}
                           </div>
                           <div>
-                            <span className="text-[10px] font-bold text-gray-700 block">{appt.patientName || 'Patient'}</span>
+                            <span className="text-[10px] font-bold text-gray-700 block">{appt.patient?.name || 'Patient'}</span>
                             <span className="text-[8px] text-gray-500">{appt.date.slice(0, 10)}</span>
                           </div>
                         </div>
@@ -2863,7 +2863,7 @@ const [socketReady, setSocketReady] = useState(false);
                       <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] shrink-0 shadow-sm border border-white">👤</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-[10px] font-bold text-gray-900 truncate">{appt.patientName || 'Patient'}</h4>
+                          <h4 className="text-[10px] font-bold text-gray-900 truncate">{appt.patient?.name || 'Patient'}</h4>
                           <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
                             appt.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-600' :
                             appt.status === 'PENDING' ? 'bg-amber-50 text-amber-600' :
