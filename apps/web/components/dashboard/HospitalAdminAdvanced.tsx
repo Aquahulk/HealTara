@@ -72,13 +72,19 @@ export default function HospitalAdminAdvanced({
   doctorAppointmentsMap,
   onRefresh
 }: HospitalAdminAdvancedProps) {
-  const [activeView, setActiveView] = useState<'overview' | 'departments' | 'staff' | 'analytics'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'departments' | 'doctors' | 'analytics'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<number | null>(null);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'year'>('week');
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
   const [expandedDepts, setExpandedDepts] = useState<Record<number, boolean>>({});
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  
+  // Link doctor states
+  const [linkDoctorCode, setLinkDoctorCode] = useState('');
+  const [linkDoctorDepartment, setLinkDoctorDepartment] = useState('');
+  const [linkingDoctor, setLinkingDoctor] = useState(false);
+  const [linkMessage, setLinkMessage] = useState('');
 
   // Process department data
   const departments = useMemo(() => {
@@ -192,7 +198,7 @@ export default function HospitalAdminAdvanced({
         {[
           { id: 'overview', label: 'Overview', icon: BarChart3 },
           { id: 'departments', label: 'Departments', icon: Building2 },
-          { id: 'staff', label: 'Staff', icon: Users },
+          { id: 'doctors', label: 'Doctors', icon: Users },
           { id: 'analytics', label: 'Analytics', icon: TrendingUp },
         ].map((view) => {
           const Icon = view.icon;
@@ -455,13 +461,124 @@ export default function HospitalAdminAdvanced({
         </motion.div>
       )}
 
-      {/* Staff View */}
-      {activeView === 'staff' && (
+      {/* Doctors View */}
+      {activeView === 'doctors' && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
+          {/* Link Doctor Section */}
+          <div className="bg-white rounded-xl p-6 border-2 border-blue-200 shadow-sm">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                  <span className="text-blue-600">🔗</span>
+                  Link Existing Doctor by Code
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">Invite an approved doctor using their unique doctor ID (HLT-DOC-XXXXXX)</p>
+              </div>
+            </div>
+            
+            {linkMessage && (
+              <div className={`mb-4 p-3 rounded-lg ${linkMessage.includes('successfully') || linkMessage.includes('✅') ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                {linkMessage}
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">Doctor Code *</label>
+                <input
+                  type="text"
+                  placeholder="HLT-DOC-XXXXXX"
+                  value={linkDoctorCode}
+                  onChange={(e) => setLinkDoctorCode(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2">Department (Optional)</label>
+                {departments.length > 0 ? (
+                  <select
+                    value={linkDoctorDepartment}
+                    onChange={(e) => setLinkDoctorDepartment(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">No department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.name}>{dept.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="e.g., Cardiology"
+                    value={linkDoctorDepartment}
+                    onChange={(e) => setLinkDoctorDepartment(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                )}
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={async () => {
+                    if (!hospitalProfile?.id) {
+                      setLinkMessage('Hospital ID not found');
+                      return;
+                    }
+                    if (!linkDoctorCode.trim()) {
+                      setLinkMessage('Please enter a doctor code');
+                      return;
+                    }
+                    try {
+                      setLinkingDoctor(true);
+                      setLinkMessage('');
+                      const response = await fetch(`/api/hospitals/${hospitalProfile.id}/link-doctor`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                        },
+                        body: JSON.stringify({
+                          doctorCode: linkDoctorCode.trim(),
+                          departmentName: linkDoctorDepartment.trim() || undefined
+                        })
+                      });
+                      const data = await response.json();
+                      if (!response.ok) {
+                        throw new Error(data.message || 'Failed to link doctor');
+                      }
+                      setLinkMessage(`✅ Doctor linked successfully! ${data.link?.doctor?.doctorProfile?.clinicName || 'Doctor'} has been added to your hospital.`);
+                      setLinkDoctorCode('');
+                      setLinkDoctorDepartment('');
+                      // Refresh the data
+                      if (onRefresh) onRefresh();
+                    } catch (e: any) {
+                      setLinkMessage(`Error: ${e?.message || 'Failed to link doctor'}`);
+                    } finally {
+                      setLinkingDoctor(false);
+                    }
+                  }}
+                  disabled={linkingDoctor || !linkDoctorCode.trim()}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {linkingDoctor ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Linking...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      Link Doctor
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Search and Filters */}
           <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
             <div className="flex flex-col md:flex-row gap-4">
@@ -486,18 +603,11 @@ export default function HospitalAdminAdvanced({
                     <option key={dept.id} value={dept.id}>{dept.name}</option>
                   ))}
                 </select>
-                <button
-                  onClick={() => setShowAddStaffModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Staff
-                </button>
               </div>
             </div>
           </div>
 
-          {/* Staff List */}
+          {/* Doctors List */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -700,74 +810,6 @@ export default function HospitalAdminAdvanced({
           </div>
         </motion.div>
       )}
-
-      {/* Add Staff Modal */}
-      <AnimatePresence>
-        {showAddStaffModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowAddStaffModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 max-w-md w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-xl font-black text-gray-900 mb-4">Add New Staff Member</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    placeholder="doctor@example.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="">Select Department</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-bold text-blue-900 text-sm mb-1">Note</h4>
-                      <p className="text-xs text-blue-700">
-                        The doctor must already be registered in the system. This will assign them to your hospital.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowAddStaffModal(false)}
-                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-                    Add Staff
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Doctor Profile Sidebar */}
       <DoctorProfileSidebar 
