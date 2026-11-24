@@ -557,7 +557,7 @@ export default function HomePage() {
           const parsed = JSON.parse(cachedData);
           const ch = Array.isArray(parsed?.hospitals) ? parsed.hospitals : [];
           const cd = Array.isArray(parsed?.doctors) ? parsed.doctors : [];
-          console.log('📦 Using cached data:', { hospitals: ch.length, doctors: cd.length, hasHospitalData: cd.some(d => d.hospital) });
+          console.log('📦 Using cached data:', { hospitals: ch.length, doctors: cd.length, hasHospitalData: cd.some((d: any) => d.hospital) });
           if (ch.length > 0 || cd.length > 0) {
             setHospitals(ch); setDoctors(cd); setLoading(false);
             // Fetch fresh data in background and update state when it arrives

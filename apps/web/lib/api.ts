@@ -56,6 +56,8 @@ console.log('  Final API URL:', API_BASE_URL);
 export interface User {
   id: number;                                              // Unique user identifier from database
   email: string;                                           // User's email address
+  name?: string;                                           // User's display name (optional)
+  status?: string;                                         // User's status (ACTIVE, INACTIVE, etc.)
   role: string;                                            // User's role (PATIENT, DOCTOR, ADMIN)
 }
 
