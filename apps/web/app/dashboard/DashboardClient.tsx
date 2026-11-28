@@ -2277,10 +2277,16 @@ const [socketReady, setSocketReady] = useState(false);
   // ============================================================================
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <DesktopSidebar />
+        <div className="transition-all duration-300 md:ml-[var(--sidebar-width,14rem)]">
+          <div className="max-w-7xl mx-auto px-4 py-24 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600 font-medium">Loading your dashboard...</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -2291,17 +2297,23 @@ const [socketReady, setSocketReady] = useState(false);
   // ============================================================================
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Error</h1>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all duration-200"
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <DesktopSidebar />
+        <div className="transition-all duration-300 md:ml-[var(--sidebar-width,14rem)]">
+          <div className="max-w-7xl mx-auto px-4 py-24 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Error</h1>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all duration-200"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
