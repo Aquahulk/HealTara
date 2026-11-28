@@ -64,7 +64,10 @@ export default function HospitalDoctorsAnalytics({ hospitalId, hospitalName }: P
   const fetchData = async () => {
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
       
       // Fetch doctors
       const doctorsRes = await fetch(`/api/hospitals/${hospitalId}/doctors`, { headers });
