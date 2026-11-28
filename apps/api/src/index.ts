@@ -5509,6 +5509,86 @@ app.get('/api/hospitals/:hospitalId', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// 🏥 GET HOSPITAL DOCTORS - Public endpoint for hospital profile page
+// ============================================================================
+// Route: GET /api/hospitals/:hospitalId/doctors
+// Purpose: Return all doctors linked to a hospital with their profiles
+// Security: Public (no auth required)
+app.get('/api/hospitals/:hospitalId/doctors', async (req: Request, res: Response) => {
+  const hospitalId = Number(req.params.hospitalId);
+  if (!Number.isFinite(hospitalId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId' });
+  }
+  
+  try {
+    const hospital = await prisma.hospital.findUnique({
+      where: { id: hospitalId },
+      select: { id: true, name: true, status: true }
+    });
+    
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+    
+    // Fetch all doctors linked to this hospital
+    const doctorLinks = await prisma.hospitalDoctor.findMany({
+      where: { hospitalId },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            email: true,
+            status: true,
+            doctorProfile: {
+              select: {
+                slug: true,
+                specialization: true,
+                qualifications: true,
+                experience: true,
+                clinicName: true,
+                consultationFee: true,
+                profileImage: true,
+                city: true,
+                state: true,
+                phone: true
+              }
+            }
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            description: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    // Filter out suspended/inactive doctors
+    const activeDoctors = doctorLinks.filter(link => 
+      link.doctor.status === 'ACTIVE' && hospital.status === 'ACTIVE'
+    );
+    
+    return res.status(200).json({
+      success: true,
+      hospital: {
+        id: hospital.id,
+        name: hospital.name
+      },
+      doctors: activeDoctors,
+      count: activeDoctors.length
+    });
+  } catch (error) {
+    console.error('Error fetching hospital doctors:', error);
+    return res.status(500).json({ message: 'An error occurred while fetching hospital doctors.' });
+  }
+});
+
 // --- Hospital Admin: Create and link a real doctor account (bookable) ---
 app.post('/api/hospitals/:hospitalId/doctors', authMiddleware, async (req: Request, res: Response) => {
   const user = req.user!;

@@ -177,6 +177,26 @@ async function getHospitalDetailsBySlug(slug: string): Promise<HospitalDetailsRe
 }
 
 // ============================================================================
+// 🩺 Fetch Hospital Doctors - Get linked doctors with full profiles
+// ============================================================================
+async function getHospitalDoctors(hospitalId: number): Promise<HospitalDoctorLink[]> {
+  try {
+    const apiHost = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const res = await fetch(`${apiHost}/api/hospitals/${hospitalId}/doctors`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.doctors || [];
+  } catch (error) {
+    console.error('Failed to fetch hospital doctors:', error);
+    return [];
+  }
+}
+
+// ============================================================================
 // 🏥 HOSPITAL WEBSITE COMPONENT - Main website component
 // ============================================================================
 export default async function HospitalSitePage({ params }: { params: Promise<{ id: string }> }) {
@@ -216,7 +236,10 @@ export default async function HospitalSitePage({ params }: { params: Promise<{ i
   const social = general.social || {};
   let departments = (profile.departments && profile.departments.length > 0) ? profile.departments : (details.departments || []);
   const about = profile.about || {};
-  const doctorsToShow = details.doctors || [];
+  
+  // Fetch linked doctors from dedicated endpoint
+  const doctorsToShow = await getHospitalDoctors(details.id);
+  
   const profileDoctors = Array.isArray(profile.doctors) ? profile.doctors : [];
   try {
     const present = new Set<string>((departments || []).map((d: any) => String(d?.name || '').trim().toLowerCase()).filter(Boolean));
