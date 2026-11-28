@@ -5877,6 +5877,158 @@ app.post('/api/hospitals/:hospitalId/link-doctor', authMiddleware, async (req: R
   }
 });
 
+// ============================================================================
+// 🔗 UNLINK DOCTOR FROM HOSPITAL - Hospital Admin only
+// ============================================================================
+// Route: DELETE /api/hospitals/:hospitalId/doctors/:doctorId
+// Purpose: Remove doctor link from hospital
+// Security: Hospital Admin or Admin only
+app.delete('/api/hospitals/:hospitalId/doctors/:doctorId', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (!['ADMIN', 'HOSPITAL_ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Hospital admin access required.' });
+  }
+  
+  const hospitalId = Number(req.params.hospitalId);
+  const doctorId = Number(req.params.doctorId);
+  
+  if (!Number.isFinite(hospitalId) || !Number.isFinite(doctorId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId or doctorId' });
+  }
+  
+  try {
+    const hospital = await prisma.hospital.findUnique({ 
+      where: { id: hospitalId }, 
+      select: { adminId: true, name: true } 
+    });
+    
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+    
+    if (user.role !== 'ADMIN' && hospital.adminId !== user.userId) {
+      return res.status(403).json({ message: 'Forbidden: You do not manage this hospital.' });
+    }
+    
+    // Check if link exists
+    const link = await prisma.hospitalDoctor.findUnique({
+      where: { hospitalId_doctorId: { hospitalId, doctorId } },
+      include: {
+        doctor: {
+          select: {
+            doctorProfile: {
+              select: { clinicName: true, specialization: true }
+            }
+          }
+        }
+      }
+    });
+    
+    if (!link) {
+      return res.status(404).json({ message: 'Doctor is not linked to this hospital.' });
+    }
+    
+    // Delete the link
+    await prisma.hospitalDoctor.delete({
+      where: { hospitalId_doctorId: { hospitalId, doctorId } }
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: `Doctor ${link.doctor.doctorProfile?.clinicName || 'Unknown'} has been unlinked from ${hospital.name}`,
+      doctorId,
+      hospitalId
+    });
+  } catch (error) {
+    console.error('Error unlinking doctor:', error);
+    return res.status(500).json({ message: 'An error occurred while unlinking doctor.' });
+  }
+});
+
+// ============================================================================
+// 📝 UPDATE DOCTOR DEPARTMENT - Hospital Admin only
+// ============================================================================
+// Route: PATCH /api/hospitals/:hospitalId/doctors/:doctorId/department
+// Purpose: Update department assignment for a linked doctor
+// Security: Hospital Admin or Admin only
+app.patch('/api/hospitals/:hospitalId/doctors/:doctorId/department', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (!['ADMIN', 'HOSPITAL_ADMIN'].includes(user.role)) {
+    return res.status(403).json({ message: 'Forbidden: Hospital admin access required.' });
+  }
+  
+  const hospitalId = Number(req.params.hospitalId);
+  const doctorId = Number(req.params.doctorId);
+  const { departmentId, departmentName } = req.body;
+  
+  if (!Number.isFinite(hospitalId) || !Number.isFinite(doctorId)) {
+    return res.status(400).json({ message: 'Invalid hospitalId or doctorId' });
+  }
+  
+  try {
+    const hospital = await prisma.hospital.findUnique({ 
+      where: { id: hospitalId }, 
+      select: { adminId: true } 
+    });
+    
+    if (!hospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
+    
+    if (user.role !== 'ADMIN' && hospital.adminId !== user.userId) {
+      return res.status(403).json({ message: 'Forbidden: You do not manage this hospital.' });
+    }
+    
+    // Check if link exists
+    const link = await prisma.hospitalDoctor.findUnique({
+      where: { hospitalId_doctorId: { hospitalId, doctorId } }
+    });
+    
+    if (!link) {
+      return res.status(404).json({ message: 'Doctor is not linked to this hospital.' });
+    }
+    
+    // Resolve department
+    let resolvedDepartmentId: number | null = null;
+    
+    if (departmentId === null) {
+      // Remove department assignment
+      resolvedDepartmentId = null;
+    } else if (typeof departmentId === 'number' && Number.isFinite(departmentId)) {
+      const dep = await prisma.department.findUnique({ where: { id: departmentId } });
+      if (!dep || dep.hospitalId !== hospitalId) {
+        return res.status(400).json({ message: 'Invalid departmentId for this hospital.' });
+      }
+      resolvedDepartmentId = dep.id;
+    } else if (typeof departmentName === 'string' && departmentName.trim().length > 0) {
+      const depName = departmentName.trim();
+      let dep = await prisma.department.findFirst({ where: { hospitalId, name: depName } });
+      if (!dep) {
+        dep = await prisma.department.create({ data: { hospitalId, name: depName } });
+      }
+      resolvedDepartmentId = dep.id;
+    }
+    
+    // Update the link
+    const updatedLink = await prisma.hospitalDoctor.update({
+      where: { hospitalId_doctorId: { hospitalId, doctorId } },
+      data: { departmentId: resolvedDepartmentId },
+      include: {
+        department: { select: { id: true, name: true } }
+      }
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Department assignment updated successfully',
+      link: updatedLink
+    });
+  } catch (error) {
+    console.error('Error updating department:', error);
+    return res.status(500).json({ message: 'An error occurred while updating department.' });
+  }
+});
+
 // --- Get hospital departments ---
 app.get('/api/hospitals/:hospitalId/departments', authMiddleware, async (req: Request, res: Response) => {
   const hospitalId = Number(req.params.hospitalId);

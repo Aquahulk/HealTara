@@ -29,6 +29,12 @@ type DoctorWithDepartment = {
   createdAt?: string;
 };
 
+type Department = {
+  id: number;
+  name: string;
+  description?: string;
+};
+
 interface Props {
   hospitalId: number;
   hospitalName: string;
@@ -44,29 +50,131 @@ function toTitleCase(input: string): string {
 
 export default function HospitalDoctorsAnalytics({ hospitalId, hospitalName }: Props) {
   const [doctors, setDoctors] = useState<DoctorWithDepartment[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const [expandedDoctor, setExpandedDoctor] = useState<number | null>(null);
+  const [updatingDept, setUpdatingDept] = useState<number | null>(null);
+  const [unlinking, setUnlinking] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchDoctors = async () => {
-      try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-        const res = await fetch(`/api/hospitals/${hospitalId}/doctors`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setDoctors(data.doctors || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch hospital doctors:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDoctors();
+    fetchData();
   }, [hospitalId]);
+
+  const fetchData = async () => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      
+      // Fetch doctors
+      const doctorsRes = await fetch(`/api/hospitals/${hospitalId}/doctors`, { headers });
+      if (doctorsRes.ok) {
+        const data = await doctorsRes.json();
+        setDoctors(data.doctors || []);
+      }
+      
+      // Fetch departments
+      const deptRes = await fetch(`/api/hospitals/${hospitalId}/departments`, { headers });
+      if (deptRes.ok) {
+        const deptData = await deptRes.json();
+        setDepartments(Array.isArray(deptData) ? deptData : []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnlinkDoctor = async (doctorId: number, doctorName: string) => {
+    if (!confirm(`Are you sure you want to unlink ${doctorName} from ${hospitalName}?\n\nThis action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      setUnlinking(doctorId);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`/api/hospitals/${hospitalId}/doctors/${doctorId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (res.ok) {
+        alert(`✅ ${doctorName} has been unlinked successfully`);
+        fetchData(); // Refresh the list
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.message || "Failed to unlink doctor"}`);
+      }
+    } catch (error) {
+      console.error("Error unlinking doctor:", error);
+      alert("Failed to unlink doctor. Please try again.");
+    } finally {
+      setUnlinking(null);
+    }
+  };
+
+  const handleUpdateDepartment = async (doctorId: number, departmentId: number | null) => {
+    try {
+      setUpdatingDept(doctorId);
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`/api/hospitals/${hospitalId}/doctors/${doctorId}/department`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ departmentId }),
+      });
+      
+      if (res.ok) {
+        await fetchData(); // Refresh the list
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.message || "Failed to update department"}`);
+      }
+    } catch (error) {
+      console.error("Error updating department:", error);
+      alert("Failed to update department. Please try again.");
+    } finally {
+      setUpdatingDept(null);
+    }
+  };
+
+  const handleExportCSV = () => {
+    const csvData = [
+      ["Doctor Name", "Email", "Specialization", "Department", "Experience", "Fee", "City", "State", "Status"],
+      ...filteredDoctors.map((link) => {
+        const doctor = link.doctor;
+        const profile = doctor.doctorProfile;
+        const raw = doctor.email.split("@")[0];
+        const name = raw.replace(/[\-_\.]+/g, " ").replace(/\d{5,}/g, "").trim() || "Doctor";
+        
+        return [
+          name,
+          doctor.email,
+          profile?.specialization || "N/A",
+          link.department?.name || "Unassigned",
+          profile?.experience ? `${profile.experience}` : "N/A",
+          profile?.consultationFee ? `₹${profile.consultationFee}` : "N/A",
+          profile?.city || "N/A",
+          profile?.state || "N/A",
+          doctor.status,
+        ];
+      }),
+    ];
+    
+    const csvContent = csvData.map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${hospitalName.replace(/\s+/g, "-")}-doctors-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const filteredDoctors = doctors.filter((link) => {
     if (filter === "all") return true;
@@ -93,9 +201,19 @@ export default function HospitalDoctorsAnalytics({ hospitalId, hospitalName }: P
   return (
     <div className="space-y-6">
       {/* Header & Stats */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-1">Our Doctors</h2>
-        <p className="text-sm text-gray-500">Manage doctors linked to {hospitalName}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Our Doctors</h2>
+          <p className="text-sm text-gray-500">Manage doctors linked to {hospitalName}</p>
+        </div>
+        {doctors.length > 0 && (
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+          >
+            📥 Export CSV
+          </button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -174,6 +292,8 @@ export default function HospitalDoctorsAnalytics({ hospitalId, hospitalName }: P
               }
               return "Doctor";
             })();
+            
+            const isExpanded = expandedDoctor === doctor.id;
 
             return (
               <div
@@ -244,6 +364,46 @@ export default function HospitalDoctorsAnalytics({ hospitalId, hospitalName }: P
                   )}
                 </div>
 
+                {/* Expanded Options */}
+                {isExpanded && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg space-y-3">
+                    {/* Department Assignment */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Department Assignment
+                      </label>
+                      <select
+                        value={link.department?.id || ""}
+                        onChange={(e) => {
+                          const deptId = e.target.value ? Number(e.target.value) : null;
+                          handleUpdateDepartment(doctor.id, deptId);
+                        }}
+                        disabled={updatingDept === doctor.id}
+                        className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                      >
+                        <option value="">No Department</option>
+                        {departments.map((dept) => (
+                          <option key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                      {updatingDept === doctor.id && (
+                        <p className="text-xs text-blue-600 mt-1">Updating...</p>
+                      )}
+                    </div>
+
+                    {/* Unlink Button */}
+                    <button
+                      onClick={() => handleUnlinkDoctor(doctor.id, `Dr. ${derivedName}`)}
+                      disabled={unlinking === doctor.id}
+                      className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                    >
+                      {unlinking === doctor.id ? "Unlinking..." : "🔗 Unlink Doctor"}
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <a
                     href={`/doctor-site/${profile?.slug || doctor.id}`}
@@ -254,10 +414,11 @@ export default function HospitalDoctorsAnalytics({ hospitalId, hospitalName }: P
                     View Profile
                   </a>
                   <button
+                    onClick={() => setExpandedDoctor(isExpanded ? null : doctor.id)}
                     className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-bold transition-colors"
-                    title="More options"
+                    title={isExpanded ? "Hide options" : "More options"}
                   >
-                    ⋯
+                    {isExpanded ? "▲" : "⋯"}
                   </button>
                 </div>
               </div>
