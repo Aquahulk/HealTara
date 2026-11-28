@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api";
 import LocationPicker from "@/components/LocationPicker";
 import Header from '@/components/Header';
 import DesktopSidebar from '@/components/DesktopSidebar';
+import HospitalDoctorsAnalytics from '@/components/dashboard/HospitalDoctorsAnalytics';
 
 type HospitalProfile = {
   general?: {
@@ -106,7 +107,7 @@ export default function HospitalAdminProfilePage() {
   const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([]);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
-  const [activeSection, setActiveSection] = useState<'general' | 'about' | 'departments' | 'doctors'>('general');
+  const [activeSection, setActiveSection] = useState<'general' | 'about' | 'departments' | 'doctors' | 'our-doctors'>('general');
   const [newDepartment, setNewDepartment] = useState<{ name: string; description?: string }>({ name: '', description: '' });
   const [newDoctor, setNewDoctor] = useState<{ name: string; primarySpecialty?: string; subSpecialty?: string; departmentName?: string }>({ name: '', primarySpecialty: '', subSpecialty: '', departmentName: '' });
   const [subdomain, setSubdomain] = useState<string>('');
@@ -909,6 +910,17 @@ export default function HospitalAdminProfilePage() {
               >
                 <div className="text-2xl mb-1">👨‍⚕️</div>
                 Doctors
+              </button>
+              <button
+                className={`flex-1 min-w-[120px] px-6 py-4 rounded-xl font-semibold transition-all ${
+                  activeSection === 'our-doctors'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setActiveSection('our-doctors')}
+              >
+                <div className="text-2xl mb-1">📊</div>
+                Our Doctors
               </button>
             </div>
 
@@ -1854,6 +1866,23 @@ export default function HospitalAdminProfilePage() {
                   </div>
                 )}
                   </>
+                )}
+              </div>
+            )}
+
+            {/* Our Doctors Analytics Section */}
+            {activeSection === 'our-doctors' && (
+              <div className="space-y-6">
+                {!hospitalId ? (
+                  <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 text-center">
+                    <p className="text-yellow-800 font-semibold">Please create your hospital first to view doctor analytics.</p>
+                    <p className="text-yellow-600 text-sm mt-2">Go to the "Create Hospital" section above.</p>
+                  </div>
+                ) : (
+                  <HospitalDoctorsAnalytics 
+                    hospitalId={hospitalId} 
+                    hospitalName={profile.general?.brandName || profile.general?.legalName || 'Hospital'} 
+                  />
                 )}
               </div>
             )}
