@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Doctor Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .doctor-card { border: 2px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .has-hospital { border-color: #3b82f6; background: #eff6ff; }
+        .hospital-name { color: #2563eb; font-weight: bold; font-size: 18px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Testing Doctor Hospital Data</h1>
+    <div id="status">Loading...</div>
+    <div id="results"></div>
+
+    <script>
+        async function testDoctorData() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Add timestamp to prevent caching
+                const response = await fetch(`http://localhost:3001/api/doctors?pageSize=10&_t=${Date.now()}`);
+                const data = await response.json();
+                
+                if (!data.success || !Array.isArray(data.data)) {
+                    throw new Error('Invalid API response');
+                }
+                
+                const doctors = data.data;
+                statusDiv.innerHTML = `<p class="success">✅ Loaded ${doctors.length} doctors</p>`;
+                
+                // Count doctors with hospitals
+                const withHospital = doctors.filter(d => d.hospital);
+                statusDiv.innerHTML += `<p><strong>${withHospital.length}</strong> doctors are linked to hospitals</p>`;
+                
+                // Display each doctor
+                doctors.forEach(doctor => {
+                    const hasHospital = !!doctor.hospital;
+                    const card = document.createElement('div');
+                    card.className = `doctor-card ${hasHospital ? 'has-hospital' : ''}`;
+                    
+                    card.innerHTML = `
+                        <div><strong>ID:</strong> ${doctor.id}</div>
+                        <div><strong>Email:</strong> ${doctor.email}</div>
+                        <div><strong>Clinic Name:</strong> ${doctor.doctorProfile?.clinicName || 'N/A'}</div>
+                        <div><strong>Specialization:</strong> ${doctor.doctorProfile?.specialization || 'N/A'}</div>
+                        ${hasHospital ? `
+                            <div class="hospital-name">🏥 Hospital: ${doctor.hospital.name}</div>
+                            <div><strong>Hospital ID:</strong> ${doctor.hospital.id}</div>
+                            <div><strong>Subdomain:</strong> ${doctor.hospital.subdomain || 'None'}</div>
+                        ` : `
+                            <div><em>No hospital linked</em></div>
+                        `}
+                    `;
+                    
+                    resultsDiv.appendChild(card);
+                });
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+                console.error('Error:', error);
+            }
+        }
+        
+        testDoctorData();
+    </script>
+</body>
+</html>

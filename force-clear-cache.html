@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Cache & Redirect</title>
+</head>
+<body>
+    <h1>Clearing cache and redirecting...</h1>
+    <script>
+        // Clear all relevant cache
+        localStorage.removeItem("homepage_cache");
+        localStorage.removeItem("homepage_cache_timestamp");
+        sessionStorage.clear();
+        
+        // Redirect to homepage after clearing
+        setTimeout(() => {
+            window.location.href = "http://localhost:3000";
+        }, 500);
+    </script>
+</body>
+</html>

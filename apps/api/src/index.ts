@@ -986,6 +986,84 @@ app.get('/api/doctor/stats', authMiddleware, async (req: Request, res: Response)
 });
 
 // ============================================================================
+// 🏥 DOCTOR HOSPITAL CONTEXT - Get doctor's hospital affiliation
+// ============================================================================
+// Route: GET /api/doctor/hospital-context
+// Purpose: Return hospital affiliation data for authenticated doctor
+// Security: Requires authentication + DOCTOR role
+app.get('/api/doctor/hospital-context', authMiddleware, async (req: Request, res: Response) => {
+  const user = req.user!;
+  
+  if (user.role !== 'DOCTOR') {
+    return res.status(403).json({ message: 'Forbidden: Only users with DOCTOR role can access this.' });
+  }
+  
+  try {
+    const hospitalLink = await prisma.hospitalDoctor.findFirst({
+      where: { doctorId: user.userId },
+      include: {
+        hospital: {
+          select: {
+            id: true,
+            name: true,
+            subdomain: true,
+            city: true,
+            state: true,
+            phone: true,
+            status: true
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true,
+            description: true
+          }
+        }
+      }
+    });
+    
+    if (!hospitalLink) {
+      return res.status(200).json({
+        linked: false,
+        hospital: null,
+        department: null,
+        permissions: {
+          canManageOwnSlots: true,
+          hospitalCanOverride: false
+        }
+      });
+    }
+    
+    res.status(200).json({
+      linked: true,
+      hospital: {
+        id: hospitalLink.hospital.id,
+        name: hospitalLink.hospital.name,
+        subdomain: hospitalLink.hospital.subdomain,
+        city: hospitalLink.hospital.city,
+        state: hospitalLink.hospital.state,
+        phone: hospitalLink.hospital.phone,
+        status: hospitalLink.hospital.status
+      },
+      department: hospitalLink.department ? {
+        id: hospitalLink.department.id,
+        name: hospitalLink.department.name,
+        description: hospitalLink.department.description
+      } : null,
+      permissions: {
+        canManageOwnSlots: true,
+        hospitalCanOverride: true
+      },
+      linkedAt: hospitalLink.createdAt
+    });
+  } catch (error) {
+    console.error('Error fetching doctor hospital context:', error);
+    res.status(500).json({ message: 'An error occurred while fetching hospital context.' });
+  }
+});
+
+// ============================================================================
 // 💾 SAVED ITEMS ENDPOINTS - Bookmark doctors & hospitals
 // ============================================================================
 
@@ -1856,10 +1934,44 @@ app.get('/api/doctors/slug/:slug', async (req: Request, res: Response) => {
     if (!doctorProfile) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
+    
+    // Get hospital affiliation if exists
+    const hospitalLink = await prisma.hospitalDoctor.findFirst({
+      where: { doctorId: doctorProfile.userId },
+      include: {
+        hospital: {
+          select: {
+            id: true,
+            name: true,
+            subdomain: true,
+            city: true,
+            state: true
+          }
+        },
+        department: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+    
     // Return the data in the format expected by the frontend
     res.status(200).json({
       id: doctorProfile.userId,
       email: doctorProfile.user.email,
+      hospital: hospitalLink ? {
+        id: hospitalLink.hospital.id,
+        name: hospitalLink.hospital.name,
+        subdomain: hospitalLink.hospital.subdomain,
+        city: hospitalLink.hospital.city,
+        state: hospitalLink.hospital.state,
+        department: hospitalLink.department ? {
+          id: hospitalLink.department.id,
+          name: hospitalLink.department.name
+        } : null
+      } : null,
       doctorProfile: {
         slug: doctorProfile.slug,
         specialization: doctorProfile.specialization,

@@ -510,6 +510,31 @@ class ApiClient {
     return this.request('/api/doctor/stats');
   }
 
+  async getDoctorHospitalContext(): Promise<{
+    linked: boolean;
+    hospital: {
+      id: number;
+      name: string;
+      subdomain?: string;
+      city?: string;
+      state?: string;
+      phone?: string;
+      status: string;
+    } | null;
+    department: {
+      id: number;
+      name: string;
+      description?: string;
+    } | null;
+    permissions: {
+      canManageOwnSlots: boolean;
+      hospitalCanOverride: boolean;
+    };
+    linkedAt?: string;
+  }> {
+    return this.request('/api/doctor/hospital-context');
+  }
+
   async createDoctorProfile(profileData: any): Promise<any> {
     return this.request('/api/doctor/profile', {
       method: 'POST',

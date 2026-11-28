@@ -65,6 +65,7 @@ import StaffManagementTab from '@/components/dashboard/StaffManagementTab';
 import HospitalStaffManagementTab from '@/components/dashboard/HospitalStaffManagementTab';
 import StaffDashboard from '@/components/dashboard/StaffDashboard';
 import DoctorProfileSidebar from '@/components/DoctorProfileSidebar';
+import HospitalContextBanner from '@/components/dashboard/HospitalContextBanner';
 
 function WalkInReserveBox({ userId }: { userId: number }) {
   const [name, setName] = useState('');
@@ -2565,6 +2566,9 @@ const [socketReady, setSocketReady] = useState(false);
             ============================================================================ */}
         {activeTab === 'overview' && user.role === 'DOCTOR' && (
           <div className="space-y-4 pb-20">
+            {/* Hospital Context Banner */}
+            <HospitalContextBanner userId={user.id} />
+            
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>

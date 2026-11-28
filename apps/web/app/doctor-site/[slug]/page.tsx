@@ -7,6 +7,17 @@ interface DoctorProfileResponse {
   id: number;
   email: string;
   status: string;
+  hospital?: {
+    id: number;
+    name: string;
+    subdomain?: string;
+    city?: string;
+    state?: string;
+    department?: {
+      id: number;
+      name: string;
+    } | null;
+  } | null;
   doctorProfile?: {
     specialization?: string; qualifications?: string; experience?: number;
     clinicName?: string; clinicAddress?: string; city?: string; state?: string;
@@ -128,6 +139,44 @@ export default async function DoctorSitePage({ params }: { params: Promise<{ slu
           </div>
         </div>
       </header>
+
+      {/* ── HOSPITAL AFFILIATION BANNER ── */}
+      {data.hospital && (
+        <div className="max-w-5xl mx-auto px-4 -mt-6 relative z-10">
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl shadow-2xl border-2 border-purple-400 overflow-hidden">
+            <div className="px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0 border border-white/30">
+                  <span className="text-3xl">🏥</span>
+                </div>
+                <div>
+                  <p className="text-purple-100 text-xs font-semibold uppercase tracking-wide mb-0.5">Part of</p>
+                  <h3 className="text-white text-xl md:text-2xl font-black">{data.hospital.name}</h3>
+                  {data.hospital.department && (
+                    <p className="text-purple-200 text-sm mt-1">
+                      {data.hospital.department.name} Department
+                    </p>
+                  )}
+                  {data.hospital.city && (
+                    <p className="text-purple-200 text-xs mt-1">
+                      📍 {data.hospital.city}{data.hospital.state ? `, ${data.hospital.state}` : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <a 
+                href={`/hospital-site/${data.hospital.id}`}
+                className="inline-flex items-center gap-2 bg-white hover:bg-purple-50 text-purple-600 font-bold px-5 py-3 rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95 text-sm"
+              >
+                <span>View Hospital Profile</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MAIN CONTENT ── */}
       <main className="max-w-5xl mx-auto px-4 py-8 md:py-12 space-y-8 md:space-y-12">
